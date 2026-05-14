@@ -79,6 +79,69 @@ func TestWatcherIngestsNewLines(t *testing.T) {
 	}
 }
 
+func TestWatcherInitialScan(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Default()
+	cfg.Watcher.StateFile = filepath.Join(dir, "state.json")
+	cfg.Watcher.Paths = []string{dir}
+
+	// Write a JSONL file BEFORE creating the watcher.
+	jsonlFile := filepath.Join(dir, "preexist.jsonl")
+	lines := []string{
+		`{"type":"user","message":{"role":"user","content":"pre-existing line one"},"sessionId":"s1","cwd":"/"}`,
+		`{"type":"user","message":{"role":"user","content":"pre-existing line two"},"sessionId":"s1","cwd":"/"}`,
+		`{"type":"user","message":{"role":"user","content":"pre-existing line three"},"sessionId":"s1","cwd":"/"}`,
+	}
+	content := ""
+	for _, l := range lines {
+		content += l + "\n"
+	}
+	if err := os.WriteFile(jsonlFile, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := &mockStore{}
+	w, err := New(store, cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	// scanExisting mimics what Start() does on startup.
+	w.scanExisting(context.Background(), dir)
+
+	store.mu.Lock()
+	got := len(store.calls)
+	store.mu.Unlock()
+
+	if got != 3 {
+		t.Errorf("initial scan: Store called %d times, want 3", got)
+	}
+}
+
+func TestWatcherIngestFileStoreError(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Default()
+	cfg.Watcher.StateFile = filepath.Join(dir, "state.json")
+	cfg.Watcher.Paths = []string{dir}
+
+	store := &mockStore{callErr: fmt.Errorf("store unavailable")}
+	w, err := New(store, cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	jsonlFile := filepath.Join(dir, "err.jsonl")
+	line := `{"type":"user","message":{"role":"user","content":"will fail"},"sessionId":"s1","cwd":"/"}` + "\n"
+	if err := os.WriteFile(jsonlFile, []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// ingestFile should not return an error even if the store fails (it logs and continues).
+	if err := w.ingestFile(context.Background(), jsonlFile); err != nil {
+		t.Errorf("ingestFile with store error: expected nil error, got %v", err)
+	}
+}
+
 func TestWatcherOffsetPersistence(t *testing.T) {
 	dir := t.TempDir()
 	cfg := config.Default()
