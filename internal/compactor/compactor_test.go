@@ -164,6 +164,176 @@ func TestLLMFailure(t *testing.T) {
 	}
 }
 
+// TestFindL5Clusters verifies that findL5Clusters groups memories with high pairwise cosine
+// similarity and ignores memories without embeddings.
+func TestFindL5Clusters(t *testing.T) {
+	// Build two groups of 3 nearly-identical unit vectors plus 1 with no embedding.
+	makeUnitVec := func(base float32, dims int) []float32 {
+		v := make([]float32, dims)
+		for i := range v {
+			v[i] = base
+		}
+		var norm float64
+		for _, f := range v {
+			norm += float64(f) * float64(f)
+		}
+		norm = math.Sqrt(norm)
+		for i := range v {
+			v[i] = float32(float64(v[i]) / norm)
+		}
+		return v
+	}
+
+	dims := 4
+	vecA := makeUnitVec(1.0, dims)  // group A
+	vecB := makeUnitVec(-1.0, dims) // group B — orthogonal/negative to A
+
+	memories := []*memory.Memory{
+		{ID: "a1", Embedding: vecA},
+		{ID: "a2", Embedding: vecA},
+		{ID: "a3", Embedding: vecA},
+		{ID: "b1", Embedding: vecB},
+		{ID: "b2", Embedding: vecB},
+		{ID: "noEmb", Embedding: nil}, // no embedding — must be ignored
+	}
+
+	threshold := float32(0.75)
+	minSize := 2
+	clusters := findL5Clusters(memories, threshold, minSize)
+
+	// Expect exactly 2 clusters (one for each group).
+	if len(clusters) != 2 {
+		t.Fatalf("findL5Clusters: got %d clusters, want 2", len(clusters))
+	}
+
+	// Each cluster should have >= minSize members and no nil embeddings.
+	for idx, cl := range clusters {
+		if len(cl) < minSize {
+			t.Errorf("cluster[%d]: size %d < minSize %d", idx, len(cl), minSize)
+		}
+		for _, m := range cl {
+			if len(m.Embedding) == 0 {
+				t.Errorf("cluster[%d]: member %s has no embedding", idx, m.ID)
+			}
+		}
+	}
+}
+
+// TestFindL5ClustersMinSize ensures that singleton groups (below minSize) are excluded.
+func TestFindL5ClustersMinSize(t *testing.T) {
+	makeVec := func(val float32) []float32 {
+		return []float32{val, 0, 0, 0}
+	}
+	memories := []*memory.Memory{
+		{ID: "lone", Embedding: makeVec(1.0)}, // dissimilar to rest
+		{ID: "x1", Embedding: makeVec(0.0)},   // zero vector — cosine undefined but still partitioned
+		{ID: "x2", Embedding: makeVec(-1.0)},  // dissimilar
+	}
+
+	// minSize=2 means lone singletons are dropped.
+	clusters := findL5Clusters(memories, 0.9, 2)
+	for _, cl := range clusters {
+		if len(cl) < 2 {
+			t.Errorf("findL5Clusters returned cluster smaller than minSize: %d", len(cl))
+		}
+	}
+}
+
+// TestAllPairwiseSimilarThreshold tests the shared threshold helper directly.
+func TestAllPairwiseSimilarThreshold(t *testing.T) {
+	// Two identical unit vectors — cosine = 1.0 — well above any sane threshold.
+	v := []float32{1, 0, 0}
+	m := &memory.Memory{Embedding: v}
+
+	if !allPairwiseSimilarThreshold([]*memory.Memory{m}, v, 0.9) {
+		t.Error("identical vectors should satisfy allPairwiseSimilarThreshold(0.9)")
+	}
+
+	// Opposite vector — cosine = -1.0.
+	opp := []float32{-1, 0, 0}
+	if allPairwiseSimilarThreshold([]*memory.Memory{m}, opp, 0.0) {
+		t.Error("opposite vectors should NOT satisfy allPairwiseSimilarThreshold(0.0)")
+	}
+}
+
+// TestCompactL5toL4SemanticClustering verifies that L5 memories with similar embeddings
+// are compacted together regardless of insertion order.
+func TestCompactL5toL4SemanticClustering(t *testing.T) {
+	// Use a similar embedder so all L5 memories get identical embeddings.
+	emb := &similarEmbedder{dims: 768}
+	llm := &mockLLM{response: "semantic cluster summary"}
+	c, store := testSetup(t, emb, llm)
+	ctx := context.Background()
+
+	// Set low cluster threshold and min size so the test is deterministic.
+	c.cfg.Compaction.L5ClusterThreshold = 0.5
+	c.cfg.Compaction.L5MinClusterSize = 2
+	// Trigger compaction immediately via threshold.
+	c.cfg.Compaction.L5Threshold = 5
+
+	// Insert 6 L5 memories — all will have nearly identical embeddings.
+	for i := 0; i < 6; i++ {
+		content := fmt.Sprintf("debug observation %d", i)
+		if _, err := store.Store(ctx, 5, content, nil); err != nil {
+			t.Fatalf("Store[%d]: %v", i, err)
+		}
+	}
+
+	report, err := c.RunOnce(ctx)
+	if err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+
+	if report.L5toL4 == 0 {
+		t.Error("L5toL4 should be > 0 after semantic clustering")
+	}
+
+	stats, err := store.Stats(ctx)
+	if err != nil {
+		t.Fatalf("Stats: %v", err)
+	}
+	if stats.ByLayer[4] == 0 {
+		t.Error("L4 count should be > 0 after L5→L4 semantic compaction")
+	}
+}
+
+// TestCompactL5toL4FallbackNoEmbeddings verifies the fallback time-window path is
+// exercised when memories have no embeddings (embedder unavailable scenario).
+func TestCompactL5toL4FallbackNoEmbeddings(t *testing.T) {
+	// noEmbedEmbedder always returns an error, so memories store without embeddings.
+	emb := &noEmbedEmbedder{}
+	llm := &mockLLM{response: "fallback window summary"}
+	c, store := testSetup(t, emb, llm)
+	ctx := context.Background()
+
+	c.cfg.Compaction.L5Threshold = 5
+
+	// Insert windowSize (20) memories — enough to trigger fallback windowing.
+	for i := 0; i < 20; i++ {
+		content := fmt.Sprintf("no-embed observation %d", i)
+		if _, err := store.Store(ctx, 5, content, nil); err != nil {
+			t.Fatalf("Store[%d]: %v", i, err)
+		}
+	}
+
+	report, err := c.RunOnce(ctx)
+	if err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+
+	if report.L5toL4 == 0 {
+		t.Error("L5toL4 should be > 0 via fallback windowing when embeddings are absent")
+	}
+}
+
+// noEmbedEmbedder simulates an embedder that always fails.
+type noEmbedEmbedder struct{}
+
+func (n *noEmbedEmbedder) Embed(_ context.Context, _ string) ([]float32, error) {
+	return nil, fmt.Errorf("embedder unavailable")
+}
+func (n *noEmbedEmbedder) Dims() int { return 768 }
+
 func TestCompactL4toL3(t *testing.T) {
 	// Use a similar embedder so all L4 memories have high cosine similarity.
 	emb := &similarEmbedder{dims: 768}

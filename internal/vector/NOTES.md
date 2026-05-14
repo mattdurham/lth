@@ -40,3 +40,22 @@ Ollama (local), OpenAI, and any compatible proxy. The request format is:
 
 **Consequence:** Users can switch from Ollama to any OpenAI-compatible embedding service by
 changing `base_url` and `model` in the config.
+
+---
+
+## 4. HuggingFace TEI Provider and Auto-Docker
+
+*Added: 2026-05-14*
+
+**Decision:** Add HuggingFace TEI as the default embedding provider, with `EnsureEmbeddingServer`
+auto-starting a Docker container when the server is unreachable, and `NewEmbedder(cfg)` as the
+sole factory for `Embedder` instances.
+
+**Rationale:** HuggingFace TEI (`ghcr.io/huggingface/text-embeddings-inference:cpu-1.5`) provides
+high-quality local embeddings without requiring Ollama. It exposes an OpenAI-compatible
+`/v1/embeddings` endpoint, so `OllamaEmbedder` handles it without code changes. Auto-Docker
+removes the manual setup step for new users while remaining opt-out via `auto_docker = false`.
+
+**Consequence:** First startup with `auto_docker = true` may take up to 90 seconds if the model
+needs to be downloaded. The Docker container is named `lth-embeddings` for lifecycle management.
+A `docker-compose.yml` is provided for users who prefer explicit management over auto-docker.

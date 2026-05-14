@@ -19,3 +19,28 @@
 **Scenario:** LLM failure causes skip, not crash.
 **Setup:** Mock LLM returns error; 55 L5 memories.
 **Assertions:** RunOnce returns nil error; no new memories created.
+
+## TestFindL5Clusters
+**Scenario:** Semantic clustering groups high-cosine memories; ignores those without embeddings.
+**Setup:** Two groups of 3 near-identical unit vectors plus 1 memory with no embedding.
+**Assertions:** Returns exactly 2 clusters; each cluster >= minSize; no member has nil embedding.
+
+## TestFindL5ClustersMinSize
+**Scenario:** Singleton groups below minSize are excluded.
+**Setup:** 3 dissimilar memories, minSize=2.
+**Assertions:** No cluster returned has size < 2.
+
+## TestAllPairwiseSimilarThreshold
+**Scenario:** Shared threshold helper correctness.
+**Setup:** Identical vectors (cosine 1.0) and opposite vectors (cosine -1.0).
+**Assertions:** Returns true for identical; false for opposite.
+
+## TestCompactL5toL4SemanticClustering
+**Scenario:** L5 memories with similar embeddings compact via semantic clustering.
+**Setup:** similarEmbedder (all identical vectors); 6 L5 memories; low threshold; trigger at 5.
+**Assertions:** L5toL4 > 0; L4 count > 0 after RunOnce.
+
+## TestCompactL5toL4FallbackNoEmbeddings
+**Scenario:** L5 memories with no embeddings compact via fallback windowing.
+**Setup:** noEmbedEmbedder (always errors); 20 L5 memories; trigger at 5.
+**Assertions:** L5toL4 > 0 via fallback windowing.

@@ -170,4 +170,3 @@ func (s *MemoryStore) applySearchDefaults(req *SearchRequest) {
 		req.Layers = []int{1, 2, 3, 4, 5}
 	}
 }
-

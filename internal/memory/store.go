@@ -14,12 +14,12 @@ import (
 
 // MemoryStore implements the Store interface using SQLite and the internal packages.
 type MemoryStore struct {
-	db     *db.DB
-	emb    vector.Embedder
-	llm    llm.LLM
-	graph  *graph.Graph
-	cfg    *config.Config
-	wg     sync.WaitGroup // tracks in-flight async goroutines
+	db    *db.DB
+	emb   vector.Embedder
+	llm   llm.LLM
+	graph *graph.Graph
+	cfg   *config.Config
+	wg    sync.WaitGroup // tracks in-flight async goroutines
 }
 
 // Compile-time interface check.

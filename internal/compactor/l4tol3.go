@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/memory"
-	"github.com/mattdurham/lth/internal/vector"
 )
 
 const cosineClusterThreshold = float32(0.85)
@@ -86,14 +85,10 @@ func findClusters(memories []*memory.Memory, minSize int) [][]*memory.Memory {
 }
 
 // allPairwiseSimilar returns true if candidate has cosine similarity >= cosineClusterThreshold
-// with every member of the cluster.
+// with every member of the cluster. It delegates to the shared allPairwiseSimilarThreshold
+// helper using the package-level L4 threshold constant.
 func allPairwiseSimilar(members []*memory.Memory, candidate []float32) bool {
-	for _, m := range members {
-		if vector.Cosine(m.Embedding, candidate) < cosineClusterThreshold {
-			return false
-		}
-	}
-	return true
+	return allPairwiseSimilarThreshold(members, candidate, cosineClusterThreshold)
 }
 
 // promoteCluster creates a single L3 memory from a cluster of L4 memories.

@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/mattdurham/lth/internal/compactor"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
@@ -19,6 +18,7 @@ import (
 	"github.com/mattdurham/lth/internal/memory"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/watcher"
+	"github.com/spf13/cobra"
 )
 
 var watchCmd = &cobra.Command{
@@ -63,14 +63,14 @@ func runWatchStop(_ *cobra.Command, _ []string) error {
 	pid, err := readPIDFile(pidFile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "daemon not running") //nolint:errcheck
-		return nil                                     //nolint:nilerr // not running is not an error from stop's perspective
+		return nil                                    //nolint:nilerr // not running is not an error from stop's perspective
 	}
 
 	proc, findErr := os.FindProcess(pid)
 	if findErr != nil || !isProcessAlive(pid) {
 		_ = os.Remove(pidFile)
 		fmt.Fprintln(os.Stderr, "daemon not running (stale pid file removed)") //nolint:errcheck
-		return nil                                                               //nolint:nilerr // stale pid is not an error from stop's perspective
+		return nil                                                             //nolint:nilerr // stale pid is not an error from stop's perspective
 	}
 
 	if err := proc.Signal(syscall.SIGTERM); err != nil {
@@ -149,7 +149,7 @@ type daemonComponents struct {
 }
 
 func (dc *daemonComponents) close() {
-	dc.ms.Close()  // wait for all scoreImportanceAsync goroutines before closing DB
+	dc.ms.Close() // wait for all scoreImportanceAsync goroutines before closing DB
 	_ = dc.d.Close()
 }
 

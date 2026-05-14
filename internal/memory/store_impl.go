@@ -5,6 +5,7 @@ package memory
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -124,39 +125,80 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 		}
 	}
 
-	// Async importance scoring.
+	// Async importance scoring and tag extraction.
 	s.wg.Add(1)
-	go s.scoreImportanceAsync(memID, content)
+	go s.scoreAndTagAsync(memID, content)
 
 	m := rowToMemory(row, attrs)
 	m.Embedding = embF32
 	return m, nil
 }
 
-// scoreImportanceAsync calls the LLM to score the importance of a memory.
-// It updates the DB with the result. Non-fatal on any error.
-func (s *MemoryStore) scoreImportanceAsync(memID, content string) {
+// scoreAndTagAsync calls the LLM to score importance and extract tags for a memory.
+// It updates the DB with the results. Non-fatal on any error.
+func (s *MemoryStore) scoreAndTagAsync(memID, content string) {
 	defer s.wg.Done()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	prompt := fmt.Sprintf(
+	// Score importance.
+	importancePromptStr := fmt.Sprintf(
 		"Rate the importance of this memory for future reference on a scale of 1 to 10.\n"+
 			"Respond with ONLY a single integer 1-10.\nMemory: %s", content)
 
-	resp, err := s.llm.Complete(ctx, prompt)
-	if err != nil {
-		return
+	resp, err := s.llm.Complete(ctx, importancePromptStr)
+	if err == nil {
+		if score, parseErr := parseImportance(resp); parseErr == nil {
+			// Best-effort update; ignore errors on shutdown.
+			_ = s.db.UpdateImportance(context.Background(), memID, score)
+		}
 	}
 
-	score, err := parseImportance(resp)
-	if err != nil {
-		return
+	// Extract tags.
+	tagResp, err := s.llm.Complete(ctx, tagPrompt(content))
+	if err == nil {
+		if tags := parseTags(tagResp); tags != "" {
+			_ = s.db.SetAttributes(context.Background(), memID, map[string]string{"tags": tags})
+		}
+	}
+}
+
+// tagPrompt returns a prompt that asks the LLM to extract tags from the given content.
+func tagPrompt(content string) string {
+	return `Extract 3-5 relevant tags from this text as a JSON array of lowercase strings.
+Tags should describe topics, technologies, error types, or key concepts.
+Respond with ONLY a valid JSON array, e.g.: ["go", "error-handling", "nil-pointer"]
+Text: ` + content
+}
+
+// parseTags parses a JSON array of tags from an LLM response and returns
+// a comma-separated string of up to 5 sanitized lowercase tags.
+// Returns "" if parsing fails or no valid tags are found.
+func parseTags(response string) string {
+	response = strings.TrimSpace(response)
+	response = strings.TrimPrefix(response, "```json")
+	response = strings.TrimPrefix(response, "```")
+	response = strings.TrimSuffix(response, "```")
+	response = strings.TrimSpace(response)
+
+	var tags []string
+	if err := json.Unmarshal([]byte(response), &tags); err != nil {
+		return ""
 	}
 
-	// Best-effort update; ignore errors on shutdown.
-	_ = s.db.UpdateImportance(context.Background(), memID, score)
+	// Sanitize: lowercase, trim spaces, max 5 tags.
+	clean := make([]string, 0, 5)
+	for _, tag := range tags {
+		tag = strings.ToLower(strings.TrimSpace(tag))
+		if tag != "" {
+			clean = append(clean, tag)
+		}
+		if len(clean) == 5 {
+			break
+		}
+	}
+	return strings.Join(clean, ",")
 }
 
 // parseImportance parses a 1-10 integer from an LLM response string.

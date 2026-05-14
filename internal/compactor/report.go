@@ -7,5 +7,5 @@ type CompactionReport struct {
 	L5toL4 int
 	L4toL3 int
 	L3toL2 int
-	Errors  []error
+	Errors []error
 }

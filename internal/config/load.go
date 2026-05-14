@@ -40,15 +40,22 @@ func Default() *Config {
 
 	cfg := &Config{}
 	cfg.DB.Path = filepath.Join(lthDir, "memory.db")
-	cfg.Embedding.BaseURL = "http://localhost:11434"
-	cfg.Embedding.Model = "nomic-embed-text"
+	cfg.Embedding.Provider = "huggingface"
+	cfg.Embedding.AutoDocker = true
+	cfg.Embedding.DockerImage = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.5"
+	cfg.Embedding.DockerPort = 8080
+	cfg.Embedding.BaseURL = "http://localhost:8080"
+	cfg.Embedding.Model = "nomic-ai/nomic-embed-text-v1.5"
 	cfg.Embedding.TimeoutS = 30
+	cfg.LLM.Provider = "anthropic"
 	cfg.LLM.BaseURL = "http://localhost:11434"
-	cfg.LLM.Model = "llama3.2"
+	cfg.LLM.Model = "claude-haiku-4-5-20251001"
 	cfg.LLM.TimeoutS = 60
 	cfg.Compaction.IntervalS = 3600
 	cfg.Compaction.L5Threshold = 50
 	cfg.Compaction.L5MaxAgeH = 24
+	cfg.Compaction.L5ClusterThreshold = 0.75
+	cfg.Compaction.L5MinClusterSize = 2
 	cfg.Compaction.L4ClusterSize = 5
 	cfg.Compaction.L3EpisodesMin = 10
 	cfg.Compaction.L3ImportanceMin = 7.0
@@ -136,20 +143,45 @@ func applyDefaults(cfg *Config) {
 	if cfg.DB.Path == "" {
 		cfg.DB.Path = def.DB.Path
 	}
+	if cfg.Embedding.Provider == "" {
+		cfg.Embedding.Provider = def.Embedding.Provider
+	}
+	if cfg.Embedding.DockerImage == "" {
+		cfg.Embedding.DockerImage = def.Embedding.DockerImage
+	}
+	if cfg.Embedding.DockerPort == 0 {
+		cfg.Embedding.DockerPort = def.Embedding.DockerPort
+	}
 	if cfg.Embedding.BaseURL == "" {
-		cfg.Embedding.BaseURL = def.Embedding.BaseURL
+		if cfg.Embedding.Provider == "huggingface" {
+			cfg.Embedding.BaseURL = "http://localhost:8080"
+		} else {
+			cfg.Embedding.BaseURL = "http://localhost:11434"
+		}
 	}
 	if cfg.Embedding.Model == "" {
-		cfg.Embedding.Model = def.Embedding.Model
+		if cfg.Embedding.Provider == "huggingface" {
+			cfg.Embedding.Model = "nomic-ai/nomic-embed-text-v1.5"
+		} else {
+			cfg.Embedding.Model = def.Embedding.Model
+		}
 	}
 	if cfg.Embedding.TimeoutS == 0 {
 		cfg.Embedding.TimeoutS = def.Embedding.TimeoutS
 	}
-	if cfg.LLM.BaseURL == "" {
-		cfg.LLM.BaseURL = def.LLM.BaseURL
+	if cfg.LLM.Provider == "" {
+		cfg.LLM.Provider = def.LLM.Provider
 	}
 	if cfg.LLM.Model == "" {
-		cfg.LLM.Model = def.LLM.Model
+		switch cfg.LLM.Provider {
+		case "anthropic":
+			cfg.LLM.Model = "claude-haiku-4-5-20251001"
+		default:
+			cfg.LLM.Model = "llama3.2"
+		}
+	}
+	if cfg.LLM.BaseURL == "" {
+		cfg.LLM.BaseURL = def.LLM.BaseURL
 	}
 	if cfg.LLM.TimeoutS == 0 {
 		cfg.LLM.TimeoutS = def.LLM.TimeoutS
@@ -162,6 +194,12 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Compaction.L5MaxAgeH == 0 {
 		cfg.Compaction.L5MaxAgeH = def.Compaction.L5MaxAgeH
+	}
+	if cfg.Compaction.L5ClusterThreshold == 0 {
+		cfg.Compaction.L5ClusterThreshold = def.Compaction.L5ClusterThreshold
+	}
+	if cfg.Compaction.L5MinClusterSize == 0 {
+		cfg.Compaction.L5MinClusterSize = def.Compaction.L5MinClusterSize
 	}
 	if cfg.Compaction.L4ClusterSize == 0 {
 		cfg.Compaction.L4ClusterSize = def.Compaction.L4ClusterSize

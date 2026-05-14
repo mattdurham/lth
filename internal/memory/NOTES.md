@@ -42,3 +42,22 @@ observations) decay quickly to avoid cluttering search results.
 
 **Consequence:** Ebbinghaus stability modifies these rates: actual decay = base / stability.
 Frequently accessed memories become more persistent over time.
+
+---
+
+## 4. Async Tag Extraction
+
+*Added: 2026-05-14*
+
+**Decision:** Tag extraction runs in the same async goroutine as importance scoring, immediately
+after scoring completes. Tags are stored in `memory_attributes` with key `"tags"` as a
+comma-separated string.
+
+**Rationale:** Tags enable structured filtering (`lth search --tags go,error-handling`) without
+requiring schema changes — the existing `memory_attributes` table stores them as KV pairs.
+Running in the same goroutine keeps the concurrency model simple: one goroutine per stored memory,
+two LLM calls within it.
+
+**Consequence:** Tags are not available immediately after `Store` returns. The `Attrs["tags"]`
+field will be empty in the returned Memory until the async goroutine completes. Search results
+from already-tagged memories support tag filtering immediately.

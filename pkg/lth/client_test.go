@@ -19,6 +19,7 @@ func testClient(t *testing.T) *Client {
 	cfg.DB.Path = filepath.Join(dir, "test.db")
 	// Use a non-existent embedder URL so embedding fails gracefully (store without embedding).
 	cfg.Embedding.BaseURL = "http://localhost:0"
+	cfg.Embedding.AutoDocker = false // never spin up Docker in tests
 	cfg.LLM.BaseURL = "http://localhost:0"
 
 	c, err := NewClient(cfg)

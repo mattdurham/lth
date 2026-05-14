@@ -6,6 +6,7 @@ package lth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -37,8 +38,12 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	emb := vector.NewOllamaEmbedder(cfg.Embedding.BaseURL, cfg.Embedding.Model, cfg.Embedding.TimeoutS)
-	l := llm.NewOllamaLLM(cfg.LLM.BaseURL, cfg.LLM.Model, cfg.LLM.TimeoutS)
+	if err := vector.EnsureEmbeddingServer(cfg); err != nil {
+		// Log warning but don't fail — search degrades to FTS-only without embeddings.
+		slog.Warn("embedding server unavailable", "err", err)
+	}
+	emb := vector.NewEmbedder(cfg)
+	l := llm.New(cfg)
 
 	g := graph.New(d)
 	store, err := memory.NewMemoryStore(d, emb, l, g, cfg)

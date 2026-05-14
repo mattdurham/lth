@@ -36,9 +36,9 @@ func (m *mockStore) Get(_ context.Context, _ string) (*memory.Memory, error) { r
 func (m *mockStore) Search(_ context.Context, _ *memory.SearchRequest) ([]*memory.ScoredMemory, error) {
 	return nil, nil
 }
-func (m *mockStore) Stats(_ context.Context) (*memory.Stats, error) { return &memory.Stats{}, nil }
+func (m *mockStore) Stats(_ context.Context) (*memory.Stats, error)               { return &memory.Stats{}, nil }
 func (m *mockStore) ListLayer(_ context.Context, _ int) ([]*memory.Memory, error) { return nil, nil }
-func (m *mockStore) SoftDelete(_ context.Context, _ []string, _ string) error { return nil }
+func (m *mockStore) SoftDelete(_ context.Context, _ []string, _ string) error     { return nil }
 
 func TestWatcherIngestsNewLines(t *testing.T) {
 	dir := t.TempDir()

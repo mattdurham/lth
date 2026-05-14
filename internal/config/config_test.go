@@ -124,11 +124,11 @@ func TestDefault(t *testing.T) {
 	if !strings.Contains(cfg.DB.Path, ".lth") {
 		t.Errorf("DB.Path = %q, want path containing .lth", cfg.DB.Path)
 	}
-	if cfg.Embedding.BaseURL != "http://localhost:11434" {
-		t.Errorf("Embedding.BaseURL = %q, want http://localhost:11434", cfg.Embedding.BaseURL)
+	if cfg.Embedding.BaseURL != "http://localhost:8080" {
+		t.Errorf("Embedding.BaseURL = %q, want http://localhost:8080", cfg.Embedding.BaseURL)
 	}
-	if cfg.Embedding.Model != "nomic-embed-text" {
-		t.Errorf("Embedding.Model = %q, want nomic-embed-text", cfg.Embedding.Model)
+	if cfg.Embedding.Model != "nomic-ai/nomic-embed-text-v1.5" {
+		t.Errorf("Embedding.Model = %q, want nomic-ai/nomic-embed-text-v1.5", cfg.Embedding.Model)
 	}
 	if cfg.Embedding.TimeoutS != 30 {
 		t.Errorf("Embedding.TimeoutS = %d, want 30", cfg.Embedding.TimeoutS)
@@ -138,6 +138,12 @@ func TestDefault(t *testing.T) {
 	}
 	if cfg.Compaction.L5Threshold != 50 {
 		t.Errorf("Compaction.L5Threshold = %d, want 50", cfg.Compaction.L5Threshold)
+	}
+	if cfg.Compaction.L5ClusterThreshold != 0.75 {
+		t.Errorf("Compaction.L5ClusterThreshold = %f, want 0.75", cfg.Compaction.L5ClusterThreshold)
+	}
+	if cfg.Compaction.L5MinClusterSize != 2 {
+		t.Errorf("Compaction.L5MinClusterSize = %d, want 2", cfg.Compaction.L5MinClusterSize)
 	}
 	if cfg.Search.DefaultTopK != 10 {
 		t.Errorf("Search.DefaultTopK = %d, want 10", cfg.Search.DefaultTopK)
@@ -238,6 +244,12 @@ func TestApplyDefaultsComplete(t *testing.T) {
 	}
 	if cfg.Compaction.L5Threshold != 50 {
 		t.Errorf("Compaction.L5Threshold = %d, want 50", cfg.Compaction.L5Threshold)
+	}
+	if cfg.Compaction.L5ClusterThreshold != 0.75 {
+		t.Errorf("Compaction.L5ClusterThreshold = %f, want 0.75", cfg.Compaction.L5ClusterThreshold)
+	}
+	if cfg.Compaction.L5MinClusterSize != 2 {
+		t.Errorf("Compaction.L5MinClusterSize = %d, want 2", cfg.Compaction.L5MinClusterSize)
 	}
 	if cfg.Compaction.L5MaxAgeH != def.Compaction.L5MaxAgeH {
 		t.Errorf("Compaction.L5MaxAgeH = %d, want %d", cfg.Compaction.L5MaxAgeH, def.Compaction.L5MaxAgeH)

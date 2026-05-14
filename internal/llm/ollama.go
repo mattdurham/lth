@@ -14,9 +14,9 @@ import (
 
 // OllamaLLM implements the LLM interface via the OpenAI-compatible /v1/chat/completions endpoint.
 type OllamaLLM struct {
-	baseURL  string
-	model    string
-	client   *http.Client
+	baseURL string
+	model   string
+	client  *http.Client
 }
 
 // NewOllamaLLM creates a new OllamaLLM with the given base URL, model, and timeout.

@@ -36,6 +36,18 @@
 
 ---
 
+## 5. L5→L4 Semantic Clustering
+
+*Added: 2026-05-14*
+
+**Decision:** Replace time-window chunking with cosine-similarity clustering for L5→L4. Memories without embeddings (or unclustered memories when count >= windowSize) fall back to chronological windowing.
+
+**Rationale:** Time-based windows don't group semantically related memories — "bug A in file1" and "bug A in file2" would only merge if they happened in the same time window. Cosine clustering ensures semantically similar observations compact together regardless of creation time, producing more coherent L4 episodic memories. The fallback windowing path preserves the original behaviour for the case where the embedder is unavailable and also for any memories with embeddings that don't form clusters yet count/age forces a compaction run.
+
+**Consequence:** L5 memories without embeddings fall back to time-windowing. Semantically distinct L5 memories that don't form clusters (min size = 2, threshold = 0.75 by default) also fall back to windowing when the count/age trigger fires. A shared `allPairwiseSimilarThreshold` helper in `cluster.go` is used by both L4→L3 and L5→L4 paths.
+
+---
+
 ## 2. LLM via Interface Injection
 
 *Added: 2026-05-14*

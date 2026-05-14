@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/mattdurham/lth/pkg/lth"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -20,6 +20,7 @@ var (
 	searchAlpha  float32
 	searchBeta   float32
 	searchGamma  float32
+	searchTags   string
 )
 
 var searchCmd = &cobra.Command{
@@ -35,6 +36,7 @@ func init() {
 	searchCmd.Flags().Float32Var(&searchAlpha, "alpha", 0, "time decay weight")
 	searchCmd.Flags().Float32Var(&searchBeta, "beta", 0, "importance weight")
 	searchCmd.Flags().Float32Var(&searchGamma, "gamma", 0, "cosine similarity weight")
+	searchCmd.Flags().StringVar(&searchTags, "tags", "", "comma-separated tags to filter by (e.g. go,error-handling)")
 	rootCmd.AddCommand(searchCmd)
 }
 
@@ -65,11 +67,41 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("search: %w", err)
 	}
 
+	// Filter by tags if --tags was specified.
+	if searchTags != "" {
+		required := strings.Split(searchTags, ",")
+		filtered := make([]*lth.SearchResult, 0, len(results))
+		for _, r := range results {
+			memTags := strings.Split(r.Attrs["tags"], ",")
+			if containsAllTags(memTags, required) {
+				filtered = append(filtered, r)
+			}
+		}
+		results = filtered
+	}
+
 	if flagJSON {
 		return json.NewEncoder(os.Stdout).Encode(results)
 	}
 	formatSearchTable(os.Stdout, results)
 	return nil
+}
+
+// containsAllTags returns true if every needle is found in haystack (exact match).
+func containsAllTags(haystack, needles []string) bool {
+	for _, needle := range needles {
+		found := false
+		for _, h := range haystack {
+			if h == needle {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 // parseLayers converts "L1,L3" to [1,3].
@@ -99,7 +131,7 @@ func formatSearchTable(w io.Writer, results []*lth.SearchResult) {
 		fmt.Fprintln(w, "no results") //nolint:errcheck
 		return
 	}
-	fmt.Fprintf(w, "%-10s %-4s %-6s %s\n", "ID", "L", "Score", "Content")         //nolint:errcheck
+	fmt.Fprintf(w, "%-10s %-4s %-6s %s\n", "ID", "L", "Score", "Content")             //nolint:errcheck
 	fmt.Fprintf(w, "%-10s %-4s %-6s %s\n", "----------", "----", "------", "-------") //nolint:errcheck
 	for _, r := range results {
 		shortID := r.ID

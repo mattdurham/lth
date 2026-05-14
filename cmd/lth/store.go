@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/mattdurham/lth/pkg/lth"
+	"github.com/spf13/cobra"
 )
 
 var (

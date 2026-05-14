@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	graphFromID    string
-	graphDepth     int
-	graphPPRSeeds  string
-	graphPPRTopN   int
+	graphFromID   string
+	graphDepth    int
+	graphPPRSeeds string
+	graphPPRTopN  int
 )
 
 var graphCmd = &cobra.Command{

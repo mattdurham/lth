@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/mattdurham/lth/pkg/lth"
+	"github.com/spf13/cobra"
 )
 
 var getCmd = &cobra.Command{
@@ -48,12 +48,12 @@ func runGet(cmd *cobra.Command, args []string) error {
 func formatMemory(w io.Writer, m *lth.Memory) {
 	//nolint:errcheck // writing to stdout/stderr; errors are not actionable
 	fmt.Fprintf(w, "ID:          %s\n", m.ID)
-	fmt.Fprintf(w, "Layer:       %d\n", m.Layer)          //nolint:errcheck
-	fmt.Fprintf(w, "Content:     %s\n", m.Content)        //nolint:errcheck
-	fmt.Fprintf(w, "Importance:  %.1f\n", m.Importance)   //nolint:errcheck
-	fmt.Fprintf(w, "AccessCount: %d\n", m.AccessCount)    //nolint:errcheck
+	fmt.Fprintf(w, "Layer:       %d\n", m.Layer)                                   //nolint:errcheck
+	fmt.Fprintf(w, "Content:     %s\n", m.Content)                                 //nolint:errcheck
+	fmt.Fprintf(w, "Importance:  %.1f\n", m.Importance)                            //nolint:errcheck
+	fmt.Fprintf(w, "AccessCount: %d\n", m.AccessCount)                             //nolint:errcheck
 	fmt.Fprintf(w, "CreatedAt:   %s\n", m.CreatedAt.Format("2006-01-02 15:04:05")) //nolint:errcheck
-	fmt.Fprintf(w, "Source:      %s\n", m.Source)         //nolint:errcheck
+	fmt.Fprintf(w, "Source:      %s\n", m.Source)                                  //nolint:errcheck
 	if len(m.Attrs) > 0 {
 		fmt.Fprintln(w, "Attributes:") //nolint:errcheck
 		for k, v := range m.Attrs {

@@ -10,3 +10,5 @@
 8. `MemoryStore` satisfies the `Store` interface at compile time.
 9. The composite search score is: `α·exp(-λ·Δt) + β·importance/10 + γ·cosine(q,m)` with λ=0.995/hour.
 10. Auto-links are created via `graph.AutoLink` synchronously inside `Store` for any layer that produces a non-empty embedding. AutoLink is not restricted to L5.
+11. `Store` async-extracts tags via LLM and sets `attrs["tags"]` as a comma-separated list of up to 5 lowercase tags. Tags are set concurrently with importance scoring in the same goroutine.
+12. `parseTags` strips markdown code fences, lowercases all tags, and caps at 5 entries; returns "" on any parse error.

@@ -8,13 +8,13 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/mattdurham/lth/internal/compactor"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/llm"
 	"github.com/mattdurham/lth/internal/memory"
 	"github.com/mattdurham/lth/internal/vector"
+	"github.com/spf13/cobra"
 )
 
 var compactDryRun bool
