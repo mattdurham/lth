@@ -57,23 +57,50 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	})
 }
 
-// GetMemory retrieves a memory row by its UUID ID.
+// GetMemory retrieves a memory row by its UUID ID or a unique prefix.
 // Returns a wrapped fs.ErrNotExist if no row is found.
+// Returns an error if a prefix matches more than one row.
 func (d *DB) GetMemory(ctx context.Context, id string) (*MemoryRow, error) {
-	row := d.db.QueryRowContext(ctx, `
+	// Full UUID — exact match.
+	if len(id) == 36 {
+		row := d.db.QueryRowContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
        valence, valence_scored
 FROM memories WHERE id = ?`, id)
-
-	m, err := scanMemoryRow(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("memory %q: %w", id, fs.ErrNotExist)
+		m, err := scanMemoryRow(row)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, fmt.Errorf("memory %q: %w", id, fs.ErrNotExist)
+			}
+			return nil, fmt.Errorf("get memory: %w", err)
 		}
-		return nil, fmt.Errorf("get memory: %w", err)
+		return m, nil
 	}
-	return m, nil
+
+	// Prefix match — collect all candidates.
+	rows, err := d.db.QueryContext(ctx, `
+SELECT id, layer, content, content_hash, embedding, importance, access_count,
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored
+FROM memories WHERE id LIKE ? AND compacted_at IS NULL`, id+"%")
+	if err != nil {
+		return nil, fmt.Errorf("get memory prefix: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+
+	matches, err := scanMemoryRows(rows)
+	if err != nil {
+		return nil, fmt.Errorf("scan memory prefix: %w", err)
+	}
+	switch len(matches) {
+	case 0:
+		return nil, fmt.Errorf("memory %q: %w", id, fs.ErrNotExist)
+	case 1:
+		return matches[0], nil
+	default:
+		return nil, fmt.Errorf("prefix %q matches %d memories — use more characters", id, len(matches))
+	}
 }
 
 // GetByHash retrieves a memory row by its content hash.
