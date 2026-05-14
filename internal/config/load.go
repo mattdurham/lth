@@ -99,29 +99,37 @@ func InitDefault(path string, force bool) error {
 # path = "~/.lth/memory.db"
 
 [embedding]
-# OpenAI-compatible embeddings endpoint.
-base_url = "http://localhost:11434"
-model = "nomic-embed-text"
-timeout_s = 30
+# HuggingFace TEI embedding server (auto-started via Docker on first use).
+provider    = "huggingface"
+base_url    = "http://localhost:8080"
+model       = "BAAI/bge-base-en-v1.5"
+timeout_s   = 30
+auto_docker = true
+docker_image = "ghcr.io/huggingface/text-embeddings-inference:cpu-latest"
+docker_port  = 8080
 
 [llm]
-# OpenAI-compatible chat completions endpoint.
-base_url = "http://localhost:11434"
-model = "llama3.2"
+# Anthropic Claude for compaction, importance scoring, and tag extraction.
+# Set ANTHROPIC_API_KEY in your environment.
+provider  = "anthropic"
+model     = "claude-haiku-4-5-20251001"
 timeout_s = 60
+# api_key = ""  # or set ANTHROPIC_API_KEY env var
 
 [compaction]
-interval_s = 3600
-l5_threshold = 50
-l5_max_age_h = 24
-l4_cluster_size = 5
-l3_episodes_min = 10
+interval_s        = 3600
+l5_threshold      = 50
+l5_max_age_h      = 24
+l5_cluster_threshold = 0.75
+l5_min_cluster_size  = 2
+l4_cluster_size   = 5
+l3_episodes_min   = 10
 l3_importance_min = 7.0
 
 [search]
 default_top_k = 10
 alpha = 0.333
-beta = 0.333
+beta  = 0.333
 gamma = 0.333
 
 [watcher]
