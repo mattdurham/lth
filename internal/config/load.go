@@ -42,10 +42,10 @@ func Default() *Config {
 	cfg.DB.Path = filepath.Join(lthDir, "memory.db")
 	cfg.Embedding.Provider = "huggingface"
 	cfg.Embedding.AutoDocker = true
-	cfg.Embedding.DockerImage = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.5"
+	cfg.Embedding.DockerImage = "ghcr.io/huggingface/text-embeddings-inference:cpu-latest"
 	cfg.Embedding.DockerPort = 8080
 	cfg.Embedding.BaseURL = "http://localhost:8080"
-	cfg.Embedding.Model = "nomic-ai/nomic-embed-text-v1.5"
+	cfg.Embedding.Model = "BAAI/bge-base-en-v1.5"
 	cfg.Embedding.TimeoutS = 30
 	cfg.LLM.Provider = "anthropic"
 	cfg.LLM.BaseURL = "http://localhost:11434"
@@ -161,7 +161,7 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Embedding.Model == "" {
 		if cfg.Embedding.Provider == "huggingface" {
-			cfg.Embedding.Model = "nomic-ai/nomic-embed-text-v1.5"
+			cfg.Embedding.Model = "BAAI/bge-base-en-v1.5"
 		} else {
 			cfg.Embedding.Model = def.Embedding.Model
 		}

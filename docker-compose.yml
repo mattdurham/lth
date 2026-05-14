@@ -1,13 +1,13 @@
 version: "3.9"
 services:
   embeddings:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
     container_name: lth-embeddings
     ports:
       - "8080:80"
     volumes:
       - ~/.lth/hf-cache:/data
-    command: --model-id nomic-ai/nomic-embed-text-v1.5 --port 80
+    command: --model-id BAAI/bge-base-en-v1.5 --port 80
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 10s

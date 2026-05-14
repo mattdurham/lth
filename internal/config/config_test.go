@@ -127,8 +127,8 @@ func TestDefault(t *testing.T) {
 	if cfg.Embedding.BaseURL != "http://localhost:8080" {
 		t.Errorf("Embedding.BaseURL = %q, want http://localhost:8080", cfg.Embedding.BaseURL)
 	}
-	if cfg.Embedding.Model != "nomic-ai/nomic-embed-text-v1.5" {
-		t.Errorf("Embedding.Model = %q, want nomic-ai/nomic-embed-text-v1.5", cfg.Embedding.Model)
+	if cfg.Embedding.Model != "BAAI/bge-base-en-v1.5" {
+		t.Errorf("Embedding.Model = %q, want BAAI/bge-base-en-v1.5", cfg.Embedding.Model)
 	}
 	if cfg.Embedding.TimeoutS != 30 {
 		t.Errorf("Embedding.TimeoutS = %d, want 30", cfg.Embedding.TimeoutS)
