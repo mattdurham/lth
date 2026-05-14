@@ -153,7 +153,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	errCh := make(chan error, 2)
 	go func() { errCh <- w.Start(ctx) }()
 	go func() { errCh <- daemon.compactor.Run(ctx, interval) }()
-	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 10, 5*time.Second)
+	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 50, 2*time.Second)
 
 	slog.Info("daemon started", "pid", os.Getpid(), "metrics", metricsAddr)
 
