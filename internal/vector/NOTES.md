@@ -1,0 +1,42 @@
+# internal/vector — Design Notes
+
+## 1. float32 for Embedding Storage
+
+*Added: 2026-05-14*
+
+**Decision:** Use `float32` (not `float64`) for all embedding vectors in memory and on disk.
+
+**Rationale:** Embedding models produce float32 outputs. Storing as float64 would double the
+storage cost with no accuracy benefit. The OpenAI API response contains float64 values — these
+are downcast to float32 on receipt, which is the standard approach for embedding pipelines.
+
+**Consequence:** A 768-dimension embedding occupies 3072 bytes (768 × 4). Some precision is
+lost when downcasting from float64, but this is negligible for cosine similarity computation.
+
+## 2. Pure-Go Cosine Similarity
+
+*Added: 2026-05-14*
+
+**Decision:** Implement cosine similarity as a pure Go function without SIMD or assembly.
+
+**Rationale:** For the search path (ranking top-K results), cosine similarity is computed on
+at most a few hundred candidates. At 768 dimensions, 200 candidates = 153,600 float32 multiplications
+— microseconds in Go. The KNN bottleneck (searching all memories) is handled by sqlite-vec vec0,
+not by this function.
+
+**Consequence:** The cosine function is used only for: (1) exact rescoring of vec0 KNN results,
+(2) Zettelkasten auto-link threshold check, (3) L4→L3 compaction clustering. All of these are
+low-frequency or bounded-N operations where SIMD would provide negligible benefit.
+
+## 3. OpenAI-Compatible Embedding Endpoint
+
+*Added: 2026-05-14*
+
+**Decision:** The `OllamaEmbedder` uses the OpenAI-compatible `/v1/embeddings` endpoint.
+
+**Rationale:** Ollama exposes an OpenAI-compatible API, so the same implementation works with
+Ollama (local), OpenAI, and any compatible proxy. The request format is:
+`POST /v1/embeddings` with `{"model": "<model>", "input": "<text>"}`.
+
+**Consequence:** Users can switch from Ollama to any OpenAI-compatible embedding service by
+changing `base_url` and `model` in the config.
