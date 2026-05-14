@@ -281,6 +281,24 @@ func attrOrEmpty(attrs map[string]string, key string) string {
 }
 
 // rowToMemory converts a db.MemoryRow to a memory.Memory with the given attributes.
+// mergeSourceIntoAttrs returns attrs with source/agent added if not already present.
+func mergeSourceIntoAttrs(attrs map[string]string, source, agent string) map[string]string {
+	if source == "" && agent == "" {
+		return attrs
+	}
+	merged := make(map[string]string, len(attrs)+2)
+	for k, v := range attrs {
+		merged[k] = v
+	}
+	if source != "" {
+		merged["source"] = source
+	}
+	if agent != "" {
+		merged["agent"] = agent
+	}
+	return merged
+}
+
 func rowToMemory(row *db.MemoryRow, attrs map[string]string) *Memory {
 	m := &Memory{
 		ID:             row.ID,
@@ -297,7 +315,7 @@ func rowToMemory(row *db.MemoryRow, attrs map[string]string) *Memory {
 		Source:         row.Source,
 		Agent:          row.Agent,
 		CompactedAt:    row.CompactedAt,
-		Attrs:          attrs,
+		Attrs:          mergeSourceIntoAttrs(attrs, row.Source, row.Agent),
 		Valence:        row.Valence,
 		ValenceScored:  row.ValenceScored,
 	}
