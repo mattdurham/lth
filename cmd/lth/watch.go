@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,8 +17,11 @@ import (
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/llm"
 	"github.com/mattdurham/lth/internal/memory"
+	"github.com/mattdurham/lth/internal/metrics"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/watcher"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
 )
 
@@ -88,7 +92,7 @@ func runWatchStop(_ *cobra.Command, _ []string) error {
 	return fmt.Errorf("daemon did not stop within 5 seconds")
 }
 
-func runWatchDaemon(_ *cobra.Command, _ []string) error {
+func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	pidFile := pidFilePath(globalCfg)
 
 	// Check if another daemon is already running.
@@ -107,8 +111,21 @@ func runWatchDaemon(_ *cobra.Command, _ []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	// Create daemon components using internal packages directly.
-	daemon, err := newDaemonComponents()
+	// Create Prometheus registry and register all lth metrics.
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(collectors.NewGoCollector())
+	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	m := metrics.New(reg)
+
+	// Resolve metrics listen address from flag.
+	metricsPort, err := cmd.Flags().GetInt("metrics-port")
+	if err != nil {
+		metricsPort = 10010
+	}
+	metricsAddr := fmt.Sprintf("localhost:%d", metricsPort)
+
+	// Create daemon components, wrapping LLM and embedder with instrumentation.
+	daemon, err := newDaemonComponents(m)
 	if err != nil {
 		return fmt.Errorf("create daemon components: %w", err)
 	}
@@ -122,11 +139,23 @@ func runWatchDaemon(_ *cobra.Command, _ []string) error {
 
 	interval := time.Duration(globalCfg.Compaction.IntervalS) * time.Second
 
+	// Start metrics HTTP server.
+	metricsSrv := metrics.NewServer(metricsAddr, reg)
+	go func() {
+		if srvErr := metricsSrv.Start(ctx); srvErr != nil && srvErr != http.ErrServerClosed {
+			slog.Error("metrics server error", "err", srvErr)
+		}
+	}()
+
+	// Start metrics refresh loop (updates memory layer gauges every 30s).
+	go metrics.RefreshLoop(ctx, daemon.store, m, 30*time.Second)
+
 	errCh := make(chan error, 2)
 	go func() { errCh <- w.Start(ctx) }()
 	go func() { errCh <- daemon.compactor.Run(ctx, interval) }()
+	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 10, 5*time.Second)
 
-	slog.Info("daemon started", "pid", os.Getpid())
+	slog.Info("daemon started", "pid", os.Getpid(), "metrics", metricsAddr)
 
 	select {
 	case <-ctx.Done():
@@ -146,6 +175,7 @@ type daemonComponents struct {
 	ms        *memory.MemoryStore // concrete handle for Close (waits for async goroutines)
 	compactor *compactor.Compactor
 	d         *db.DB
+	llm       llm.LLM
 }
 
 func (dc *daemonComponents) close() {
@@ -154,15 +184,23 @@ func (dc *daemonComponents) close() {
 }
 
 // newDaemonComponents creates the internal components for the daemon process.
-func newDaemonComponents() (*daemonComponents, error) {
+// m may be nil (metrics disabled); if non-nil, LLM and embedder are wrapped
+// with instrumentation wrappers before being passed to the memory store.
+func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 	dbPath := globalCfg.DB.Path
 	d, err := db.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	emb := vector.NewOllamaEmbedder(globalCfg.Embedding.BaseURL, globalCfg.Embedding.Model, globalCfg.Embedding.TimeoutS)
-	l := llm.NewOllamaLLM(globalCfg.LLM.BaseURL, globalCfg.LLM.Model, globalCfg.LLM.TimeoutS)
+	var emb vector.Embedder = vector.NewOllamaEmbedder(globalCfg.Embedding.BaseURL, globalCfg.Embedding.Model, globalCfg.Embedding.TimeoutS)
+	var l llm.LLM = llm.NewOllamaLLM(globalCfg.LLM.BaseURL, globalCfg.LLM.Model, globalCfg.LLM.TimeoutS)
+
+	if m != nil {
+		emb = metrics.NewInstrumentedEmbedder(emb, globalCfg.Embedding.Provider, m)
+		l = metrics.NewInstrumentedLLM(l, globalCfg.LLM.Provider, m)
+	}
+
 	g := graph.New(d)
 
 	ms, err := memory.NewMemoryStore(d, emb, l, g, globalCfg)
@@ -178,5 +216,6 @@ func newDaemonComponents() (*daemonComponents, error) {
 		ms:        ms,
 		compactor: c,
 		d:         d,
+		llm:       l,
 	}, nil
 }

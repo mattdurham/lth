@@ -59,6 +59,10 @@ func Default() *Config {
 	cfg.Compaction.L4ClusterSize = 5
 	cfg.Compaction.L3EpisodesMin = 10
 	cfg.Compaction.L3ImportanceMin = 7.0
+	cfg.Compaction.SeedMinL2 = 10
+	cfg.Compaction.SeedMinL3 = 20
+	cfg.Compaction.SeedSample = 100
+	cfg.Compaction.ValenceCompactionMin = 0.15
 	cfg.Search.DefaultTopK = 10
 	cfg.Search.Alpha = 0.333
 	cfg.Search.Beta = 0.333
@@ -125,6 +129,12 @@ l5_min_cluster_size  = 2
 l4_cluster_size   = 5
 l3_episodes_min   = 10
 l3_importance_min = 7.0
+# Auto-seed: infer L2 rules + L3 skills from L5 history when upper layers are sparse.
+seed_min_l2 = 10
+seed_min_l3 = 20
+seed_sample = 100
+# L4 memories with |valence| < this threshold are considered neutral noise and skipped during L4→L3 compaction.
+valence_compaction_min = 0.15
 
 [search]
 default_top_k = 10
@@ -151,6 +161,19 @@ func applyDefaults(cfg *Config) {
 	if cfg.DB.Path == "" {
 		cfg.DB.Path = def.DB.Path
 	}
+	applyEmbeddingDefaults(cfg, def)
+	applyLLMDefaults(cfg, def)
+	applyCompactionDefaults(cfg, def)
+	applySearchDefaults(cfg, def)
+	if len(cfg.Watcher.Paths) == 0 {
+		cfg.Watcher.Paths = def.Watcher.Paths
+	}
+	if cfg.Watcher.StateFile == "" {
+		cfg.Watcher.StateFile = def.Watcher.StateFile
+	}
+}
+
+func applyEmbeddingDefaults(cfg, def *Config) {
 	if cfg.Embedding.Provider == "" {
 		cfg.Embedding.Provider = def.Embedding.Provider
 	}
@@ -177,6 +200,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.Embedding.TimeoutS == 0 {
 		cfg.Embedding.TimeoutS = def.Embedding.TimeoutS
 	}
+}
+
+func applyLLMDefaults(cfg, def *Config) {
 	if cfg.LLM.Provider == "" {
 		cfg.LLM.Provider = def.LLM.Provider
 	}
@@ -194,6 +220,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.LLM.TimeoutS == 0 {
 		cfg.LLM.TimeoutS = def.LLM.TimeoutS
 	}
+}
+
+func applyCompactionDefaults(cfg, def *Config) {
 	if cfg.Compaction.IntervalS == 0 {
 		cfg.Compaction.IntervalS = def.Compaction.IntervalS
 	}
@@ -218,6 +247,21 @@ func applyDefaults(cfg *Config) {
 	if cfg.Compaction.L3ImportanceMin == 0 {
 		cfg.Compaction.L3ImportanceMin = def.Compaction.L3ImportanceMin
 	}
+	if cfg.Compaction.SeedMinL2 == 0 {
+		cfg.Compaction.SeedMinL2 = def.Compaction.SeedMinL2
+	}
+	if cfg.Compaction.SeedMinL3 == 0 {
+		cfg.Compaction.SeedMinL3 = def.Compaction.SeedMinL3
+	}
+	if cfg.Compaction.SeedSample == 0 {
+		cfg.Compaction.SeedSample = def.Compaction.SeedSample
+	}
+	if cfg.Compaction.ValenceCompactionMin == 0 {
+		cfg.Compaction.ValenceCompactionMin = def.Compaction.ValenceCompactionMin
+	}
+}
+
+func applySearchDefaults(cfg, def *Config) {
 	if cfg.Search.DefaultTopK == 0 {
 		cfg.Search.DefaultTopK = def.Search.DefaultTopK
 	}
@@ -229,11 +273,5 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Search.Gamma == 0 {
 		cfg.Search.Gamma = def.Search.Gamma
-	}
-	if len(cfg.Watcher.Paths) == 0 {
-		cfg.Watcher.Paths = def.Watcher.Paths
-	}
-	if cfg.Watcher.StateFile == "" {
-		cfg.Watcher.StateFile = def.Watcher.StateFile
 	}
 }

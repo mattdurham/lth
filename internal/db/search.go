@@ -27,7 +27,7 @@ func (d *DB) VectorSearch(ctx context.Context, emb []float32, layers []int, limi
 	query := fmt.Sprintf(`
 SELECT m.id, m.layer, m.content, m.content_hash, m.embedding, m.importance, m.access_count,
        m.created_at, m.updated_at, m.last_accessed_at, m.decay_rate, m.stability,
-       m.source, m.agent, m.compacted_at, mv.distance
+       m.source, m.agent, m.compacted_at, m.valence, m.valence_scored, mv.distance
 FROM memories_vec mv
 JOIN memories m ON m.rowid = mv.rowid
 WHERE mv.embedding MATCH ? AND k = ?
@@ -51,7 +51,7 @@ ORDER BY mv.distance ASC`, layerFilter)
 		err := rows.Scan(
 			&m.ID, &m.Layer, &m.Content, &m.ContentHash, &embBlob, &m.Importance, &m.AccessCount,
 			&m.CreatedAt, &m.UpdatedAt, &m.LastAccessedAt, &m.DecayRate, &m.Stability,
-			&m.Source, &m.Agent, &compactedAt, &vr.Distance,
+			&m.Source, &m.Agent, &compactedAt, &m.Valence, &m.ValenceScored, &vr.Distance,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan vector result: %w", err)
@@ -81,7 +81,7 @@ func (d *DB) FTSSearch(ctx context.Context, query string, layers []int, limit in
 	sqlQuery := fmt.Sprintf(`
 SELECT m.id, m.layer, m.content, m.content_hash, m.embedding, m.importance, m.access_count,
        m.created_at, m.updated_at, m.last_accessed_at, m.decay_rate, m.stability,
-       m.source, m.agent, m.compacted_at
+       m.source, m.agent, m.compacted_at, m.valence, m.valence_scored
 FROM memories m
 JOIN memories_fts fts ON fts.rowid = m.rowid
 WHERE fts.content MATCH ? AND m.compacted_at IS NULL

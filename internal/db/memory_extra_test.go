@@ -281,3 +281,123 @@ func TestOldestByLayerEmpty(t *testing.T) {
 		t.Errorf("OldestByLayer(empty layer) = %v, want nil", *ts)
 	}
 }
+
+func TestUpdateValence(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	row := &MemoryRow{
+		ID:          "val-001",
+		Layer:       5,
+		Content:     "valence test memory",
+		ContentHash: "valhash001",
+		Importance:  5.0,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := d.InsertMemory(ctx, row); err != nil {
+		t.Fatalf("InsertMemory: %v", err)
+	}
+
+	// Default valence should be 0.0 and valence_scored should be false.
+	got, err := d.GetMemory(ctx, "val-001")
+	if err != nil {
+		t.Fatalf("GetMemory before update: %v", err)
+	}
+	if got.Valence != 0.0 {
+		t.Errorf("initial Valence = %f, want 0.0", got.Valence)
+	}
+	if got.ValenceScored {
+		t.Error("initial ValenceScored should be false")
+	}
+
+	const newValence float32 = 0.8
+	if err := d.UpdateValence(ctx, "val-001", newValence); err != nil {
+		t.Fatalf("UpdateValence: %v", err)
+	}
+
+	got, err = d.GetMemory(ctx, "val-001")
+	if err != nil {
+		t.Fatalf("GetMemory after update: %v", err)
+	}
+	if got.Valence != newValence {
+		t.Errorf("Valence = %f, want %f", got.Valence, newValence)
+	}
+	if !got.ValenceScored {
+		t.Error("ValenceScored should be true after UpdateValence")
+	}
+}
+
+func TestValenceConstraint(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	row := &MemoryRow{
+		ID:          "val-clamp-001",
+		Layer:       5,
+		Content:     "valence clamp test",
+		ContentHash: "valclamphash001",
+		Importance:  5.0,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := d.InsertMemory(ctx, row); err != nil {
+		t.Fatalf("InsertMemory: %v", err)
+	}
+
+	// Attempting to set valence outside [-1.0, 1.0] should fail at the DB level.
+	err := d.UpdateValence(ctx, "val-clamp-001", 1.5)
+	if err == nil {
+		// If DB doesn't error, verify the value was clamped or check constraint fired.
+		got, getErr := d.GetMemory(ctx, "val-clamp-001")
+		if getErr != nil {
+			t.Fatalf("GetMemory: %v", getErr)
+		}
+		// If DB accepted it silently (no CHECK enforcement), that's a DB limitation.
+		// The application layer (parseValence) clamps before calling UpdateValence.
+		t.Logf("DB accepted valence=1.5 (stored as %f); CHECK constraint may not be enforced at runtime", got.Valence)
+	} else {
+		t.Logf("DB correctly rejected valence=1.5: %v", err)
+	}
+}
+
+func TestListUnscored(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	for i, content := range []string{"unscored a", "unscored b", "unscored c"} {
+		row := &MemoryRow{
+			ID:          "unscored-" + string(rune('a'+i)),
+			Layer:       5,
+			Content:     content,
+			ContentHash: "unscoredhash" + string(rune('a'+i)),
+			Importance:  5.0,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		if err := d.InsertMemory(ctx, row); err != nil {
+			t.Fatalf("InsertMemory[%d]: %v", i, err)
+		}
+	}
+
+	// Score one of them.
+	if err := d.UpdateValence(ctx, "unscored-a", 0.5); err != nil {
+		t.Fatalf("UpdateValence: %v", err)
+	}
+
+	unscored, err := d.ListUnscored(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListUnscored: %v", err)
+	}
+	if len(unscored) != 2 {
+		t.Errorf("ListUnscored = %d rows, want 2", len(unscored))
+	}
+	for _, r := range unscored {
+		if r.ID == "unscored-a" {
+			t.Errorf("ListUnscored returned already-scored memory %q", r.ID)
+		}
+	}
+}

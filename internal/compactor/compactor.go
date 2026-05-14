@@ -55,6 +55,8 @@ func (c *Compactor) Run(ctx context.Context, interval time.Duration) error {
 				continue
 			}
 			c.logger.Info("compaction complete",
+				"seed_l2", report.SeedL2,
+				"seed_l3", report.SeedL3,
 				"l5_to_l4", report.L5toL4,
 				"l4_to_l3", report.L4toL3,
 				"l3_to_l2", report.L3toL2,
@@ -64,9 +66,21 @@ func (c *Compactor) Run(ctx context.Context, interval time.Duration) error {
 	}
 }
 
-// RunOnce runs all three compaction paths once and returns a report.
+// RunOnce runs all compaction paths once and returns a report.
+// The seed path runs first to bootstrap L2/L3 when those layers are sparse.
 func (c *Compactor) RunOnce(ctx context.Context) (*CompactionReport, error) {
 	report := &CompactionReport{}
+
+	// Auto-seed L2/L3 from L5 history when upper layers are sparse.
+	l2n, l3n, err := c.compactSeed(ctx)
+	if err != nil {
+		c.logger.Warn("seed compaction failed", "err", err)
+	}
+	report.SeedL2 = l2n
+	report.SeedL3 = l3n
+	if l2n > 0 || l3n > 0 {
+		c.logger.Info("auto-seeded upper layers", "l2", l2n, "l3", l3n)
+	}
 
 	n, err := c.compactL5toL4(ctx)
 	if err != nil {

@@ -9,4 +9,5 @@ type ScoredMemory struct {
 	TimeScore       float32
 	ImportanceScore float32
 	VectorScore     float32
+	ValenceScore    float32 // contribution of valence to the composite score
 }

@@ -48,6 +48,18 @@
 
 ---
 
+## 6. Auto-Seed L2/L3 from L5 History
+
+*Added: 2026-05-14*
+
+**Decision:** Added a `compactSeed` path that runs before normal compaction in `RunOnce`. When L2 or L3 layers are sparse (counts below `SeedMinL2`/`SeedMinL3`) and L5 has crossed the compaction threshold, the compactor clusters L5 memories by cosine similarity and asks the LLM to directly infer behavioral rules (L2) and skills (L3) from each coherent cluster.
+
+**Rationale:** Without seeding, L2/L3 layers only fill through the normal multi-hop promotion chain (L5→L4→L3→L2), which requires significant memory accumulation over time. New installations start with empty upper layers, making semantic search over behavioral patterns useless until weeks of data accumulate. Auto-seeding bootstraps the upper layers immediately from raw history, avoiding the need for manual `lth store --layer 2` commands for initial setup. Using semantic clusters (same algorithm as L5→L4) rather than random sampling ensures each LLM call receives topically coherent memories, producing specific and useful output rather than vague generalizations.
+
+**Consequence:** L5 memories are never deleted by seeding (read-only path). The `SeedSample` config field caps the number of clusters processed per run to bound LLM cost. `CompactionReport.SeedL2` and `SeedL3` expose seed counts for CLI display and logging.
+
+---
+
 ## 2. LLM via Interface Injection
 
 *Added: 2026-05-14*

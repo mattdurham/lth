@@ -117,3 +117,9 @@ linters:
         text: "ifElseChain:"
         linters:
           - gocritic
+
+      # internal/metrics package name does not conflict with any stdlib package.
+      - path: internal/metrics/
+        text: "var-naming:"
+        linters:
+          - revive

@@ -91,4 +91,5 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&flagConfig, "config", "", "path to config file (default: ~/.lth/config.toml)")
 	rootCmd.PersistentFlags().BoolVar(&flagVerbose, "verbose", false, "enable verbose logging")
 	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "output as JSON")
+	rootCmd.PersistentFlags().Int("metrics-port", 10010, "port for Prometheus metrics server (daemon only)")
 }

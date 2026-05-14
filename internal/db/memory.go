@@ -22,11 +22,13 @@ func (d *DB) InsertMemory(ctx context.Context, m *MemoryRow) error {
 		res, err := tx.ExecContext(ctx, `
 INSERT INTO memories
 	(id, layer, content, content_hash, embedding, importance, access_count,
-	 created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	 created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent,
+	 valence, valence_scored)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			m.ID, m.Layer, m.Content, m.ContentHash, m.Embedding, m.Importance, m.AccessCount,
 			m.CreatedAt.UTC(), m.UpdatedAt.UTC(), m.LastAccessedAt.UTC(),
 			m.DecayRate, m.Stability, m.Source, m.Agent,
+			m.Valence, m.ValenceScored,
 		)
 		if err != nil {
 			return fmt.Errorf("insert memory: %w", err)
@@ -60,7 +62,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 func (d *DB) GetMemory(ctx context.Context, id string) (*MemoryRow, error) {
 	row := d.db.QueryRowContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
-       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored
 FROM memories WHERE id = ?`, id)
 
 	m, err := scanMemoryRow(row)
@@ -78,7 +81,8 @@ FROM memories WHERE id = ?`, id)
 func (d *DB) GetByHash(ctx context.Context, hash string) (*MemoryRow, error) {
 	row := d.db.QueryRowContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
-       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored
 FROM memories WHERE content_hash = ?`, hash)
 
 	m, err := scanMemoryRow(row)
@@ -117,7 +121,8 @@ UPDATE memories SET compacted_at = ? WHERE id = ?`, at.UTC(), id)
 func (d *DB) ListLayer(ctx context.Context, layer int, activeOnly bool) ([]*MemoryRow, error) {
 	query := `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
-       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored
 FROM memories WHERE layer = ?`
 	if activeOnly {
 		query += ` AND compacted_at IS NULL`
@@ -160,6 +165,37 @@ SELECT MIN(created_at) FROM memories WHERE layer = ? AND compacted_at IS NULL`, 
 	return &t, nil
 }
 
+// UpdateValence sets the valence field and marks valence_scored=1 for a memory.
+// Used by the async valence goroutine and the backfill process.
+func (d *DB) UpdateValence(ctx context.Context, id string, valence float32) error {
+	_, err := d.db.ExecContext(ctx,
+		`UPDATE memories SET valence = ?, valence_scored = 1 WHERE id = ?`,
+		valence, id)
+	if err != nil {
+		return fmt.Errorf("update valence: %w", err)
+	}
+	return nil
+}
+
+// ListUnscored returns up to limit memories where valence_scored=false and compacted_at IS NULL.
+// Used by the backfill goroutine in the daemon.
+func (d *DB) ListUnscored(ctx context.Context, limit int) ([]*MemoryRow, error) {
+	rows, err := d.db.QueryContext(ctx, `
+SELECT id, layer, content, content_hash, embedding, importance, access_count,
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored
+FROM memories
+WHERE valence_scored = 0 AND compacted_at IS NULL
+ORDER BY created_at ASC
+LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list unscored: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+
+	return scanMemoryRows(rows)
+}
+
 // UpdateImportance sets the importance field for a memory. Used by the async importance goroutine.
 func (d *DB) UpdateImportance(ctx context.Context, id string, importance float32) error {
 	_, err := d.db.ExecContext(ctx, `UPDATE memories SET importance = ? WHERE id = ?`, importance, id)
@@ -189,6 +225,7 @@ func scanMemoryRow(row *sql.Row) (*MemoryRow, error) {
 		&m.ID, &m.Layer, &m.Content, &m.ContentHash, &embBlob, &m.Importance, &m.AccessCount,
 		&m.CreatedAt, &m.UpdatedAt, &m.LastAccessedAt, &m.DecayRate, &m.Stability,
 		&m.Source, &m.Agent, &compactedAt,
+		&m.Valence, &m.ValenceScored,
 	)
 	if err != nil {
 		return nil, err
@@ -214,6 +251,7 @@ func scanMemoryRows(rows *sql.Rows) ([]*MemoryRow, error) {
 			&m.ID, &m.Layer, &m.Content, &m.ContentHash, &embBlob, &m.Importance, &m.AccessCount,
 			&m.CreatedAt, &m.UpdatedAt, &m.LastAccessedAt, &m.DecayRate, &m.Stability,
 			&m.Source, &m.Agent, &compactedAt,
+			&m.Valence, &m.ValenceScored,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory row: %w", err)

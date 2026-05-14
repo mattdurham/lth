@@ -24,6 +24,18 @@ in v1 — config is file-only for simplicity and auditability.
 
 ---
 
+## 4. Seed Configuration Fields and applyDefaults Refactor
+
+*Added: 2026-05-14*
+
+**Decision:** Added `SeedMinL2 int` (default: 10), `SeedMinL3 int` (default: 20), and `SeedSample int` (default: 100) to the `Compaction` struct. Refactored `applyDefaults` by extracting `applyEmbeddingDefaults`, `applyLLMDefaults`, `applyCompactionDefaults`, and `applySearchDefaults` helpers to keep the function's cyclomatic complexity within the 30-function limit.
+
+**Rationale:** The three new fields control the auto-seed compaction path in the compactor. The refactor was necessary because adding 3 new `if` blocks to `applyDefaults` pushed cyclomatic complexity above the lint threshold (gocyclo limit: 30).
+
+**Consequence:** `applyDefaults` is now a thin dispatcher; all section-specific logic lives in the four helper functions. No behavior change — all defaults are identical.
+
+---
+
 ## 2. ~/.lth/ Home Directory Convention
 
 *Added: 2026-05-14*

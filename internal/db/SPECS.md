@@ -9,4 +9,7 @@
 7. All SQL string literals live in `internal/db`; no other package contains SQL.
 8. `InsertMemory` atomically inserts into both `memories` and `memories_vec` within a single call.
 9. `GetMemory` and `GetByHash` return `fs.ErrNotExist` (wrapped) when no row is found; all other errors propagate as-is.
-10. The `db_metadata` table records `schema_version='1'` on first open. Migration support is planned for future versions; no migration logic is currently run.
+10. The `db_metadata` table records `schema_version='1'` on first open. `Open` also calls `migrateSchema`, which applies idempotent ALTER TABLE migrations (ignoring "duplicate column name" errors).
+11. `valence` is stored as REAL DEFAULT 0.0 CHECK(-1.0 <= valence <= 1.0); ALTER TABLE migration in `migrateSchema` makes this backward-compatible with existing databases.
+12. `valence_scored` is a BOOLEAN DEFAULT 0; it is set to 1 by `UpdateValence`. A valence of 0.0 with `valence_scored=0` means "not yet evaluated"; 0.0 with `valence_scored=1` means "genuinely neutral".
+13. `ListUnscored` returns memories where `valence_scored=0 AND compacted_at IS NULL`, ordered by `created_at ASC`, up to a caller-supplied limit. Used by the backfill goroutine.

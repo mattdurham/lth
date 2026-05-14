@@ -122,13 +122,19 @@ lth store --layer 1 "I prefer explicit error handling — silent failures hide b
 
 ## Scoring Reference
 
-Search results include a composite score: `α·recency + β·importance + γ·similarity`
+Search results include a composite score: `α·recency + β·importance + γ·similarity + δ·valence`
 
 - **High score** (>0.7): highly relevant + important + recent — follow this guidance closely
 - **Medium score** (0.4–0.7): relevant but may be outdated or lower importance
 - **Low score** (<0.4): tangentially related — useful context but don't over-weight it
 
-The `TimeScore`, `ImportanceScore`, `VectorScore` breakdown in `--json` output shows which factor dominated.
+The `TimeScore`, `ImportanceScore`, `VectorScore`, `ValenceScore` breakdown in `--json` output shows which factor dominated.
+
+**Valence:** outcome polarity (-1.0 to +1.0). Positive = worked, negative = failed.
+- Use `--min-valence 0.3` to find approaches that worked.
+- Use `--max-valence -0.3` to learn from past failures.
+
+The valence contribution uses a non-linear (sign-preserving square) transform: extremes (+1.0, -1.0) are amplified, near-zero values contribute minimally. A `Valence` column is shown in human-readable output: `+N.NN` for positive, `-N.NN` for negative, `  0.00` for neutral.
 
 ---
 

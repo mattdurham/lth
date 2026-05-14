@@ -6,3 +6,4 @@
 4. A non-zero exit code is returned on any error.
 5. `lth watch daemon` is a hidden Cobra command; it is not shown in `--help`.
 6. `lth config init` does not start the daemon.
+7. The daemon exposes Prometheus metrics at `localhost:10010/metrics` (default port, overridable via `--metrics-port`) and a status dashboard at `localhost:10010/`. The port is daemon-only; all other subcommands ignore this flag.

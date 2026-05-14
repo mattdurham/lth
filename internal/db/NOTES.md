@@ -44,6 +44,18 @@ The implicit rowid is stable as long as no row is deleted (only soft-deleted via
 
 ---
 
+## 5. Valence Column Migration Strategy
+
+*Added: 2026-05-14*
+
+**Decision:** Add `valence` and `valence_scored` columns via idempotent `ALTER TABLE ADD COLUMN` migrations in `migrateSchema`, called from `createSchema` on every `Open`.
+
+**Rationale:** Existing databases opened against the new binary should not fail. SQLite's `ALTER TABLE ADD COLUMN` is safe to run multiple times — it returns "duplicate column name" which we ignore. The column has a DEFAULT so all existing rows get 0.0/false without a data migration.
+
+**Consequence:** `migrateSchema` is called on every `Open`, adding ~2 SQL statements per open. This is negligible overhead. The `valence_scored` boolean allows distinguishing "not scored" (0.0, false) from "genuinely neutral" (0.0, true).
+
+---
+
 ## 3. FTS5 Content Table with Triggers
 
 *Added: 2026-05-14*

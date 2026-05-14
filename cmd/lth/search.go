@@ -15,12 +15,14 @@ import (
 )
 
 var (
-	searchLayers string
-	searchTop    int
-	searchAlpha  float32
-	searchBeta   float32
-	searchGamma  float32
-	searchTags   string
+	searchLayers     string
+	searchTop        int
+	searchAlpha      float32
+	searchBeta       float32
+	searchGamma      float32
+	searchTags       string
+	searchMinValence float32
+	searchMaxValence float32
 )
 
 var searchCmd = &cobra.Command{
@@ -37,6 +39,8 @@ func init() {
 	searchCmd.Flags().Float32Var(&searchBeta, "beta", 0, "importance weight")
 	searchCmd.Flags().Float32Var(&searchGamma, "gamma", 0, "cosine similarity weight")
 	searchCmd.Flags().StringVar(&searchTags, "tags", "", "comma-separated tags to filter by (e.g. go,error-handling)")
+	searchCmd.Flags().Float32Var(&searchMinValence, "min-valence", 0, "only return memories with valence >= this value (e.g. 0.5 for positive outcomes)")
+	searchCmd.Flags().Float32Var(&searchMaxValence, "max-valence", 0, "only return memories with valence <= this value (e.g. -0.5 for failures)")
 	rootCmd.AddCommand(searchCmd)
 }
 
@@ -62,6 +66,17 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		Beta:   searchBeta,
 		Gamma:  searchGamma,
 	}
+
+	// Set valence filters only when the flags were explicitly provided.
+	if cmd.Flags().Changed("min-valence") {
+		v := searchMinValence
+		req.MinValence = &v
+	}
+	if cmd.Flags().Changed("max-valence") {
+		v := searchMaxValence
+		req.MaxValence = &v
+	}
+
 	results, err := client.Search(cmd.Context(), req)
 	if err != nil {
 		return fmt.Errorf("search: %w", err)
@@ -131,17 +146,29 @@ func formatSearchTable(w io.Writer, results []*lth.SearchResult) {
 		fmt.Fprintln(w, "no results") //nolint:errcheck
 		return
 	}
-	fmt.Fprintf(w, "%-10s %-4s %-6s %s\n", "ID", "L", "Score", "Content")             //nolint:errcheck
-	fmt.Fprintf(w, "%-10s %-4s %-6s %s\n", "----------", "----", "------", "-------") //nolint:errcheck
+	fmt.Fprintf(w, "%-10s %-4s %-6s %-7s %s\n", "ID", "L", "Score", "Valence", "Content")             //nolint:errcheck
+	fmt.Fprintf(w, "%-10s %-4s %-6s %-7s %s\n", "----------", "----", "------", "-------", "-------") //nolint:errcheck
 	for _, r := range results {
 		shortID := r.ID
 		if len(shortID) > 8 {
 			shortID = shortID[:8]
 		}
 		content := r.Content
-		if len(content) > 80 {
-			content = content[:77] + "..."
+		if len(content) > 72 {
+			content = content[:69] + "..."
 		}
-		fmt.Fprintf(w, "%-10s %-4d %-6.3f %s\n", shortID, r.Layer, r.Score, content) //nolint:errcheck
+		fmt.Fprintf(w, "%-10s %-4d %-6.3f %-7s %s\n", shortID, r.Layer, r.Score, formatValence(r.Valence), content) //nolint:errcheck
 	}
+}
+
+// formatValence returns a human-readable valence indicator.
+// Values > 0.3 are shown as "+N.NN", values < -0.3 as "-N.NN", near-zero as "  0.00".
+func formatValence(v float32) string {
+	if v > 0.3 {
+		return fmt.Sprintf("+%.2f", v)
+	}
+	if v < -0.3 {
+		return fmt.Sprintf("%.2f", v)
+	}
+	return "  0.00"
 }

@@ -13,6 +13,10 @@ import (
 	"github.com/mattdurham/lth/internal/vector"
 )
 
+// delta is the weight for the valence contribution in the composite score.
+// The non-linear transform (valence × |valence|) suppresses near-zero values naturally.
+const delta = float32(0.15)
+
 const scoringLambda = 0.995 // decay constant per hour
 
 // Search performs multi-modal search and returns at most TopK scored results.
@@ -50,6 +54,7 @@ func (s *MemoryStore) Search(ctx context.Context, req *SearchRequest) ([]*Scored
 			TimeScore:       sc.timeScore,
 			ImportanceScore: sc.importScore,
 			VectorScore:     sc.cosScore,
+			ValenceScore:    sc.valenceScore,
 		})
 	}
 
@@ -57,6 +62,21 @@ func (s *MemoryStore) Search(ctx context.Context, req *SearchRequest) ([]*Scored
 	sort.Slice(scored, func(i, j int) bool {
 		return scored[i].Score > scored[j].Score
 	})
+
+	// Post-filter by valence range if specified.
+	if req.MinValence != nil || req.MaxValence != nil {
+		filtered := scored[:0]
+		for _, sm := range scored {
+			if req.MinValence != nil && sm.Valence < *req.MinValence {
+				continue
+			}
+			if req.MaxValence != nil && sm.Valence > *req.MaxValence {
+				continue
+			}
+			filtered = append(filtered, sm)
+		}
+		scored = filtered
+	}
 
 	// Limit to TopK.
 	if len(scored) > req.TopK {
@@ -73,13 +93,16 @@ func (s *MemoryStore) Search(ctx context.Context, req *SearchRequest) ([]*Scored
 }
 
 type scoreBreakdown struct {
-	total       float32
-	timeScore   float32
-	importScore float32
-	cosScore    float32
+	total        float32
+	timeScore    float32
+	importScore  float32
+	cosScore     float32
+	valenceScore float32
 }
 
 // scoreMemory computes the composite score for a single memory row.
+// The composite formula is: α·exp(-λ·Δt) + β·importance/10 + γ·cosine(q,m) + δ·(v×|v|)
+// where v×|v| is a sign-preserving square that amplifies extremes and suppresses near-zero noise.
 func scoreMemory(row *db.MemoryRow, queryEmb []float32, now time.Time, alpha, beta, gamma float32) scoreBreakdown {
 	hours := now.Sub(row.CreatedAt).Hours()
 	timeScore := alpha * float32(math.Exp(-scoringLambda*hours))
@@ -92,11 +115,17 @@ func scoreMemory(row *db.MemoryRow, queryEmb []float32, now time.Time, alpha, be
 		cosScore = gamma * vector.Cosine(queryEmb, memEmb)
 	}
 
+	// Non-linear valence contribution: valence × |valence|
+	// +1.0→+1.0, +0.5→+0.25, 0.0→0.0, -0.5→-0.25, -1.0→-1.0
+	// Amplifies extremes, suppresses near-zero noise.
+	valenceContrib := delta * float32(float64(row.Valence)*math.Abs(float64(row.Valence)))
+
 	return scoreBreakdown{
-		total:       timeScore + importScore + cosScore,
-		timeScore:   timeScore,
-		importScore: importScore,
-		cosScore:    cosScore,
+		total:        timeScore + importScore + cosScore + valenceContrib,
+		timeScore:    timeScore,
+		importScore:  importScore,
+		cosScore:     cosScore,
+		valenceScore: valenceContrib,
 	}
 }
 

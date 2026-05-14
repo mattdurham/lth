@@ -2,7 +2,11 @@
 
 package db
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"strings"
+)
 
 const schema = `
 CREATE TABLE IF NOT EXISTS memories (
@@ -20,7 +24,9 @@ CREATE TABLE IF NOT EXISTS memories (
 	stability        REAL    NOT NULL DEFAULT 1.0,
 	source           TEXT    NOT NULL DEFAULT '',
 	agent            TEXT    NOT NULL DEFAULT '',
-	compacted_at     DATETIME
+	compacted_at     DATETIME,
+	valence          REAL    NOT NULL DEFAULT 0.0 CHECK(valence >= -1.0 AND valence <= 1.0),
+	valence_scored   BOOLEAN NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_memories_layer       ON memories(layer);
@@ -95,6 +101,35 @@ func (d *DB) createSchema() error {
 		`INSERT OR IGNORE INTO db_metadata(key, value) VALUES ('schema_version', '1')`,
 	); err != nil {
 		return fmt.Errorf("insert schema version: %w", err)
+	}
+	return d.migrateSchema()
+}
+
+// migrateSchema applies idempotent ALTER TABLE migrations for new columns added after v1.
+// Each migration ignores "duplicate column name" errors, making it safe to run on every Open.
+func (d *DB) migrateSchema() error {
+	ctx := context.Background()
+	migrations := []struct {
+		sql  string
+		name string
+	}{
+		{
+			sql:  `ALTER TABLE memories ADD COLUMN valence REAL NOT NULL DEFAULT 0.0`,
+			name: "valence column",
+		},
+		{
+			sql:  `ALTER TABLE memories ADD COLUMN valence_scored BOOLEAN NOT NULL DEFAULT 0`,
+			name: "valence_scored column",
+		},
+	}
+	for _, m := range migrations {
+		if _, err := d.db.ExecContext(ctx, m.sql); err != nil {
+			// "duplicate column name" means the column already exists — idempotent.
+			if strings.Contains(err.Error(), "duplicate column name") {
+				continue
+			}
+			return fmt.Errorf("migrate %s: %w", m.name, err)
+		}
 	}
 	return nil
 }

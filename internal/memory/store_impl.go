@@ -134,7 +134,7 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 	return m, nil
 }
 
-// scoreAndTagAsync calls the LLM to score importance and extract tags for a memory.
+// scoreAndTagAsync calls the LLM to score importance, extract tags, and score valence for a memory.
 // It updates the DB with the results. Non-fatal on any error.
 func (s *MemoryStore) scoreAndTagAsync(memID, content string) {
 	defer s.wg.Done()
@@ -160,6 +160,14 @@ func (s *MemoryStore) scoreAndTagAsync(memID, content string) {
 	if err == nil {
 		if tags := parseTags(tagResp); tags != "" {
 			_ = s.db.SetAttributes(context.Background(), memID, map[string]string{"tags": tags})
+		}
+	}
+
+	// Score valence.
+	valResp, err := s.llm.Complete(ctx, valencePrompt(content))
+	if err == nil {
+		if v, parseErr := parseValence(valResp); parseErr == nil {
+			_ = s.db.UpdateValence(context.Background(), memID, v)
 		}
 	}
 }
@@ -199,6 +207,33 @@ func parseTags(response string) string {
 		}
 	}
 	return strings.Join(clean, ",")
+}
+
+// valencePrompt returns a prompt asking the LLM to rate the outcome valence of a memory.
+func valencePrompt(content string) string {
+	return `Rate the outcome valence of this memory on a scale from -1.0 to 1.0.
++1.0 = hugely positive — approach worked perfectly, problem solved, great outcome
+ 0.0 = neutral — factual statement, no clear positive or negative outcome
+-1.0 = entirely negative — approach failed, caused problems, wrong direction
+Respond with ONLY a decimal number between -1.0 and 1.0 (e.g. "0.8" or "-0.5").
+Memory: ` + content
+}
+
+// parseValence parses a float from an LLM valence response and clamps it to [-1.0, 1.0].
+func parseValence(response string) (float32, error) {
+	s := strings.TrimSpace(response)
+	v, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		return 0.0, fmt.Errorf("parse valence %q: %w", s, err)
+	}
+	// Clamp to valid range.
+	if v > 1.0 {
+		v = 1.0
+	}
+	if v < -1.0 {
+		v = -1.0
+	}
+	return float32(v), nil
 }
 
 // parseImportance parses a 1-10 integer from an LLM response string.
@@ -253,6 +288,8 @@ func rowToMemory(row *db.MemoryRow, attrs map[string]string) *Memory {
 		Agent:          row.Agent,
 		CompactedAt:    row.CompactedAt,
 		Attrs:          attrs,
+		Valence:        row.Valence,
+		ValenceScored:  row.ValenceScored,
 	}
 	if len(row.Embedding) > 0 {
 		m.Embedding = vector.FromBytes(row.Embedding)

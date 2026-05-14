@@ -12,3 +12,8 @@
 10. Auto-links are created via `graph.AutoLink` synchronously inside `Store` for any layer that produces a non-empty embedding. AutoLink is not restricted to L5.
 11. `Store` async-extracts tags via LLM and sets `attrs["tags"]` as a comma-separated list of up to 5 lowercase tags. Tags are set concurrently with importance scoring in the same goroutine.
 12. `parseTags` strips markdown code fences, lowercases all tags, and caps at 5 entries; returns "" on any parse error.
+13. `valence` defaults to 0.0 at store time; the async goroutine scores it via LLM and calls `UpdateValence` (which sets `valence_scored=1`) within 10 seconds.
+14. The composite search score formula is: `α·exp(-λ·Δt) + β·importance/10 + γ·cosine(q,m) + δ·(v×|v|)` where δ=0.15 and `v×|v|` is a sign-preserving square that amplifies extremes (+1.0→+1.0, +0.5→+0.25, 0.0→0.0, -0.5→-0.25, -1.0→-1.0).
+15. `BackfillValence` runs as a background daemon goroutine; it finds memories with `valence_scored=0`, scores them via LLM in batches of configurable size, and sleeps 5 seconds between batches to avoid rate limits.
+16. After L5→L4 compaction creates an L4 memory, it should be scored for valence based on the full cluster context, not individual messages.
+17. L4 memories with `|valence| < ValenceCompactionMin` (default 0.15) are considered neutral noise and should be skipped during L4→L3 clustering. The non-linear score `|v×|v|| < ValenceCompactionMin²` naturally handles this threshold.
