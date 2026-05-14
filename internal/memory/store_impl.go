@@ -211,29 +211,39 @@ func parseTags(response string) string {
 
 // valencePrompt returns a prompt asking the LLM to rate the outcome valence of a memory.
 func valencePrompt(content string) string {
-	return `Rate the outcome valence of this memory on a scale from -1.0 to 1.0.
-+1.0 = hugely positive — approach worked perfectly, problem solved, great outcome
- 0.0 = neutral — factual statement, no clear positive or negative outcome
--1.0 = entirely negative — approach failed, caused problems, wrong direction
-Respond with ONLY a decimal number between -1.0 and 1.0 (e.g. "0.8" or "-0.5").
+	return `Rate this memory's outcome valence. Reply with ONLY a single number, nothing else.
+Scale: -1.0 (total failure/negative) to 0.0 (neutral/no outcome) to +1.0 (great success/positive).
+Examples of valid replies: 0.8   -0.5   0.0   -1.0   0.3
 Memory: ` + content
 }
 
-// parseValence parses a float from an LLM valence response and clamps it to [-1.0, 1.0].
+// parseValence extracts a float from an LLM valence response and clamps it to [-1.0, 1.0].
+// It tolerates verbose responses by scanning for the last valid float in the text.
 func parseValence(response string) (float32, error) {
+	// Try direct parse first (ideal case).
 	s := strings.TrimSpace(response)
-	v, err := strconv.ParseFloat(s, 32)
-	if err != nil {
-		return 0.0, fmt.Errorf("parse valence %q: %w", s, err)
+	if v, err := strconv.ParseFloat(s, 32); err == nil {
+		return clampValence(float32(v)), nil
 	}
-	// Clamp to valid range.
+	// Claude sometimes adds explanation after the number — scan tokens for the first valid float.
+	fields := strings.Fields(s)
+	for _, field := range fields {
+		token := strings.Trim(field, ".*:,()+")
+		if v, err := strconv.ParseFloat(token, 32); err == nil {
+			return clampValence(float32(v)), nil
+		}
+	}
+	return 0.0, fmt.Errorf("no valid float in valence response %q", s)
+}
+
+func clampValence(v float32) float32 {
 	if v > 1.0 {
-		v = 1.0
+		return 1.0
 	}
 	if v < -1.0 {
-		v = -1.0
+		return -1.0
 	}
-	return float32(v), nil
+	return v
 }
 
 // parseImportance parses a 1-10 integer from an LLM response string.

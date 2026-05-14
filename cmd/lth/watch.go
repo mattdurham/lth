@@ -193,8 +193,8 @@ func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	var emb vector.Embedder = vector.NewOllamaEmbedder(globalCfg.Embedding.BaseURL, globalCfg.Embedding.Model, globalCfg.Embedding.TimeoutS)
-	var l llm.LLM = llm.NewOllamaLLM(globalCfg.LLM.BaseURL, globalCfg.LLM.Model, globalCfg.LLM.TimeoutS)
+	var emb vector.Embedder = vector.NewEmbedder(globalCfg)
+	var l llm.LLM = llm.New(globalCfg)
 
 	if m != nil {
 		emb = metrics.NewInstrumentedEmbedder(emb, globalCfg.Embedding.Provider, m)
