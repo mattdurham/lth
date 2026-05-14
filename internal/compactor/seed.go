@@ -107,10 +107,12 @@ func (c *Compactor) processSeedBatch(ctx context.Context, batch []*memory.Memory
 			if strings.TrimSpace(rule) == "" {
 				continue
 			}
-			if _, storeErr := c.store.Store(ctx, 2, rule, attrs); storeErr != nil {
+			m, storeErr := c.store.Store(ctx, 2, rule, attrs)
+			if storeErr != nil {
 				c.logger.Warn("store seed L2 failed", "err", storeErr)
 				continue
 			}
+			c.addLineageEdges(ctx, m.ID, batch)
 			l2n++
 		}
 	}
@@ -121,10 +123,12 @@ func (c *Compactor) processSeedBatch(ctx context.Context, batch []*memory.Memory
 				continue
 			}
 			skillAttrs := map[string]string{"source": "compactor-seed", "tags": skill.Tags}
-			if _, storeErr := c.store.Store(ctx, 3, skill.Content, skillAttrs); storeErr != nil {
+			m, storeErr := c.store.Store(ctx, 3, skill.Content, skillAttrs)
+			if storeErr != nil {
 				c.logger.Warn("store seed L3 failed", "err", storeErr)
 				continue
 			}
+			c.addLineageEdges(ctx, m.ID, batch)
 			l3n++
 		}
 	}

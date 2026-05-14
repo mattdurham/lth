@@ -193,10 +193,13 @@ func (c *Compactor) summarizeCluster(ctx context.Context, cluster []*memory.Memo
 		"window_start": cluster[0].CreatedAt.Format(time.RFC3339),
 		"window_end":   cluster[len(cluster)-1].CreatedAt.Format(time.RFC3339),
 	}
-	_, err = c.store.Store(ctx, 4, summary, attrs)
+	l4, err := c.store.Store(ctx, 4, summary, attrs)
 	if err != nil {
 		return 0, fmt.Errorf("store L4 summary: %w", err)
 	}
+
+	// Create compacted_from edges: L4 → each L5 source so the lineage is walkable.
+	c.addLineageEdges(ctx, l4.ID, cluster)
 
 	// Soft-delete all L5 memories in the cluster.
 	ids := make([]string, len(cluster))

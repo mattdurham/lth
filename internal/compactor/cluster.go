@@ -3,6 +3,10 @@
 package compactor
 
 import (
+	"context"
+
+	"github.com/google/uuid"
+	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/memory"
 	"github.com/mattdurham/lth/internal/vector"
 )
@@ -16,4 +20,21 @@ func allPairwiseSimilarThreshold(members []*memory.Memory, candidate []float32, 
 		}
 	}
 	return true
+}
+
+// addLineageEdges creates compacted_from edges from a newly created memory to each source
+// memory in the cluster it was derived from. This makes the full compaction chain walkable.
+func (c *Compactor) addLineageEdges(ctx context.Context, newID string, sources []*memory.Memory) {
+	for _, src := range sources {
+		e := &graph.Edge{
+			ID:       uuid.New().String(),
+			FromID:   newID,
+			ToID:     src.ID,
+			EdgeType: "compacted_from",
+			Weight:   1.0,
+		}
+		if err := c.graph.AddEdge(ctx, e); err != nil {
+			c.logger.Warn("failed to add compacted_from lineage edge", "err", err)
+		}
+	}
 }
