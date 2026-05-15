@@ -67,3 +67,22 @@ as default; callers can override for different retrieval behaviors.
 
 **Consequence:** L1 memories (decay_rate=0) are permanent; their time component stays at
 `exp(0) = 1.0`. L5 memories decay quickly (decay_rate=0.5).
+
+## 6. Web UI and Search API on the Daemon HTTP Server
+
+*Added: 2026-05-14*
+
+**Decision:** Extend the existing daemon HTTP server (`:10010`) with a JSON search API
+(`POST /api/search`, `GET /api/stats`) and a self-contained single-page web UI at `/ui`.
+The `metrics.Server` struct receives a `memory.Store` reference at construction; a `withStore`
+guard returns 503 when no store is attached (e.g. tests).
+
+**Rationale:** The daemon already owns an HTTP server for Prometheus metrics. Adding the search
+API to the same server avoids a second listener, a second port, and a second process lifecycle.
+The web UI fires parallel per-layer fetch calls (one "agent" per layer L1–L5), mirroring the
+multi-agent fan-out pattern used in orchestration workflows, making the parallel search structure
+visually explicit in the UI.
+
+**Consequence:** Callers of `metrics.NewServer` must pass a `memory.Store` (or `nil`). All API
+endpoints degrade gracefully to 503 when the store is nil, so tests that only exercise metrics
+endpoints are unaffected.

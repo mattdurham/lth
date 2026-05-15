@@ -3,7 +3,9 @@
 package metrics_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -82,7 +84,7 @@ func TestServer_MetricsEndpoint(t *testing.T) {
 	reg, m := newTestReg(t)
 	m.MemoriesTotal.WithLabelValues("5").Set(42)
 
-	srv := metrics.NewServer("localhost:0", reg)
+	srv := metrics.NewServer("localhost:0", reg, nil)
 	ts := httptest.NewServer(srv.TestHandler())
 	defer ts.Close()
 
@@ -103,7 +105,7 @@ func TestServer_MetricsEndpoint(t *testing.T) {
 
 func TestServer_HealthEndpoint(t *testing.T) {
 	reg, _ := newTestReg(t)
-	srv := metrics.NewServer("localhost:0", reg)
+	srv := metrics.NewServer("localhost:0", reg, nil)
 	ts := httptest.NewServer(srv.TestHandler())
 	defer ts.Close()
 
@@ -120,7 +122,7 @@ func TestServer_HealthEndpoint(t *testing.T) {
 
 func TestServer_DashboardEndpoint(t *testing.T) {
 	reg, _ := newTestReg(t)
-	srv := metrics.NewServer("localhost:0", reg)
+	srv := metrics.NewServer("localhost:0", reg, nil)
 	ts := httptest.NewServer(srv.TestHandler())
 	defer ts.Close()
 
@@ -239,6 +241,120 @@ func TestInstrumentedEmbedder_RecordsSuccess(t *testing.T) {
 
 	if !hasLabelValue(reg, "lth_embedding_requests_total", "status", "success") {
 		t.Error("expected lth_embedding_requests_total with status=success")
+	}
+}
+
+// --- API endpoint tests ---
+
+func TestServer_UIEndpoint(t *testing.T) {
+	reg, _ := newTestReg(t)
+	srv := metrics.NewServer("localhost:0", reg, nil)
+	ts := httptest.NewServer(srv.TestHandler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/ui") //nolint:noctx
+	if err != nil {
+		t.Fatalf("GET /ui: %v", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status %d, want 200", resp.StatusCode)
+	}
+	if !strings.Contains(string(body), "lth") {
+		t.Errorf("expected lth in UI response body")
+	}
+}
+
+func TestServer_StatsEndpoint_NoStore(t *testing.T) {
+	reg, _ := newTestReg(t)
+	srv := metrics.NewServer("localhost:0", reg, nil)
+	ts := httptest.NewServer(srv.TestHandler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/stats") //nolint:noctx
+	if err != nil {
+		t.Fatalf("GET /api/stats: %v", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("status %d, want 503 (no store)", resp.StatusCode)
+	}
+}
+
+func TestServer_StatsEndpoint_WithStore(t *testing.T) {
+	reg, _ := newTestReg(t)
+	store := &stubStore{
+		stats: &memory.Stats{
+			TotalMemories: 100,
+			ByLayer:       map[int]int{1: 5, 2: 10, 3: 20, 4: 40, 5: 25},
+			TotalEdges:    200,
+		},
+	}
+	srv := metrics.NewServer("localhost:0", reg, store)
+	ts := httptest.NewServer(srv.TestHandler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/stats") //nolint:noctx
+	if err != nil {
+		t.Fatalf("GET /api/stats: %v", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status %d, want 200", resp.StatusCode)
+	}
+	var got memory.Stats
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode stats: %v", err)
+	}
+	if got.TotalMemories != 100 {
+		t.Errorf("TotalMemories = %d, want 100", got.TotalMemories)
+	}
+	if got.TotalEdges != 200 {
+		t.Errorf("TotalEdges = %d, want 200", got.TotalEdges)
+	}
+}
+
+func TestServer_SearchEndpoint_WithStore(t *testing.T) {
+	reg, _ := newTestReg(t)
+	store := &stubStore{}
+	srv := metrics.NewServer("localhost:0", reg, store)
+	ts := httptest.NewServer(srv.TestHandler())
+	defer ts.Close()
+
+	body, _ := json.Marshal(map[string]any{
+		"query": "test query",
+		"topK":  5,
+	})
+	resp, err := http.Post(ts.URL+"/api/search", "application/json", bytes.NewReader(body)) //nolint:noctx
+	if err != nil {
+		t.Fatalf("POST /api/search: %v", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestServer_SearchEndpoint_MethodNotAllowed(t *testing.T) {
+	reg, _ := newTestReg(t)
+	store := &stubStore{}
+	srv := metrics.NewServer("localhost:0", reg, store)
+	ts := httptest.NewServer(srv.TestHandler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/search") //nolint:noctx
+	if err != nil {
+		t.Fatalf("GET /api/search: %v", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("status %d, want 405", resp.StatusCode)
 	}
 }
 

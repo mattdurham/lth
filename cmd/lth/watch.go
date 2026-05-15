@@ -140,7 +140,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	interval := time.Duration(globalCfg.Compaction.IntervalS) * time.Second
 
 	// Start metrics HTTP server.
-	metricsSrv := metrics.NewServer(metricsAddr, reg)
+	metricsSrv := metrics.NewServer(metricsAddr, reg, daemon.store)
 	go func() {
 		if srvErr := metricsSrv.Start(ctx); srvErr != nil && srvErr != http.ErrServerClosed {
 			slog.Error("metrics server error", "err", srvErr)

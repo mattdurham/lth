@@ -7,3 +7,4 @@
 5. `lth watch daemon` is a hidden Cobra command; it is not shown in `--help`.
 6. `lth config init` does not start the daemon.
 7. The daemon exposes Prometheus metrics at `localhost:10010/metrics` (default port, overridable via `--metrics-port`) and a status dashboard at `localhost:10010/`. The port is daemon-only; all other subcommands ignore this flag.
+8. The daemon exposes a search web UI at `localhost:10010/ui` and a JSON API at `localhost:10010/api/search` (POST) and `localhost:10010/api/stats` (GET). These endpoints require a live store; they return 503 if the store is unavailable.

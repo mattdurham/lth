@@ -48,6 +48,53 @@ func ParseLine(line []byte) (content, sessionID, cwd string, ts time.Time, skip 
 	return content, msg.SessionID, msg.CWD, msg.Timestamp, false, nil
 }
 
+// ParseFilePaths extracts file paths from tool_use blocks in a raw JSONL line.
+// Only assistant messages carry tool_use blocks. Returns nil, "" when no file
+// paths are found or the line is not an assistant message.
+func ParseFilePaths(line []byte) (paths []string, sessionID string) {
+	var msg JSOMessage
+	if err := json.Unmarshal(line, &msg); err != nil {
+		return nil, ""
+	}
+	if msg.Type != "assistant" || msg.Message == nil {
+		return nil, ""
+	}
+	p := ExtractFilePaths(msg.Message.Content)
+	if len(p) == 0 {
+		return nil, ""
+	}
+	return p, msg.SessionID
+}
+
+// ExtractFilePaths returns file paths from Read, Write, and Edit tool_use blocks in content.
+func ExtractFilePaths(content json.RawMessage) []string {
+	var blocks []struct {
+		Type  string          `json:"type"`
+		Name  string          `json:"name"`
+		Input json.RawMessage `json:"input"`
+	}
+	if err := json.Unmarshal(content, &blocks); err != nil {
+		return nil
+	}
+
+	var paths []string
+	for _, b := range blocks {
+		if b.Type != "tool_use" {
+			continue
+		}
+		switch b.Name {
+		case "Read", "Write", "Edit":
+			var inp struct {
+				FilePath string `json:"file_path"`
+			}
+			if err := json.Unmarshal(b.Input, &inp); err == nil && inp.FilePath != "" {
+				paths = append(paths, inp.FilePath)
+			}
+		}
+	}
+	return paths
+}
+
 // ExtractContent extracts text content from a JSON content field.
 // The content can be a plain string or an array of content blocks.
 // Tool result blocks larger than 10KB are skipped.
