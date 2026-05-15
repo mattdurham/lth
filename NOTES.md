@@ -96,3 +96,13 @@ endpoints are unaffected.
 **Rationale:** Agents bootstrapping from lth were repeating the same 3-search pattern independently. `lth prompt` centralizes this into one command that outputs a ready-to-embed structured block. Skills and hooks wire this into workflows without requiring each agent to know the search pattern.
 
 **Consequence:** Skills calling `lth prompt` depend on the daemon. The UserPromptSubmit hook is opt-in and only fires for workflow commands (/bob:work, /bob:explore, /lth:brief).
+
+## 8. Export/Import for Full DB Reconstruction
+
+*Added: 2026-05-15*
+
+**Decision:** Export and import bypass pkg/lth client and open internal/db directly (same pattern as compact.go) to preserve original embeddings, timestamps, importance, and valence exactly.
+
+**Rationale:** client.Store() re-embeds every memory (requires running embedding server) and resets importance/valence to defaults. Direct DB insertion gives exact reconstruction.
+
+**Consequence:** Export/import are daemon-exempt. The zip format (chunked JSONL + manifest.json) allows partial imports and is human-inspectable with any zip tool.

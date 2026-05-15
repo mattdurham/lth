@@ -165,14 +165,6 @@ func formatPromptOutput(w io.Writer, principles, techniques, context []*lth.Sear
 	}
 }
 
-// shortID returns the first 8 characters of a UUID for compact display.
-func shortID(id string) string {
-	if len(id) > 8 {
-		return id[:8]
-	}
-	return id
-}
-
 // collectIDs gathers all memory IDs from search results and raw memories, deduped.
 func collectIDs(principles, techniques, context []*lth.SearchResult, episodes []*lth.Memory) []string {
 	seen := make(map[string]bool)
