@@ -159,7 +159,7 @@ func (s *MemoryStore) scoreAndTagAsync(memID, content string) {
 	tagResp, err := s.llm.Complete(ctx, tagPrompt(content))
 	if err == nil {
 		if tags := parseTags(tagResp); tags != "" {
-			_ = s.db.SetAttributes(context.Background(), memID, map[string]string{"tags": tags})
+			_ = s.db.MergeAttribute(context.Background(), memID, "tags", tags)
 		}
 	}
 

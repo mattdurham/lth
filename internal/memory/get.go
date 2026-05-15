@@ -37,7 +37,7 @@ func (s *MemoryStore) Get(ctx context.Context, id string) (*Memory, error) {
 	row.DecayRate = newDecayRate
 	row.LastAccessedAt = now
 
-	attrs, err := s.db.GetAttributes(ctx, id)
+	attrs, err := s.db.GetAttributes(ctx, row.ID)
 	if err != nil {
 		return nil, fmt.Errorf("get attributes: %w", err)
 	}
