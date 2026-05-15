@@ -1,0 +1,125 @@
+# golangci-lint configuration for lth
+# Based on wllr configuration
+
+version: "2"
+
+linters:
+  enable:
+    # Correctness & Bugs
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    - nilerr
+
+    # Security
+    - gosec
+
+    # Code Quality
+    - revive
+    - gocritic
+    - gocyclo
+    - dupl
+    - goconst
+    - unconvert
+    - misspell
+
+    # Performance
+    - prealloc
+
+  settings:
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+
+    gocyclo:
+      min-complexity: 30
+
+    dupl:
+      threshold: 200
+
+    goconst:
+      min-len: 3
+      min-occurrences: 5
+
+    misspell:
+      locale: US
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: indent-error-flow
+        - name: errorf
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: max-public-structs
+          arguments: [1]
+
+    staticcheck:
+      checks: ["all", "-ST1000"]
+
+    gosec:
+      excludes:
+        - G104
+        - G204
+        - G301
+        - G302
+        - G304
+        - G706
+
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+        - singleCaseSwitch
+        - exitAfterDefer
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - goconst
+          - errcheck
+
+      - path: _test\.go
+        text: "G404:"
+        linters:
+          - gosec
+
+      - path: _test\.go
+        text: "appendAssign:"
+        linters:
+          - gocritic
+
+      - path: cmd/
+        text: "ifElseChain:"
+        linters:
+          - gocritic
+
+      # internal/metrics package name does not conflict with any stdlib package.
+      - path: internal/metrics/
+        text: "var-naming:"
+        linters:
+          - revive
