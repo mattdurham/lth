@@ -83,7 +83,7 @@ FROM memories WHERE id = ?`, id)
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
        valence, valence_scored
-FROM memories WHERE id LIKE ? AND compacted_at IS NULL`, id+"%")
+FROM memories WHERE id LIKE ?`, id+"%")
 	if err != nil {
 		return nil, fmt.Errorf("get memory prefix: %w", err)
 	}
