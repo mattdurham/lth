@@ -7,3 +7,4 @@
 5. `lth watch daemon` is a hidden Cobra command; it is not shown in `--help`.
 6. `lth config init` does not start the daemon.
 7. The daemon exposes Prometheus metrics at `localhost:10010/metrics` (default port, overridable via `--metrics-port`) and a status dashboard at `localhost:10010/`. The port is daemon-only; all other subcommands ignore this flag.
+8. `lth prompt` outputs a structured markdown block to stdout. Empty sections are omitted. `--cwd` filters L4/L5 results to memories whose `cwd` attribute matches the current working directory.
