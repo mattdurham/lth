@@ -86,3 +86,13 @@ visually explicit in the UI.
 **Consequence:** Callers of `metrics.NewServer` must pass a `memory.Store` (or `nil`). All API
 endpoints degrade gracefully to 503 when the store is nil, so tests that only exercise metrics
 endpoints are unaffected.
+
+## 7. Auto-Context Generation via `lth prompt` and Skills
+
+*Added: 2026-05-15*
+
+**Decision:** Added `lth prompt <query>` command, three skills (lth-warmup, lth-brief, lth-reflect), and a hook (lth-inject.sh) to automatically inject memory context into agent workflows.
+
+**Rationale:** Agents bootstrapping from lth were repeating the same 3-search pattern independently. `lth prompt` centralizes this into one command that outputs a ready-to-embed structured block. Skills and hooks wire this into workflows without requiring each agent to know the search pattern.
+
+**Consequence:** Skills calling `lth prompt` depend on the daemon. The UserPromptSubmit hook is opt-in and only fires for workflow commands (/bob:work, /bob:explore, /lth:brief).
