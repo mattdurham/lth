@@ -1,4 +1,4 @@
-.PHONY: build test lint ci clean install install-cli install-skills uninstall
+.PHONY: build test lint ci clean install install-cli install-skills uninstall bench-build benchmark bench-eval
 
 build:
 	go build ./...
@@ -10,6 +10,20 @@ lint:
 	golangci-lint run
 
 ci: build test lint
+
+## bench-build: Build bench binary to bin/bench
+bench-build:
+	go build -o bin/bench ./cmd/bench
+
+## benchmark: Run SWE-bench on 5 Go problems
+benchmark: bench-build
+	./bin/bench run --problems 5 --language go
+
+## bench-eval: Instructions to run official SWE-bench evaluation
+bench-eval:
+	@echo "To evaluate predictions, run the official SWE-bench harness:"
+	@echo "  pip install swe-bench"
+	@echo "  python -m swebench.harness.run_evaluation --predictions_path predictions-lth-work.jsonl --run_id lth-work"
 
 clean:
 	rm -rf bin/
