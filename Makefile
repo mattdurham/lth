@@ -1,4 +1,4 @@
-.PHONY: build test lint ci clean install install-cli install-skills uninstall bench-build benchmark bench-eval
+.PHONY: build test lint ci clean install install-cli install-skills uninstall bench-build benchmark bench-eval bench-all
 
 build:
 	go build ./...
@@ -19,11 +19,24 @@ bench-build:
 benchmark: bench-build
 	./bin/bench run --problems 42 --language go
 
-## bench-eval: Instructions to run official SWE-bench evaluation
+## bench-eval: Score predictions using the official SWE-bench evaluation harness (requires Docker)
 bench-eval:
-	@echo "To evaluate predictions, run the official SWE-bench harness:"
-	@echo "  pip install swe-bench"
-	@echo "  python -m swebench.harness.run_evaluation --predictions_path predictions-lth-work.jsonl --run_id lth-work"
+	@for approach in bob-work lth-work default; do \
+		if [ -f predictions-$$approach.jsonl ]; then \
+			echo "=== Evaluating $$approach ==="; \
+			python3 -m swebench.harness.run_evaluation \
+				--dataset_name SWE-bench/SWE-bench_Multilingual \
+				--predictions_path predictions-$$approach.jsonl \
+				--run_id $$approach \
+				--split test \
+				--max_workers 1; \
+		else \
+			echo "Skipping $$approach: predictions-$$approach.jsonl not found (run make benchmark first)"; \
+		fi \
+	done
+
+## bench-all: Run inference then evaluate — full end-to-end benchmark
+bench-all: benchmark bench-eval
 
 clean:
 	rm -rf bin/
