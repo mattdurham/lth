@@ -440,8 +440,13 @@ This handles the full cycle: multi-domain review → fix loop → commit → CI 
 
 **Goal:** Persist workflow-level findings back to lth for future sessions.
 
-After code-review completes, store a workflow summary:
+**Step 1:** Run `/lth:reflect` to automatically extract and store learnings from git history and workflow artifacts:
+```
+Invoke: /lth:reflect
+```
+This captures decisions, problems encountered, and reusable patterns without requiring manual `lth store` calls.
 
+**Step 2:** Store a workflow-level summary manually (complements reflect with broader context):
 ```bash
 ~/bin/lth store --layer 4 \
   --attr "project=[repo-name]" \
