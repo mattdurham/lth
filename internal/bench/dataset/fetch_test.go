@@ -126,17 +126,18 @@ func TestFetchProblemsURLParams(t *testing.T) {
 	defer srv.Close()
 
 	c := &HFClient{httpClient: &http.Client{}, baseURL: srv.URL}
-	_, err := c.FetchProblems(context.Background(), 5, 20, "")
+	_, err := c.FetchProblems(context.Background(), 0, 20, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	// Paginating fetcher always starts at raw offset 0 with page size 100.
 	q := capturedURL.Query()
-	if q.Get("offset") != "5" {
-		t.Errorf("offset = %q, want \"5\"", q.Get("offset"))
+	if q.Get("offset") != "0" {
+		t.Errorf("offset = %q, want \"0\"", q.Get("offset"))
 	}
-	if q.Get("length") != "20" {
-		t.Errorf("length = %q, want \"20\"", q.Get("length"))
+	if q.Get("length") != "100" {
+		t.Errorf("length = %q, want \"100\"", q.Get("length"))
 	}
 	if q.Get("dataset") != "SWE-bench/SWE-bench_Multilingual" {
 		t.Errorf("dataset = %q", q.Get("dataset"))
