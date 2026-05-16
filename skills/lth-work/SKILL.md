@@ -304,9 +304,12 @@ Your job:
 2. Claim a task: TaskUpdate(status: in_progress, owner: coder-1)
 3. Read task: TaskGet
 4. Read the plan: .bob/state/plan.md
-5. Implement — use TDD (tests first for implementation tasks)
-6. Mark task completed
-7. Repeat until no tasks available
+5. Before editing any file — search lth for that file's history first:
+   ~/bin/lth search "[filename or package]" --layers L3,L4,L5 --top 5
+   Apply any relevant prior decisions, known bugs, or patterns before touching the file.
+6. Implement — use TDD (tests first for implementation tasks)
+7. Mark task completed
+8. Repeat until no tasks available
 
 SPEC-DRIVEN MODULES: Before editing any directory, check for SPECS.md, NOTES.md,
 TESTS.md, BENCHMARKS.md, or .go files with '// NOTE: Any changes...'. If found,
