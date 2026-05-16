@@ -37,7 +37,7 @@ func PrintSummary(results []runner.Result, w io.Writer) {
 		s := stats[r.Approach]
 		s.problems++
 		switch r.Outcome {
-		case runner.OutcomePass:
+		case runner.OutcomePatchGenerated:
 			s.patches++
 		case runner.OutcomeNoPatch:
 			s.noPatch++

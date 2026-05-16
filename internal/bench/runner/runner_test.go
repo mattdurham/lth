@@ -40,8 +40,8 @@ func TestRunOneReturnsPatch(t *testing.T) {
 	if result.Outcome == OutcomeClaudeFail {
 		t.Fatalf("unexpected ClaudeFail: %s", result.Error)
 	}
-	if result.Outcome != OutcomePass {
-		t.Errorf("outcome = %q, want %q", result.Outcome, OutcomePass)
+	if result.Outcome != OutcomePatchGenerated {
+		t.Errorf("outcome = %q, want %q", result.Outcome, OutcomePatchGenerated)
 	}
 	if result.ModelPatch == "" {
 		t.Error("ModelPatch should not be empty")

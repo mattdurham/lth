@@ -19,8 +19,8 @@ func TestPrintSummary_Empty(t *testing.T) {
 
 func TestPrintSummary_AllPatches(t *testing.T) {
 	results := []runner.Result{
-		{InstanceID: "i1", Approach: "default", Outcome: runner.OutcomePass},
-		{InstanceID: "i2", Approach: "default", Outcome: runner.OutcomePass},
+		{InstanceID: "i1", Approach: "default", Outcome: runner.OutcomePatchGenerated},
+		{InstanceID: "i2", Approach: "default", Outcome: runner.OutcomePatchGenerated},
 	}
 	var buf strings.Builder
 	PrintSummary(results, &buf)
@@ -32,8 +32,8 @@ func TestPrintSummary_AllPatches(t *testing.T) {
 
 func TestPrintSummary_MixedOutcomes(t *testing.T) {
 	results := []runner.Result{
-		{InstanceID: "i1", Approach: "bob-work", Outcome: runner.OutcomePass},
-		{InstanceID: "i2", Approach: "bob-work", Outcome: runner.OutcomePass},
+		{InstanceID: "i1", Approach: "bob-work", Outcome: runner.OutcomePatchGenerated},
+		{InstanceID: "i2", Approach: "bob-work", Outcome: runner.OutcomePatchGenerated},
 		{InstanceID: "i3", Approach: "bob-work", Outcome: runner.OutcomeNoPatch},
 		{InstanceID: "i4", Approach: "bob-work", Outcome: runner.OutcomeClaudeFail},
 		{InstanceID: "i5", Approach: "bob-work", Outcome: runner.OutcomeClaudeFail},
@@ -53,7 +53,7 @@ func TestPrintSummary_MixedOutcomes(t *testing.T) {
 func TestPrintSummary_WritesToWriter(t *testing.T) {
 	var buf strings.Builder
 	results := []runner.Result{
-		{InstanceID: "i1", Approach: "default", Outcome: runner.OutcomePass},
+		{InstanceID: "i1", Approach: "default", Outcome: runner.OutcomePatchGenerated},
 	}
 	PrintSummary(results, &buf)
 	if buf.Len() == 0 {

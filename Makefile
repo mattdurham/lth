@@ -15,9 +15,9 @@ ci: build test lint
 bench-build:
 	go build -o bin/bench ./cmd/bench
 
-## benchmark: Run SWE-bench on 5 Go problems
+## benchmark: Run all 42 SWE-bench Multilingual Go problems (pass/fail scored by official harness)
 benchmark: bench-build
-	./bin/bench run --problems 5 --language go
+	./bin/bench run --problems 42 --language go
 
 ## bench-eval: Instructions to run official SWE-bench evaluation
 bench-eval:

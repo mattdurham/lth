@@ -68,7 +68,7 @@ func (r *Runner) RunOne(ctx context.Context, problem dataset.Problem, approach A
 	return Result{
 		InstanceID:  problem.InstanceID,
 		Approach:    string(approach),
-		Outcome:     OutcomePass,
+		Outcome:     OutcomePatchGenerated,
 		ModelPatch:  patch,
 		DurationSec: time.Since(start).Seconds(),
 		StartedAt:   start,
