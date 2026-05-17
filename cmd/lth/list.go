@@ -69,14 +69,9 @@ func runList(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	fmt.Printf("%-10s %-19s %s\n", "ID", "Created", "Content")
-	fmt.Printf("%-10s %-19s %s\n", "----------", "-------------------", "-------")
 	for _, r := range rows {
-		content := r.Content
-		if len(content) > 72 {
-			content = content[:69] + "..."
-		}
-		fmt.Printf("%-10s %-19s %s\n", r.ID[:8], r.CreatedAt.Format("2006-01-02 15:04:05"), content)
+		fmt.Printf("> id: %s  created: %s\n\n%s\n\n---\n\n",
+			r.ID, r.CreatedAt.Format("2006-01-02 15:04:05"), r.Content)
 	}
 	return nil
 }
