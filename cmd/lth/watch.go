@@ -154,6 +154,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go func() { errCh <- w.Start(ctx) }()
 	go func() { errCh <- daemon.compactor.Run(ctx, interval) }()
 	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 50, 2*time.Second)
+	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, 20, 5*time.Second)
 
 	slog.Info("daemon started", "pid", os.Getpid(), "metrics", metricsAddr)
 
@@ -176,6 +177,7 @@ type daemonComponents struct {
 	compactor *compactor.Compactor
 	d         *db.DB
 	llm       llm.LLM
+	emb       vector.Embedder
 }
 
 func (dc *daemonComponents) close() {
@@ -217,5 +219,6 @@ func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 		compactor: c,
 		d:         d,
 		llm:       l,
+		emb:       emb,
 	}, nil
 }
