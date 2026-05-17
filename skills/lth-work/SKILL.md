@@ -83,11 +83,12 @@ Background execution enables true parallelism. Never use foreground.
 Every agent uses this pattern before doing any work:
 
 ```bash
-~/bin/lth stats  # start daemon if not running
+export LTH_ACTIVE=1  # enables file-level lth context injection on every Read
+~/bin/lth stats      # start daemon if not running
 ~/bin/lth prompt "<task or role query>"
 ```
 
-`lth prompt` runs layered searches (L1/L2 principles, L3 techniques, L4 context) plus PPR graph expansion in one call. Apply findings as operating principles. If lth returns nothing, proceed with general knowledge.
+`lth prompt` runs layered searches (L1/L2 principles, L3 techniques, L4 context) plus PPR graph expansion in one call. `LTH_ACTIVE=1` enables automatic lth context injection whenever a file is read. Apply findings as operating principles. If lth returns nothing, proceed with general knowledge.
 
 ---
 
@@ -290,9 +291,10 @@ Your job:
 2. Claim a task: TaskUpdate(status: in_progress, owner: coder-1)
 3. Read task: TaskGet
 4. Read the plan: .bob/state/plan.md
-5. Before editing any file — search lth for that file's history first:
-   ~/bin/lth search "[filename or package]" --layers L3,L4,L5 --top 5
-   Apply any relevant prior decisions, known bugs, or patterns before touching the file.
+5. Before editing any file — read it via lth to get context + file content together:
+   ~/bin/lth read <filepath>
+   This outputs a header of prior lth memories (with GUIDs for follow-up) then the file content.
+   Use `lth get <id>` or `lth graph show --from <id>` to explore any memory further.
 6. Implement — use TDD (tests first for implementation tasks)
 7. Mark task completed
 8. Repeat until no tasks available
