@@ -23,6 +23,7 @@ var (
 	searchTags       string
 	searchMinValence float32
 	searchMaxValence float32
+	searchExpand     bool
 )
 
 var searchCmd = &cobra.Command{
@@ -41,6 +42,7 @@ func init() {
 	searchCmd.Flags().StringVar(&searchTags, "tags", "", "comma-separated tags to filter by (e.g. go,error-handling)")
 	searchCmd.Flags().Float32Var(&searchMinValence, "min-valence", 0, "only return memories with valence >= this value (e.g. 0.5 for positive outcomes)")
 	searchCmd.Flags().Float32Var(&searchMaxValence, "max-valence", 0, "only return memories with valence <= this value (e.g. -0.5 for failures)")
+	searchCmd.Flags().BoolVar(&searchExpand, "expand", false, "expand query via LLM to find related memories")
 	rootCmd.AddCommand(searchCmd)
 }
 
@@ -65,6 +67,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		Alpha:  searchAlpha,
 		Beta:   searchBeta,
 		Gamma:  searchGamma,
+		Expand: searchExpand,
 	}
 
 	// Set valence filters only when the flags were explicitly provided.

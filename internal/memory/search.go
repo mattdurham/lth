@@ -13,4 +13,5 @@ type SearchRequest struct {
 	Gamma      float32  // weight for cosine similarity component
 	MinValence *float32 // if set, only return memories with Valence >= MinValence
 	MaxValence *float32 // if set, only return memories with Valence <= MaxValence
+	Expand     bool     // if true, use LLM to generate related queries before searching
 }
