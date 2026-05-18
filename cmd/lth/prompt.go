@@ -18,6 +18,7 @@ var (
 	promptFollowEdges bool
 	promptPPR         bool
 	promptPPRTop      int
+	promptExpand      bool
 )
 
 var promptCmd = &cobra.Command{
@@ -33,6 +34,7 @@ func init() {
 	promptCmd.Flags().BoolVar(&promptFollowEdges, "follow-edges", false, "follow graph edges from L4 results into connected L5 nodes")
 	promptCmd.Flags().BoolVar(&promptPPR, "ppr", true, "expand context via Personalized PageRank from search result seeds")
 	promptCmd.Flags().IntVar(&promptPPRTop, "ppr-top", 5, "number of PPR-expanded memories to include")
+	promptCmd.Flags().BoolVar(&promptExpand, "expand", true, "expand queries via LLM for broader context retrieval (default true)")
 	rootCmd.AddCommand(promptCmd)
 }
 
@@ -50,6 +52,7 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 		Query:  query,
 		Layers: []int{1, 2},
 		TopK:   promptTopEach,
+		Expand: promptExpand,
 	})
 	if err != nil {
 		return fmt.Errorf("search L1/L2: %w", err)
@@ -60,6 +63,7 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 		Query:  query,
 		Layers: []int{3},
 		TopK:   promptTopEach,
+		Expand: promptExpand,
 	})
 	if err != nil {
 		return fmt.Errorf("search L3: %w", err)
@@ -70,6 +74,7 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 		Query:  query,
 		Layers: []int{4},
 		TopK:   promptTopEach,
+		Expand: promptExpand,
 	})
 	if err != nil {
 		return fmt.Errorf("search L4: %w", err)
