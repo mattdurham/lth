@@ -8,9 +8,9 @@ import "time"
 type Outcome string
 
 const (
-	OutcomePass       Outcome = "pass"
-	OutcomeNoPatch    Outcome = "no_patch"
-	OutcomeClaudeFail Outcome = "claude_fail"
+	OutcomePatchGenerated Outcome = "patch_generated" // patch extracted — harness determines pass/fail
+	OutcomeNoPatch        Outcome = "no_patch"         // claude produced no extractable patch
+	OutcomeClaudeFail     Outcome = "claude_fail"      // claude process error or timeout
 )
 
 // Result holds the outcome of one problem × approach run.

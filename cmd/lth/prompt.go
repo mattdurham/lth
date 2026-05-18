@@ -6,15 +6,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/mattdurham/lth/pkg/lth"
 	"github.com/spf13/cobra"
 )
 
 var (
-	promptTopEach    int
-	promptCWD        bool
+	promptTopEach     int
+	promptCWD         bool
 	promptFollowEdges bool
+	promptPPR         bool
+	promptPPRTop      int
+	promptExpand      bool
 )
 
 var promptCmd = &cobra.Command{
@@ -28,6 +32,9 @@ func init() {
 	promptCmd.Flags().IntVar(&promptTopEach, "top-each", 5, "results per layer group")
 	promptCmd.Flags().BoolVar(&promptCWD, "cwd", false, "filter L4 results to memories where cwd matches current working directory")
 	promptCmd.Flags().BoolVar(&promptFollowEdges, "follow-edges", false, "follow graph edges from L4 results into connected L5 nodes")
+	promptCmd.Flags().BoolVar(&promptPPR, "ppr", true, "expand context via Personalized PageRank from search result seeds")
+	promptCmd.Flags().IntVar(&promptPPRTop, "ppr-top", 5, "number of PPR-expanded memories to include")
+	promptCmd.Flags().BoolVar(&promptExpand, "expand", true, "expand queries via LLM for broader context retrieval (default true)")
 	rootCmd.AddCommand(promptCmd)
 }
 
@@ -45,6 +52,7 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 		Query:  query,
 		Layers: []int{1, 2},
 		TopK:   promptTopEach,
+		Expand: promptExpand,
 	})
 	if err != nil {
 		return fmt.Errorf("search L1/L2: %w", err)
@@ -55,6 +63,7 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 		Query:  query,
 		Layers: []int{3},
 		TopK:   promptTopEach,
+		Expand: promptExpand,
 	})
 	if err != nil {
 		return fmt.Errorf("search L3: %w", err)
@@ -65,6 +74,7 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 		Query:  query,
 		Layers: []int{4},
 		TopK:   promptTopEach,
+		Expand: promptExpand,
 	})
 	if err != nil {
 		return fmt.Errorf("search L4: %w", err)
@@ -83,6 +93,47 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 			}
 		}
 		context = filtered
+	}
+
+	// PPR expansion: seed from all search results, surface graph-linked memories not yet seen.
+	var related []*lth.Memory
+	if promptPPR {
+		seeds := collectIDs(principles, techniques, context, nil)
+		if len(seeds) > 0 {
+			pprScores, err := client.GraphPPR(cmd.Context(), seeds)
+			if err == nil && len(pprScores) > 0 {
+				// Sort by descending PPR score.
+				type scored struct {
+					id    string
+					score float64
+				}
+				ranked := make([]scored, 0, len(pprScores))
+				for id, score := range pprScores {
+					ranked = append(ranked, scored{id, score})
+				}
+				sort.Slice(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
+
+				// Fetch top-N memories not already in results.
+				seen := make(map[string]bool, len(seeds))
+				for _, id := range seeds {
+					seen[id] = true
+				}
+				for _, s := range ranked {
+					if len(related) >= promptPPRTop {
+						break
+					}
+					if seen[s.id] {
+						continue
+					}
+					seen[s.id] = true
+					mem, err := client.Get(cmd.Context(), s.id)
+					if err != nil {
+						continue
+					}
+					related = append(related, mem)
+				}
+			}
+		}
 	}
 
 	// Optionally follow graph edges from L4 results into connected L5 nodes.
@@ -112,14 +163,14 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	formatPromptOutput(os.Stdout, principles, techniques, context, episodes)
+	formatPromptOutput(os.Stdout, principles, techniques, context, related, episodes)
 	return nil
 }
 
 // formatPromptOutput writes a structured markdown agent context block to w.
 // Empty sections are omitted entirely. Each entry includes its memory ID so
 // agents can explore further with: lth get <id>, lth graph show --from <id>
-func formatPromptOutput(w io.Writer, principles, techniques, context []*lth.SearchResult, episodes []*lth.Memory) {
+func formatPromptOutput(w io.Writer, principles, techniques, context []*lth.SearchResult, related, episodes []*lth.Memory) {
 	fmt.Fprintln(w, "# Agent Context") //nolint:errcheck
 
 	if len(principles) > 0 {
@@ -143,6 +194,13 @@ func formatPromptOutput(w io.Writer, principles, techniques, context []*lth.Sear
 		}
 	}
 
+	if len(related) > 0 {
+		fmt.Fprintln(w, "\n## Related Context (via graph)") //nolint:errcheck
+		for _, m := range related {
+			fmt.Fprintf(w, "%s\n\n> id: %s\n\n", m.Content, m.ID) //nolint:errcheck
+		}
+	}
+
 	if len(episodes) > 0 {
 		fmt.Fprintln(w, "\n## Related Episodes") //nolint:errcheck
 		for _, m := range episodes {
@@ -151,7 +209,7 @@ func formatPromptOutput(w io.Writer, principles, techniques, context []*lth.Sear
 	}
 
 	// Print a reference block so agents know how to explore further.
-	allIDs := collectIDs(principles, techniques, context, episodes)
+	allIDs := collectIDs(principles, techniques, context, append(related, episodes...))
 	if len(allIDs) > 0 {
 		fmt.Fprintln(w, "\n## Memory IDs (for exploration)") //nolint:errcheck
 		fmt.Fprintln(w, "Use these IDs to explore further:")                                               //nolint:errcheck

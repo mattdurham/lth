@@ -83,19 +83,12 @@ Background execution enables true parallelism. Never use foreground.
 Every agent uses this pattern before doing any work:
 
 ```bash
-~/bin/lth stats  # start daemon if not running
-
-# 1. Identity + principles
-~/bin/lth search "<task or role query>" --layers L1,L2 --top 5
-
-# 2. Skills and techniques  
-~/bin/lth search "<role-specific query>" --layers L3 --top 10
-
-# 3. Recent project context
-~/bin/lth search "<task-specific query>" --layers L4,L5 --top 5
+export LTH_ACTIVE=1  # enables file-level lth context injection on every Read
+~/bin/lth stats      # start daemon if not running
+~/bin/lth prompt "<task or role query>"
 ```
 
-Apply findings as operating principles. If lth returns nothing, proceed with general knowledge.
+`lth prompt` runs layered searches (L1/L2 principles, L3 techniques, L4 context) plus PPR graph expansion in one call. `LTH_ACTIVE=1` enables automatic lth context injection whenever a file is read. Apply findings as operating principles. If lth returns nothing, proceed with general knowledge.
 
 ---
 
@@ -210,9 +203,7 @@ Task(subagent_type: "workflow-brainstormer",
 
      FIRST — bootstrap your guidance from lth:
        ~/bin/lth stats
-       ~/bin/lth search 'software architecture brainstorming research exploration' --layers L1,L2 --top 5
-       ~/bin/lth search 'codebase research patterns exploration techniques' --layers L3 --top 8
-       ~/bin/lth search '[task description]' --layers L4,L5 --top 5
+       ~/bin/lth prompt '[task description]'
 
      Apply what you find. Then:
 
@@ -245,9 +236,7 @@ Task(subagent_type: "workflow-planner",
 
      FIRST — bootstrap your guidance from lth:
        ~/bin/lth stats
-       ~/bin/lth search 'software planning task decomposition implementation strategy' --layers L1,L2 --top 5
-       ~/bin/lth search 'planning implementation steps tdd test-driven' --layers L3 --top 10
-       ~/bin/lth search '[task description]' --layers L4,L5 --top 5
+       ~/bin/lth prompt '[task description]'
 
      Apply what you find as your planning principles. Then:
 
@@ -293,9 +282,7 @@ First read .bob/state/context.md if it exists — this contains pre-loaded lth m
 
 BEFORE WRITING ANY CODE — bootstrap your guidance from lth:
   ~/bin/lth stats
-  ~/bin/lth search 'software engineering code quality correctness' --layers L1,L2 --top 5
-  ~/bin/lth search 'implementation coding best practices patterns' --layers L3 --top 10
-  ~/bin/lth search '[task description] implementation' --layers L4,L5 --top 5
+  ~/bin/lth prompt '[task description]'
 
 Apply what you find as your coding principles.
 
@@ -304,9 +291,13 @@ Your job:
 2. Claim a task: TaskUpdate(status: in_progress, owner: coder-1)
 3. Read task: TaskGet
 4. Read the plan: .bob/state/plan.md
-5. Implement — use TDD (tests first for implementation tasks)
-6. Mark task completed
-7. Repeat until no tasks available
+5. Before editing any file — read it via lth to get context + file content together:
+   ~/bin/lth read <filepath>
+   This outputs a header of prior lth memories (with GUIDs for follow-up) then the file content.
+   Use `lth get <id>` or `lth graph show --from <id>` to explore any memory further.
+6. Implement — use TDD (tests first for implementation tasks)
+7. Mark task completed
+8. Repeat until no tasks available
 
 SPEC-DRIVEN MODULES: Before editing any directory, check for SPECS.md, NOTES.md,
 TESTS.md, BENCHMARKS.md, or .go files with '// NOTE: Any changes...'. If found,
@@ -329,9 +320,7 @@ You are a code reviewer (reviewer-1).
 
 BEFORE REVIEWING ANY CODE — bootstrap your guidance from lth:
   ~/bin/lth stats
-  ~/bin/lth search 'code review quality standards correctness' --layers L1,L2 --top 5
-  ~/bin/lth search 'code review patterns bugs security performance go' --layers L3 --top 10
-  ~/bin/lth search '[task description] review' --layers L4,L5 --top 5
+  ~/bin/lth prompt '[task description] code review'
 
 Apply what you find as your review criteria.
 
@@ -394,9 +383,7 @@ Task(subagent_type: "workflow-tester",
 
      FIRST — bootstrap your guidance from lth:
        ~/bin/lth stats
-       ~/bin/lth search 'testing quality gates ci pipeline verification' --layers L1,L2 --top 5
-       ~/bin/lth search 'go testing test suite quality checks lint' --layers L3 --top 8
-       ~/bin/lth search '[task description] testing' --layers L4,L5 --top 5
+       ~/bin/lth prompt '[task description] testing'
 
      Apply what you find. Then:
 

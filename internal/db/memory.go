@@ -223,6 +223,31 @@ LIMIT ?`, limit)
 	return scanMemoryRows(rows)
 }
 
+// ListUnembedded returns up to limit memories where embedding is NULL or empty and compacted_at IS NULL.
+// Used by the BackfillEmbeddings goroutine in the daemon.
+func (d *DB) ListUnembedded(ctx context.Context, limit int) ([]*MemoryRow, error) {
+	rows, err := d.db.QueryContext(ctx, `
+SELECT id, layer, content, content_hash, embedding, importance, access_count,
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored
+FROM memories
+WHERE (embedding IS NULL OR length(embedding) = 0) AND compacted_at IS NULL
+ORDER BY created_at ASC
+LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list unembedded: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+
+	return scanMemoryRows(rows)
+}
+
+// UpdateEmbedding sets the embedding field for a memory. Used by the BackfillEmbeddings goroutine.
+func (d *DB) UpdateEmbedding(ctx context.Context, id string, embedding []byte) error {
+	_, err := d.db.ExecContext(ctx, `UPDATE memories SET embedding = ? WHERE id = ?`, embedding, id)
+	return err
+}
+
 // UpdateImportance sets the importance field for a memory. Used by the async importance goroutine.
 func (d *DB) UpdateImportance(ctx context.Context, id string, importance float32) error {
 	_, err := d.db.ExecContext(ctx, `UPDATE memories SET importance = ? WHERE id = ?`, importance, id)

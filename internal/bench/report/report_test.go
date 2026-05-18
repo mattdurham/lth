@@ -28,7 +28,7 @@ func TestAppendResult_WritesJSONLine(t *testing.T) {
 	}
 	defer w.Close()
 
-	r := makeResult("id1", "default", runner.OutcomePass)
+	r := makeResult("id1", "default", runner.OutcomePatchGenerated)
 	if err := w.AppendResult(r); err != nil {
 		t.Fatalf("AppendResult: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestAppendResult_MultipleLines(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		if err := w.AppendResult(makeResult("id", "default", runner.OutcomePass)); err != nil {
+		if err := w.AppendResult(makeResult("id", "default", runner.OutcomePatchGenerated)); err != nil {
 			t.Fatalf("AppendResult: %v", err)
 		}
 	}
@@ -78,7 +78,7 @@ func TestLoadCompleted_RoundTrip(t *testing.T) {
 	}
 
 	results := []runner.Result{
-		makeResult("inst1", "default", runner.OutcomePass),
+		makeResult("inst1", "default", runner.OutcomePatchGenerated),
 		makeResult("inst2", "bob-work", runner.OutcomeClaudeFail),
 		makeResult("inst3", "lth-work", runner.OutcomeNoPatch),
 	}
@@ -122,7 +122,7 @@ func TestAppendResult_PreservesExistingContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
-	if err := w1.AppendResult(makeResult("inst1", "default", runner.OutcomePass)); err != nil {
+	if err := w1.AppendResult(makeResult("inst1", "default", runner.OutcomePatchGenerated)); err != nil {
 		t.Fatalf("AppendResult: %v", err)
 	}
 	w1.Close()
@@ -131,7 +131,7 @@ func TestAppendResult_PreservesExistingContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
-	if err := w2.AppendResult(makeResult("inst2", "default", runner.OutcomePass)); err != nil {
+	if err := w2.AppendResult(makeResult("inst2", "default", runner.OutcomePatchGenerated)); err != nil {
 		t.Fatalf("AppendResult: %v", err)
 	}
 	w2.Close()

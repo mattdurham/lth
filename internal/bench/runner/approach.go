@@ -41,14 +41,22 @@ func buildDefaultPrompt(p dataset.Problem) string {
 
 func buildBobWorkPrompt(p dataset.Problem) string {
 	return fmt.Sprintf(
-		"/bob:work \"%s\"\n\nAfter completing the work, output your fix as a unified diff in git diff format, wrapped in <patch>...</patch> XML tags.",
-		p.ProblemStatement,
+		"Before starting, search lth for prior experience with this repo and any files you touch:\n"+
+			"  ~/bin/lth search \"%s\" --layers L3,L4,L5 --top 5\n"+
+			"  # Before editing any file, also run: ~/bin/lth search \"<filename>\" --layers L3,L4,L5 --top 5\n\n"+
+			"/bob:work \"%s\"\n\n"+
+			"After completing the work, output your fix as a unified diff in git diff format, wrapped in <patch>...</patch> XML tags.",
+		p.Repo, p.ProblemStatement,
 	)
 }
 
 func buildLthWorkPrompt(p dataset.Problem) string {
 	return fmt.Sprintf(
-		"/lth-work \"%s\"\n\nAfter completing the work, output your fix as a unified diff in git diff format, wrapped in <patch>...</patch> XML tags.",
-		p.ProblemStatement,
+		"Before starting, search lth for prior experience with this repo and any files you touch:\n"+
+			"  ~/bin/lth search \"%s\" --layers L3,L4,L5 --top 5\n"+
+			"  # Before editing any file, also run: ~/bin/lth search \"<filename>\" --layers L3,L4,L5 --top 5\n\n"+
+			"/lth-work \"%s\"\n\n"+
+			"After completing the work, output your fix as a unified diff in git diff format, wrapped in <patch>...</patch> XML tags.",
+		p.Repo, p.ProblemStatement,
 	)
 }

@@ -8,12 +8,12 @@ import (
 	"time"
 )
 
-func TestOutcomePassSerializesToPass(t *testing.T) {
-	b, err := json.Marshal(OutcomePass)
+func TestOutcomePatchGeneratedSerializesToPass(t *testing.T) {
+	b, err := json.Marshal(OutcomePatchGenerated)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(b) != `"pass"` {
+	if string(b) != `"patch_generated"` {
 		t.Errorf("got %s, want \"pass\"", b)
 	}
 }
@@ -22,7 +22,7 @@ func TestResultRoundTrip(t *testing.T) {
 	r := Result{
 		InstanceID:  "gin-gonic__gin-1234",
 		Approach:    "default",
-		Outcome:     OutcomePass,
+		Outcome:     OutcomePatchGenerated,
 		ModelPatch:  "diff --git a/foo.go b/foo.go\n--- a/foo.go\n+++ b/foo.go",
 		DurationSec: 42.5,
 		Error:       "some error",
@@ -64,7 +64,7 @@ func TestAllOutcomeConstants(t *testing.T) {
 		outcome  Outcome
 		expected string
 	}{
-		{OutcomePass, "pass"},
+		{OutcomePatchGenerated, "patch_generated"},
 		{OutcomeNoPatch, "no_patch"},
 		{OutcomeClaudeFail, "claude_fail"},
 	}

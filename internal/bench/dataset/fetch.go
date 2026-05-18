@@ -27,56 +27,85 @@ func NewHFClient() *HFClient {
 	}
 }
 
-type hfResponse struct {
-	Rows []hfRow `json:"rows"`
-}
-
 type hfRow struct {
 	Row Problem `json:"row"`
 }
 
-// FetchProblems retrieves up to limit problems starting at offset, filtered by language.
+const hfPageSize = 100 // HuggingFace API maximum rows per request
+
+// FetchProblems retrieves up to limit problems filtered by language, paginating as needed.
+// offset is a logical offset into the filtered result set (not the raw dataset offset).
 // language="" returns all languages.
 func (c *HFClient) FetchProblems(ctx context.Context, offset, limit int, language string) ([]Problem, error) {
+	var problems []Problem
+	rawOffset := 0
+	skipped := 0
+
+	for len(problems) < limit {
+		page, total, err := c.fetchPage(ctx, rawOffset, hfPageSize)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range page {
+			if language != "" && p.Language() != language {
+				continue
+			}
+			if skipped < offset {
+				skipped++
+				continue
+			}
+			problems = append(problems, p)
+			if len(problems) == limit {
+				return problems, nil
+			}
+		}
+		rawOffset += len(page)
+		if rawOffset >= total || len(page) == 0 {
+			break
+		}
+	}
+	return problems, nil
+}
+
+// fetchPage retrieves one page of raw rows. Returns rows, total dataset size, error.
+func (c *HFClient) fetchPage(ctx context.Context, offset, length int) ([]Problem, int, error) {
 	u, err := url.Parse(c.baseURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse base URL: %w", err)
+		return nil, 0, fmt.Errorf("parse base URL: %w", err)
 	}
 	q := u.Query()
 	q.Set("dataset", "SWE-bench/SWE-bench_Multilingual")
 	q.Set("config", "default")
 	q.Set("split", "test")
 	q.Set("offset", strconv.Itoa(offset))
-	q.Set("length", strconv.Itoa(limit))
+	q.Set("length", strconv.Itoa(length))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, 0, fmt.Errorf("create request: %w", err)
 	}
-
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetch problems: %w", err)
+		return nil, 0, fmt.Errorf("fetch problems: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetch problems: unexpected status %d", resp.StatusCode)
+		return nil, 0, fmt.Errorf("fetch problems: unexpected status %d", resp.StatusCode)
 	}
 
-	var hfResp hfResponse
+	var hfResp struct {
+		Rows        []hfRow `json:"rows"`
+		NumRowsTotal int    `json:"num_rows_total"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&hfResp); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, 0, fmt.Errorf("decode response: %w", err)
 	}
 
-	var problems []Problem
+	problems := make([]Problem, 0, len(hfResp.Rows))
 	for _, row := range hfResp.Rows {
-		p := row.Row
-		if language != "" && p.Language() != language {
-			continue
-		}
-		problems = append(problems, p)
+		problems = append(problems, row.Row)
 	}
-	return problems, nil
+	return problems, hfResp.NumRowsTotal, nil
 }
