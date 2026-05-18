@@ -37,7 +37,14 @@ func (a Approach) BuildPrompt(p dataset.Problem) string {
 
 func buildDefaultPrompt(p dataset.Problem) string {
 	return fmt.Sprintf(
-		"You are a software engineer. Here is a GitHub issue:\n\n<issue>\n%s\n</issue>\n\nFix the issue by modifying the repository. Output your fix as a unified diff in git diff format, wrapped in <patch>...</patch> XML tags. Output the patch and nothing else between those tags.",
+		"You are a software engineer. Here is a GitHub issue:\n\n<issue>\n%s\n</issue>\n\n"+
+			"Fix the issue by modifying the repository. Output your fix as a unified diff wrapped in <patch>...</patch> XML tags.\n\n"+
+			"IMPORTANT patch format rules:\n"+
+			"- Use standard unified diff format with --- and +++ headers\n"+
+			"- Do NOT include 'index HASH..HASH' lines — omit them entirely\n"+
+			"- Use --- a/path/to/file and +++ b/path/to/file headers\n"+
+			"- Include correct @@ line numbers matching the actual file\n"+
+			"- Output the patch and nothing else between the tags",
 		p.ProblemStatement,
 	)
 }
@@ -62,7 +69,13 @@ func buildLthSinglePrompt(p dataset.Problem) string {
 			"  ~/bin/lth prompt \"%s\" --top-each 3 --ppr=false --expand=false\n\n"+
 			"Apply what you find as context, then fix this GitHub issue:\n\n"+
 			"<issue>\n%s\n</issue>\n\n"+
-			"Read the relevant files in the repository, make the minimal fix, and output your change as a unified diff in git diff format, wrapped in <patch>...</patch> XML tags. Output the patch and nothing else between those tags.",
+			"Read the relevant files in the repository, make the minimal fix, and output your change as a unified diff wrapped in <patch>...</patch> XML tags.\n\n"+
+			"IMPORTANT patch format rules:\n"+
+			"- Use standard unified diff format with --- and +++ headers\n"+
+			"- Do NOT include 'index HASH..HASH' lines — omit them entirely\n"+
+			"- Use --- a/path/to/file and +++ b/path/to/file headers\n"+
+			"- Include correct @@ line numbers matching the actual file\n"+
+			"- Output the patch and nothing else between the tags",
 		p.Repo+" "+p.ProblemStatement[:min(len(p.ProblemStatement), 100)],
 		p.ProblemStatement,
 	)
