@@ -51,3 +51,7 @@ wrappers for lth. It exposes an HTTP server at `localhost:10010` (configurable v
 | /metrics | Prometheus text format exposition |
 | /health | Returns "ok" with HTTP 200 |
 | / | Minimal HTML status dashboard |
+| /v1/traces | OTLP JSON trace ingest (POST only); registered only when SetReceiver is called |
+
+7. **Conditional /v1/traces route**: The `/v1/traces` route is registered only when a receiver
+   is set via `SetReceiver`; it is absent from the mux when no receiver is configured.

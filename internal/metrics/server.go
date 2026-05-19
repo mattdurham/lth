@@ -9,22 +9,30 @@ import (
 	"time"
 
 	"github.com/mattdurham/lth/internal/memory"
+	"github.com/mattdurham/lth/internal/traces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Server serves Prometheus metrics, a search API, and the web UI.
 type Server struct {
-	addr  string
-	reg   *prometheus.Registry
-	store memory.Store
-	srv   *http.Server
+	addr     string
+	reg      *prometheus.Registry
+	store    memory.Store
+	srv      *http.Server
+	receiver *traces.Receiver // optional /v1/traces handler; nil = endpoint disabled
 }
 
 // NewServer creates a metrics HTTP server bound to addr (e.g. "localhost:10010").
 // store may be nil, in which case /api/* endpoints return 503.
 func NewServer(addr string, reg *prometheus.Registry, store memory.Store) *Server {
 	return &Server{addr: addr, reg: reg, store: store}
+}
+
+// SetReceiver registers an optional traces.Receiver to handle POST /v1/traces.
+// Must be called before Start.
+func (s *Server) SetReceiver(r *traces.Receiver) {
+	s.receiver = r
 }
 
 // buildMux constructs the HTTP mux used by both Start and TestHandler.
@@ -39,6 +47,9 @@ func (s *Server) buildMux() *http.ServeMux {
 	mux.HandleFunc("/api/stats", s.withStore(s.handleStats))
 	mux.HandleFunc("/ui", handleUI)
 	mux.HandleFunc("/", handleDashboard)
+	if s.receiver != nil {
+		mux.Handle("/v1/traces", s.receiver)
+	}
 	return mux
 }
 
