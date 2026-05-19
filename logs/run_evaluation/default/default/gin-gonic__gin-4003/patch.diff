@@ -1,0 +1,11 @@
+--- a/gin.go
++++ b/gin.go
+@@ -649,7 +649,10 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
+ 	if engine.HandleMethodNotAllowed {
+ 		// According to RFC 7231 section 6.5.5, MUST generate an Allow header field in response
+ 		// containing a list of the target resource's currently supported methods.
+-		allowed := make([]string, 0, len(t)-1)
++		allowed := make([]string, 0, max(len(t)-1, 0))
+ 		for _, tree := range engine.trees {
+ 			if tree.method == httpMethod {
+ 				continue

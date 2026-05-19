@@ -1,0 +1,128 @@
+2026-05-18 17:07:10,212 - INFO - Creating container for gohugoio__hugo-12343...
+2026-05-18 17:07:10,417 - INFO - Container for gohugoio__hugo-12343 created: 284e953b9511bf960e353b7c93a39c8675c6f31658eb681fb0e1085d2d61636a
+2026-05-18 17:07:10,551 - INFO - Container for gohugoio__hugo-12343 started: 284e953b9511bf960e353b7c93a39c8675c6f31658eb681fb0e1085d2d61636a
+2026-05-18 17:07:10,551 - INFO - Intermediate patch for gohugoio__hugo-12343 written to logs/run_evaluation/default/default/gohugoio__hugo-12343/patch.diff, now applying to container...
+2026-05-18 17:07:10,630 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-18 17:07:10,650 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-18 17:07:10,697 - INFO - >>>>> Applied Patch:
+patching file common/paths/path.go
+patching file common/paths/url.go
+patching file helpers/path_test.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 35 with fuzz 1.
+
+2026-05-18 17:07:10,984 - INFO - Git diff before:
+diff --git a/common/paths/path.go b/common/paths/path.go
+index 906270cae..dd331d2ab 100644
+--- a/common/paths/path.go
++++ b/common/paths/path.go
+@@ -318,7 +318,7 @@ func isAllowedPathCharacter(s string, i int, r rune) bool {
+ 	}
+ 	// Check for the most likely first (faster).
+ 	isAllowed := unicode.IsLetter(r) || unicode.IsDigit(r)
+-	isAllowed = isAllowed || r == '.' || r == '/' || r == '\\' || r == '_' || r == '#' || r == '+' || r == '~' || r == '-' || r == '@'
++	isAllowed = isAllowed || r == '.' || r == '/' || r == '\\' || r == '_' || r == '+' || r == '~' || r == '-' || r == '@'
+ 	isAllowed = isAllowed || unicode.IsMark(r)
+ 	isAllowed = isAllowed || (r == '%' && i+2 < len(s) && ishex(s[i+1]) && ishex(s[i+2]))
+ 	return isAllowed
+@@ -375,6 +375,9 @@ func (df DirFile) String() string {
+ // Note, there is a url.PathEscape function, but that also
+ // escapes /.
+ func PathEscape(pth string) string {
++	// url.Parse treats # as a fragment identifier, so escape it first
++	// to prevent truncation of paths containing literal # characters.
++	pth = strings.ReplaceAll(pth, "#", "%23")
+ 	u, err := url.Parse(pth)
+ 	if err != nil {
+ 		panic(err)
+diff --git a/common/paths/url.go b/common/paths/url.go
+index 75b4b644a..3f4130146 100644
+--- a/common/paths/url.go
++++ b/common/paths/url.go
+@@ -186,6 +186,9 @@ func UrlToFilename(s string) (string, bool) {
+ 
+ // URLEscape escapes unicode letters.
+ func URLEscape(uri string) string {
++	// url.Parse treats # as a fragment identifier, so escape it first
++	// to prevent truncation of paths containing literal # characters.
++	uri = strings.ReplaceAll(uri, "#", "%23")
+ 	// escape unicode letters
+ 	u, err := url.Parse(uri)
+ 	if err != nil {
+diff --git a/helpers/path_test.go b/helpers/path_test.go
+index 6f3699589..533b7a369 100644
+--- a/helpers/path_test.go
++++ b/helpers/path_test.go
+@@ -35,7 +35,8 @@ func TestMakePath(t *testing.T) {
+ 		expected      string
+ 		removeAccents bool
+ 	}{
+-		{"dot.slash/backslash\\underscore_pound#plus+hyphen-", "dot.slash/backslash\\underscore_pound#plus+hyphen-", true},
++		{"dot.slash/backslash\\underscore_poundplus+hyphen-", "dot.slash/backslash\\underscore_poundplus+hyphen-", true},
++		{"newsletter-#4", "newsletter-4", true}, // Issue #12169: '#' is a URL fragment separator and must not appear in paths
+ 		{"abcXYZ0123456789", "abcXYZ0123456789", true},
+ 		{"%20 %2", "%20-2", true},
+ 		{"foo- bar", "foo-bar", true},
+2026-05-18 17:07:10,984 - INFO - Eval script for gohugoio__hugo-12343 written to logs/run_evaluation/default/default/gohugoio__hugo-12343/eval.sh; copying to container...
+2026-05-18 17:07:20,021 - INFO - Test runtime: 9.00 seconds
+2026-05-18 17:07:20,021 - INFO - Test output for gohugoio__hugo-12343 written to logs/run_evaluation/default/default/gohugoio__hugo-12343/test_output.txt
+2026-05-18 17:07:20,073 - INFO - Git diff after:
+diff --git a/common/paths/path.go b/common/paths/path.go
+index 906270cae..dd331d2ab 100644
+--- a/common/paths/path.go
++++ b/common/paths/path.go
+@@ -318,7 +318,7 @@ func isAllowedPathCharacter(s string, i int, r rune) bool {
+ 	}
+ 	// Check for the most likely first (faster).
+ 	isAllowed := unicode.IsLetter(r) || unicode.IsDigit(r)
+-	isAllowed = isAllowed || r == '.' || r == '/' || r == '\\' || r == '_' || r == '#' || r == '+' || r == '~' || r == '-' || r == '@'
++	isAllowed = isAllowed || r == '.' || r == '/' || r == '\\' || r == '_' || r == '+' || r == '~' || r == '-' || r == '@'
+ 	isAllowed = isAllowed || unicode.IsMark(r)
+ 	isAllowed = isAllowed || (r == '%' && i+2 < len(s) && ishex(s[i+1]) && ishex(s[i+2]))
+ 	return isAllowed
+@@ -375,6 +375,9 @@ func (df DirFile) String() string {
+ // Note, there is a url.PathEscape function, but that also
+ // escapes /.
+ func PathEscape(pth string) string {
++	// url.Parse treats # as a fragment identifier, so escape it first
++	// to prevent truncation of paths containing literal # characters.
++	pth = strings.ReplaceAll(pth, "#", "%23")
+ 	u, err := url.Parse(pth)
+ 	if err != nil {
+ 		panic(err)
+diff --git a/common/paths/url.go b/common/paths/url.go
+index 75b4b644a..3f4130146 100644
+--- a/common/paths/url.go
++++ b/common/paths/url.go
+@@ -186,6 +186,9 @@ func UrlToFilename(s string) (string, bool) {
+ 
+ // URLEscape escapes unicode letters.
+ func URLEscape(uri string) string {
++	// url.Parse treats # as a fragment identifier, so escape it first
++	// to prevent truncation of paths containing literal # characters.
++	uri = strings.ReplaceAll(uri, "#", "%23")
+ 	// escape unicode letters
+ 	u, err := url.Parse(uri)
+ 	if err != nil {
+diff --git a/helpers/path_test.go b/helpers/path_test.go
+index 6f3699589..533b7a369 100644
+--- a/helpers/path_test.go
++++ b/helpers/path_test.go
+@@ -35,7 +35,8 @@ func TestMakePath(t *testing.T) {
+ 		expected      string
+ 		removeAccents bool
+ 	}{
+-		{"dot.slash/backslash\\underscore_pound#plus+hyphen-", "dot.slash/backslash\\underscore_pound#plus+hyphen-", true},
++		{"dot.slash/backslash\\underscore_poundplus+hyphen-", "dot.slash/backslash\\underscore_poundplus+hyphen-", true},
++		{"newsletter-#4", "newsletter-4", true}, // Issue #12169: '#' is a URL fragment separator and must not appear in paths
+ 		{"abcXYZ0123456789", "abcXYZ0123456789", true},
+ 		{"%20 %2", "%20-2", true},
+ 		{"foo- bar", "foo-bar", true},
+2026-05-18 17:07:20,073 - INFO - Grading answer for gohugoio__hugo-12343...
+2026-05-18 17:07:20,073 - INFO - report: {'gohugoio__hugo-12343': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['TestHashSignInPermalink']}, 'PASS_TO_PASS': {'success': ['TestPermalinkExpansionSliceSyntax', 'TestPermalinkExpansionSliceSyntax/Basic', 'TestPermalinkExpansionSliceSyntax/Out_of_bounds', 'TestPermalinkExpansionMultiSection', 'TestPermalinkExpansion', 'TestPermalinkExpansion/title', 'TestPermalinkExpansion/year-month-title', 'TestPermalinkExpansion/yearyeardaymonthmonthnamedayweekdayweekdayname', 'TestPermalinkExpansion/section', 'TestPermalinkExpansion/title#01', 'TestPermalinkExpansion/slug', 'TestPermalinkExpansion/slugorfilename', 'TestPermalinkExpansion/filename', 'TestPermalinkExpansion/06-1-2-Monday', 'TestPermalinkExpansion/2006_01_02_15_04_05.000', 'TestPermalinkExpansion/sections', 'TestPermalinkExpansion/sectionslast', 'TestPermalinkExpansion/sections0sectionslast', 'TestPermalinkExpansionConcurrent', 'TestPermalinkExpansionSectionsRepeated', 'TestPermalinksNestedSections', 'TestPermalinksOldSetup', 'TestPermalinks'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gohugoio__hugo-12343: resolved: False
+2026-05-18 17:07:20,074 - INFO - Attempting to stop container sweb.eval.gohugoio__hugo-12343.default...
+2026-05-18 17:07:35,270 - INFO - Attempting to remove container sweb.eval.gohugoio__hugo-12343.default...
+2026-05-18 17:07:35,382 - INFO - Container sweb.eval.gohugoio__hugo-12343.default removed.
+2026-05-18 17:07:35,382 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gohugoio_1776_hugo-12343:latest...
+2026-05-18 17:07:35,826 - INFO - Image swebench/sweb.eval.x86_64.gohugoio_1776_hugo-12343:latest removed.

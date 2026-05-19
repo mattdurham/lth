@@ -1,0 +1,39 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout 89de30a0b754f4eb54fb543037683f3db6cda109 promql/testdata/functions.test
+Updated 1 path from 8c4ae9bcf
++ git apply --verbose --reject -
+Checking patch promql/testdata/functions.test...
+Applied patch promql/testdata/functions.test cleanly.
++ : '>>>>> Start Test Output'
++ go test -v ./promql -run '^TestEvaluations'
+=== RUN   TestEvaluations
+=== RUN   TestEvaluations/testdata/aggregators.test
+=== RUN   TestEvaluations/testdata/at_modifier.test
+=== RUN   TestEvaluations/testdata/collision.test
+=== RUN   TestEvaluations/testdata/functions.test
+=== RUN   TestEvaluations/testdata/histograms.test
+=== RUN   TestEvaluations/testdata/literals.test
+=== RUN   TestEvaluations/testdata/operators.test
+=== RUN   TestEvaluations/testdata/selectors.test
+=== RUN   TestEvaluations/testdata/staleness.test
+=== RUN   TestEvaluations/testdata/subquery.test
+=== RUN   TestEvaluations/testdata/trig_functions.test
+--- PASS: TestEvaluations (0.81s)
+    --- PASS: TestEvaluations/testdata/aggregators.test (0.10s)
+    --- PASS: TestEvaluations/testdata/at_modifier.test (0.04s)
+    --- PASS: TestEvaluations/testdata/collision.test (0.02s)
+    --- PASS: TestEvaluations/testdata/functions.test (0.32s)
+    --- PASS: TestEvaluations/testdata/histograms.test (0.02s)
+    --- PASS: TestEvaluations/testdata/literals.test (0.01s)
+    --- PASS: TestEvaluations/testdata/operators.test (0.08s)
+    --- PASS: TestEvaluations/testdata/selectors.test (0.07s)
+    --- PASS: TestEvaluations/testdata/staleness.test (0.02s)
+    --- PASS: TestEvaluations/testdata/subquery.test (0.10s)
+    --- PASS: TestEvaluations/testdata/trig_functions.test (0.02s)
+PASS
+ok  	github.com/prometheus/prometheus/promql	0.817s
++ : '>>>>> End Test Output'
++ git checkout 89de30a0b754f4eb54fb543037683f3db6cda109 promql/testdata/functions.test
+Updated 1 path from 8c4ae9bcf

@@ -1,0 +1,11 @@
+--- a/resources/page/pages_group.go
++++ b/resources/page/pages_group.go
+@@ -170,9 +170,6 @@ func (p Pages) GroupByParam(key string, order ...string) (PagesGroup, error) {
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	if len(groups) == 0 {
+-		return nil, fmt.Errorf("there is no such param '%s'", key)
+-	}
+ 	return groups, nil
+ }

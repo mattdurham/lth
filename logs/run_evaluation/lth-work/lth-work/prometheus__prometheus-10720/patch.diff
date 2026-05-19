@@ -1,0 +1,20 @@
+diff --git a/web/ui/mantine-ui/src/promql/functionMeta.ts b/web/ui/mantine-ui/src/promql/functionMeta.ts
+index 1dec46662..8fb295d36 100644
+--- a/web/ui/mantine-ui/src/promql/functionMeta.ts
++++ b/web/ui/mantine-ui/src/promql/functionMeta.ts
+@@ -11,6 +11,7 @@ export const functionArgNames: Record<string, string[]> = {
+   // count_over_time: [],
+   day_of_month: ['timestamp (default = vector(time()))'],
+   day_of_week: ['timestamp (default = vector(time()))'],
++  day_of_year: ['timestamp (default = vector(time()))'],
+   days_in_month: ['timestamp (default = vector(time()))'],
+   // delta: [],
+   // deriv: [],
+@@ -62,6 +63,7 @@ export const functionDescriptions: Record<string, string> = {
+   count_over_time: 'count the number of values for each input series',
+   day_of_month: 'return the day of the month for provided timestamps',
+   day_of_week: 'return the day of the week for provided timestamps',
++  day_of_year: 'return the day of the year for provided timestamps',
+   days_in_month: 'return the number of days in current month for provided timestamps',
+   delta: 'calculate the difference between beginning and end of a range vector (for gauges)',
+   deriv: 'calculate the per-second derivative over series in a range vector (for gauges)',

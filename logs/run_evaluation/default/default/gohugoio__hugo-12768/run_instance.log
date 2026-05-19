@@ -1,0 +1,79 @@
+2026-05-17 03:28:39,693 - INFO - Creating container for gohugoio__hugo-12768...
+2026-05-17 03:28:39,776 - INFO - Container for gohugoio__hugo-12768 created: 33f4e93e83619934dee8755484eea7f2b24d708864e43bdccb5bb3985a4c849e
+2026-05-17 03:28:39,899 - INFO - Container for gohugoio__hugo-12768 started: 33f4e93e83619934dee8755484eea7f2b24d708864e43bdccb5bb3985a4c849e
+2026-05-17 03:28:39,899 - INFO - Intermediate patch for gohugoio__hugo-12768 written to logs/run_evaluation/default/default/gohugoio__hugo-12768/patch.diff, now applying to container...
+2026-05-17 03:28:39,980 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-17 03:28:40,016 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-17 03:28:40,087 - INFO - >>>>> Applied Patch:
+patching file markup/goldmark/blockquotes/blockquotes.go
+patching file markup/goldmark/blockquotes/blockquotes_integration_test.go
+patch unexpectedly ends in middle of line
+Hunk #2 succeeded at 84 with fuzz 2.
+
+2026-05-17 03:28:40,397 - INFO - Git diff before:
+diff --git a/markup/goldmark/blockquotes/blockquotes.go b/markup/goldmark/blockquotes/blockquotes.go
+index 2f5629d87..d26c92669 100644
+--- a/markup/goldmark/blockquotes/blockquotes.go
++++ b/markup/goldmark/blockquotes/blockquotes.go
+@@ -237,7 +237,8 @@ var _ hooks.PositionerSourceTargetProvider = (*blockquoteContext)(nil)
+ // https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts
+ // Five types:
+ // [!NOTE], [!TIP], [!WARNING], [!IMPORTANT], [!CAUTION]
+-var gitHubAlertRe = regexp.MustCompile(`^<p>\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]`)
++// Note that GitHub's implementation is case-insensitive.
++var gitHubAlertRe = regexp.MustCompile(`(?i)^<p>\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]`)
+ 
+ // resolveGitHubAlert returns one of note, tip, warning, important or caution.
+ // An empty string if no match.
+diff --git a/markup/goldmark/blockquotes/blockquotes_integration_test.go b/markup/goldmark/blockquotes/blockquotes_integration_test.go
+index 45c031098..e4447e5e9 100644
+--- a/markup/goldmark/blockquotes/blockquotes_integration_test.go
++++ b/markup/goldmark/blockquotes/blockquotes_integration_test.go
+@@ -68,6 +68,11 @@ title: "p1"
+ > Note triggering showing the position.
+ {showpos="true"}
+ 
++
++> [!nOtE]  
++> Mixed case alert type.
++
++
+ `
+ 
+ 	b := hugolib.Test(t, files)
+@@ -79,6 +84,9 @@ title: "p1"
+ 		"Blockquote Alert Attributes: |<p>This is a tip with attributes.</p>\n|map[class:foo bar id:baz]|",
+ 		filepath.FromSlash("/content/p1.md:20:3"),
+ 		"Blockquote Alert Page: |<p>This is a tip with attributes.</p>\n|p1|p1|",
++
++		// Issue 12767.
++		"Blockquote Alert: |<p>Mixed case alert type.</p>\n|alert",
+ 	)
+ }
+2026-05-17 03:28:40,397 - INFO - Eval script for gohugoio__hugo-12768 written to logs/run_evaluation/default/default/gohugoio__hugo-12768/eval.sh; copying to container...
+2026-05-17 03:28:46,592 - INFO - Test runtime: 6.16 seconds
+2026-05-17 03:28:46,592 - INFO - Test output for gohugoio__hugo-12768 written to logs/run_evaluation/default/default/gohugoio__hugo-12768/test_output.txt
+2026-05-17 03:28:46,635 - INFO - Git diff after:
+diff --git a/markup/goldmark/blockquotes/blockquotes.go b/markup/goldmark/blockquotes/blockquotes.go
+index 2f5629d87..d26c92669 100644
+--- a/markup/goldmark/blockquotes/blockquotes.go
++++ b/markup/goldmark/blockquotes/blockquotes.go
+@@ -237,7 +237,8 @@ var _ hooks.PositionerSourceTargetProvider = (*blockquoteContext)(nil)
+ // https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts
+ // Five types:
+ // [!NOTE], [!TIP], [!WARNING], [!IMPORTANT], [!CAUTION]
+-var gitHubAlertRe = regexp.MustCompile(`^<p>\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]`)
++// Note that GitHub's implementation is case-insensitive.
++var gitHubAlertRe = regexp.MustCompile(`(?i)^<p>\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]`)
+ 
+ // resolveGitHubAlert returns one of note, tip, warning, important or caution.
+ // An empty string if no match.
+2026-05-17 03:28:46,635 - INFO - Git diff changed after running eval script
+2026-05-17 03:28:46,635 - INFO - Grading answer for gohugoio__hugo-12768...
+2026-05-17 03:28:46,635 - INFO - report: {'gohugoio__hugo-12768': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['TestBlockquoteHook'], 'failure': []}, 'PASS_TO_PASS': {'success': ['TestResolveGitHubAlert', 'TestBlockquoteEmptyIssue12756'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gohugoio__hugo-12768: resolved: True
+2026-05-17 03:28:46,635 - INFO - Attempting to stop container sweb.eval.gohugoio__hugo-12768.default...
+2026-05-17 03:29:01,781 - INFO - Attempting to remove container sweb.eval.gohugoio__hugo-12768.default...
+2026-05-17 03:29:01,875 - INFO - Container sweb.eval.gohugoio__hugo-12768.default removed.
+2026-05-17 03:29:01,875 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gohugoio_1776_hugo-12768:latest...
+2026-05-17 03:29:02,379 - INFO - Image swebench/sweb.eval.x86_64.gohugoio_1776_hugo-12768:latest removed.

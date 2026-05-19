@@ -1,0 +1,84 @@
+diff --git a/caddytest/integration/caddyfile_adapt/not_block_merging.caddyfiletest b/caddytest/integration/caddyfile_adapt/not_block_merging.caddyfiletest
+index c41a7496..f068357f 100644
+--- a/caddytest/integration/caddyfile_adapt/not_block_merging.caddyfiletest
++++ b/caddytest/integration/caddyfile_adapt/not_block_merging.caddyfiletest
+@@ -7,6 +7,22 @@
+ 	}
+ }
+ respond @test 403
++
++@test2 {
++	not {
++		client_ip 1.1.1.1
++		client_ip 2.2.2.2
++	}
++}
++respond @test2 "not client_ip merged"
++
++@test3 {
++	not {
++		remote_ip 1.1.1.1
++		remote_ip 2.2.2.2
++	}
++}
++respond @test3 "not remote_ip merged"
+ ----------
+ {
+ 	"apps": {
+@@ -40,10 +56,54 @@ respond @test 403
+ 									"status_code": 403
+ 								}
+ 							]
++						},
++						{
++							"match": [
++								{
++									"not": [
++										{
++											"client_ip": {
++												"ranges": [
++													"1.1.1.1",
++													"2.2.2.2"
++												]
++											}
++										}
++									]
++								}
++							],
++							"handle": [
++								{
++									"body": "not client_ip merged",
++									"handler": "static_response"
++								}
++							]
++						},
++						{
++							"match": [
++								{
++									"not": [
++										{
++											"remote_ip": {
++												"ranges": [
++													"1.1.1.1",
++													"2.2.2.2"
++												]
++											}
++										}
++									]
++								}
++							],
++							"handle": [
++								{
++									"body": "not remote_ip merged",
++									"handler": "static_response"
++								}
++							]
+ 						}
+ 					]
+ 				}
+ 			}
+ 		}
+ 	}
+-}
+\ No newline at end of file
++}

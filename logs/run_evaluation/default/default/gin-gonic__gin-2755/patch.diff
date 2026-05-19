@@ -1,0 +1,17 @@
+diff --git a/tree.go b/tree.go
+index 580abba..2c8965f 100644
+--- a/tree.go
++++ b/tree.go
+@@ -432,6 +432,12 @@ walk: // Outer loop for walking the tree
+ 						//  strings.HasPrefix(n.children[len(n.children)-1].path, ":") == n.wildChild
+ 						if n.wildChild {
+ 							index := len(*skippedNodes)
++							// Preallocate capacity if necessary
++							if cap(*skippedNodes) <= index {
++								newSkippedNodes := make([]skippedNode, len(*skippedNodes), index+1)
++								copy(newSkippedNodes, *skippedNodes)
++								*skippedNodes = newSkippedNodes
++							}
+ 							*skippedNodes = (*skippedNodes)[:index+1]
+ 							(*skippedNodes)[index] = skippedNode{
+ 								path: prefix + path,

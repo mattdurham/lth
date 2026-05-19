@@ -1,0 +1,47 @@
+diff --git a/modules/caddyhttp/reverseproxy/selectionpolicies.go b/modules/caddyhttp/reverseproxy/selectionpolicies.go
+index 050a4f67..7927c02c 100644
+--- a/modules/caddyhttp/reverseproxy/selectionpolicies.go
++++ b/modules/caddyhttp/reverseproxy/selectionpolicies.go
+@@ -664,19 +664,11 @@ func (s CookieHashSelection) Select(pool UpstreamPool, req *http.Request, w http
+ 			return upstream
+ 		}
+ 		cookie := &http.Cookie{
+-			Name:   s.Name,
+-			Value:  sha,
+-			Path:   "/",
+-			Secure: false,
+-		}
+-		isProxyHttps := false
+-		if trusted, ok := caddyhttp.GetVar(req.Context(), caddyhttp.TrustedProxyVarKey).(bool); ok && trusted {
+-			xfp, xfpOk, _ := lastHeaderValue(req.Header, "X-Forwarded-Proto")
+-			isProxyHttps = xfpOk && xfp == "https"
+-		}
+-		if req.TLS != nil || isProxyHttps {
+-			cookie.Secure = true
+-			cookie.SameSite = http.SameSiteNoneMode
++			Name:     s.Name,
++			Value:    sha,
++			Path:     "/",
++			Secure:   true,
++			SameSite: http.SameSiteNoneMode,
+ 		}
+ 		if s.MaxAge > 0 {
+ 			cookie.MaxAge = int(time.Duration(s.MaxAge).Seconds())
+diff --git a/modules/caddyhttp/reverseproxy/selectionpolicies_test.go b/modules/caddyhttp/reverseproxy/selectionpolicies_test.go
+index 580abbdd..59438d0d 100644
+--- a/modules/caddyhttp/reverseproxy/selectionpolicies_test.go
++++ b/modules/caddyhttp/reverseproxy/selectionpolicies_test.go
+@@ -710,8 +710,11 @@ func TestCookieHashPolicy(t *testing.T) {
+ 	if cookieServer1.Name != "lb" {
+ 		t.Error("cookieHashPolicy should set a cookie with name lb")
+ 	}
+-	if cookieServer1.Secure {
+-		t.Error("cookieHashPolicy should set cookie Secure attribute to false when request is not secure")
++	if !cookieServer1.Secure {
++		t.Error("cookieHashPolicy should set cookie Secure attribute to true by default")
++	}
++	if cookieServer1.SameSite != http.SameSiteNoneMode {
++		t.Error("cookieHashPolicy should set cookie SameSite attribute to None by default")
+ 	}
+ 	if h != pool[0] {
+ 		t.Error("Expected cookieHashPolicy host to be the first only available host.")

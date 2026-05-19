@@ -1,0 +1,270 @@
+diff --git a/caddyconfig/caddyfile/formatter.go b/caddyconfig/caddyfile/formatter.go
+index 82581a3d..18753c65 100644
+--- a/caddyconfig/caddyfile/formatter.go
++++ b/caddyconfig/caddyfile/formatter.go
+@@ -31,6 +31,14 @@ func Format(input []byte) []byte {
+ 	out := new(bytes.Buffer)
+ 	rdr := bytes.NewReader(input)
+ 
++	type heredocState int
++
++	const (
++		heredocClosed  heredocState = 0
++		heredocOpening heredocState = 1
++		heredocOpened  heredocState = 2
++	)
++
+ 	var (
+ 		last rune // the last character that was written to the result
+ 
+@@ -47,6 +55,11 @@ func Format(input []byte) []byte {
+ 		quoted  bool // whether we're in a quoted segment
+ 		escaped bool // whether current char is escaped
+ 
++		heredoc              heredocState // whether we're in a heredoc
++		heredocEscaped       bool         // whether heredoc is escaped
++		heredocMarker        []rune
++		heredocClosingMarker []rune
++
+ 		nesting int // indentation level
+ 	)
+ 
+@@ -75,6 +88,58 @@ func Format(input []byte) []byte {
+ 			panic(err)
+ 		}
+ 
++		// detect whether we have the start of a heredoc
++		if !quoted && !(heredoc != heredocClosed || heredocEscaped) &&
++			space && last == '<' && ch == '<' {
++			write(ch)
++			heredoc = heredocOpening
++			space = false
++			continue
++		}
++
++		if heredoc == heredocOpening {
++			if ch == '\n' {
++				if len(heredocMarker) > 0 && heredocMarkerRegexp.MatchString(string(heredocMarker)) {
++					heredoc = heredocOpened
++				} else {
++					heredocMarker = nil
++					heredoc = heredocClosed
++					nextLine()
++					continue
++				}
++				write(ch)
++				continue
++			}
++			if unicode.IsSpace(ch) {
++				// a space means it's just a regular token and not a heredoc
++				heredocMarker = nil
++				heredoc = heredocClosed
++			} else {
++				heredocMarker = append(heredocMarker, ch)
++				write(ch)
++				continue
++			}
++		}
++		// if we're in a heredoc, all characters are read&write as-is
++		if heredoc == heredocOpened {
++			write(ch)
++			heredocClosingMarker = append(heredocClosingMarker, ch)
++			if len(heredocClosingMarker) > len(heredocMarker) {
++				heredocClosingMarker = heredocClosingMarker[1:]
++			}
++			// check if we're done
++			if string(heredocClosingMarker) == string(heredocMarker) {
++				heredocMarker = nil
++				heredocClosingMarker = nil
++				heredoc = heredocClosed
++			}
++			continue
++		}
++
++		if last == '<' && space {
++			space = false
++		}
++
+ 		if comment {
+ 			if ch == '\n' {
+ 				comment = false
+@@ -98,6 +163,9 @@ func Format(input []byte) []byte {
+ 		}
+ 
+ 		if escaped {
++			if ch == '<' {
++				heredocEscaped = true
++			}
+ 			write(ch)
+ 			escaped = false
+ 			continue
+@@ -117,6 +185,7 @@ func Format(input []byte) []byte {
+ 
+ 		if unicode.IsSpace(ch) {
+ 			space = true
++			heredocEscaped = false
+ 			if ch == '\n' {
+ 				newLines++
+ 			}
+@@ -205,6 +274,11 @@ func Format(input []byte) []byte {
+ 			write('{')
+ 			openBraceWritten = true
+ 		}
++
++		if spacePrior && ch == '<' {
++			space = true
++		}
++
+ 		write(ch)
+ 
+ 		beginningOfLine = false
+diff --git a/caddyconfig/caddyfile/formatter_test.go b/caddyconfig/caddyfile/formatter_test.go
+index 8e5b3686..6eec822f 100644
+--- a/caddyconfig/caddyfile/formatter_test.go
++++ b/caddyconfig/caddyfile/formatter_test.go
+@@ -362,6 +362,76 @@ block {
+ 
+ block {
+ }
++`,
++		},
++		{
++			description: "keep heredoc as-is",
++			input: `block {
++	heredoc <<HEREDOC
++	Here's more than one space       Here's more than one space
++	HEREDOC
++}
++`,
++			expect: `block {
++	heredoc <<HEREDOC
++	Here's more than one space       Here's more than one space
++	HEREDOC
++}
++`,
++		},
++		{
++			description: "Mixing heredoc with regular part",
++			input: `block {
++	heredoc <<HEREDOC
++	Here's more than one space       Here's more than one space
++	HEREDOC
++	respond "More than one space will be eaten"     200
++}
++
++block2 {
++	heredoc <<HEREDOC
++	Here's more than one space       Here's more than one space
++	HEREDOC
++	respond "More than one space will be eaten" 200
++}
++`,
++			expect: `block {
++	heredoc <<HEREDOC
++	Here's more than one space       Here's more than one space
++	HEREDOC
++	respond "More than one space will be eaten" 200
++}
++
++block2 {
++	heredoc <<HEREDOC
++	Here's more than one space       Here's more than one space
++	HEREDOC
++	respond "More than one space will be eaten" 200
++}
++`,
++		},
++		{
++			description: "Heredoc as regular token",
++			input: `block {
++	heredoc <<HEREDOC                                 "More than one space will be eaten"
++}
++`,
++			expect: `block {
++	heredoc <<HEREDOC "More than one space will be eaten"
++}
++`,
++		},
++		{
++			description: "Escape heredoc",
++			input: `block {
++	heredoc \<<HEREDOC
++	respond "More than one space will be eaten"                           200
++}
++`,
++			expect: `block {
++	heredoc \<<HEREDOC
++	respond "More than one space will be eaten" 200
++}
+ `,
+ 		},
+ 	} {
+diff --git a/caddyconfig/caddyfile/lexer.go b/caddyconfig/caddyfile/lexer.go
+index bfd6c0f5..763afb6c 100644
+--- a/caddyconfig/caddyfile/lexer.go
++++ b/caddyconfig/caddyfile/lexer.go
+@@ -313,6 +313,11 @@ func (l *lexer) finalizeHeredoc(val []rune, marker string) ([]rune, error) {
+ 	// iterate over each line and strip the whitespace from the front
+ 	var out string
+ 	for lineNum, lineText := range lines[:len(lines)-1] {
++		if lineText == "" || lineText == "\r" {
++			out += "\n"
++			continue
++		}
++
+ 		// find an exact match for the padding
+ 		index := strings.Index(lineText, paddingToStrip)
+ 
+diff --git a/caddyconfig/caddyfile/lexer_test.go b/caddyconfig/caddyfile/lexer_test.go
+index 92acc4da..6cd56855 100644
+--- a/caddyconfig/caddyfile/lexer_test.go
++++ b/caddyconfig/caddyfile/lexer_test.go
+@@ -445,6 +445,48 @@ EOF same-line-arg
+ 			expectErr:    true,
+ 			errorMessage: "mismatched leading whitespace in heredoc <<EOF on line #2 [        content], expected whitespace [\t\t] to match the closing marker",
+ 		},
++		{
++			input: []byte(`heredoc <<EOF
++The next line is a blank line
++
++The previous line is a blank line
++EOF`),
++			expected: []Token{
++				{Line: 1, Text: "heredoc"},
++				{Line: 1, Text: "The next line is a blank line\n\nThe previous line is a blank line"},
++			},
++		},
++		{
++			input: []byte(`heredoc <<EOF
++	One tab indented heredoc with blank next line
++
++	One tab indented heredoc with blank previous line
++	EOF`),
++			expected: []Token{
++				{Line: 1, Text: "heredoc"},
++				{Line: 1, Text: "One tab indented heredoc with blank next line\n\nOne tab indented heredoc with blank previous line"},
++			},
++		},
++		{
++			input: []byte(`heredoc <<EOF
++The next line is a blank line with one tab
++	
++The previous line is a blank line with one tab
++EOF`),
++			expected: []Token{
++				{Line: 1, Text: "heredoc"},
++				{Line: 1, Text: "The next line is a blank line with one tab\n\t\nThe previous line is a blank line with one tab"},
++			},
++		},
++		{
++			input: []byte(`heredoc <<EOF
++		The next line is a blank line with one tab less than the correct indentation
++	
++		The previous line is a blank line with one tab less than the correct indentation
++		EOF`),
++			expectErr:    true,
++			errorMessage: "mismatched leading whitespace in heredoc <<EOF on line #3 [\t], expected whitespace [\t\t] to match the closing marker",
++		},
+ 	}
+ 
+ 	for i, testCase := range testCases {

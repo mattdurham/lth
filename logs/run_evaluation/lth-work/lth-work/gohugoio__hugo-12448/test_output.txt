@@ -1,0 +1,157 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout 196132753649e6e714f05c83122737cabd0da310 hugolib/rebuild_test.go hugolib/site_benchmark_new_test.go
+Updated 1 path from cb0943b16
++ git apply --verbose --reject -
+Checking patch hugolib/rebuild_test.go...
+Checking patch hugolib/site_benchmark_new_test.go...
+Applied patch hugolib/rebuild_test.go cleanly.
+Applied patch hugolib/site_benchmark_new_test.go cleanly.
++ : '>>>>> Start Test Output'
++ go test -v ./hugolib/... -run '^TestRebuild'
+?   	github.com/gohugoio/hugo/hugolib/paths	[no test files]
+=== RUN   TestRebuildOnAssetChange
+Asset changed /data.json
+Web Server is available at http://example.com/ (bind address )
+--- PASS: TestRebuildOnAssetChange (0.01s)
+=== RUN   TestRebuildEditTextFileInLeafBundle
+--- PASS: TestRebuildEditTextFileInLeafBundle (0.00s)
+=== RUN   TestRebuildEditTextFileInHomeBundle
+--- PASS: TestRebuildEditTextFileInHomeBundle (0.00s)
+=== RUN   TestRebuildEditTextFileInBranchBundle
+--- PASS: TestRebuildEditTextFileInBranchBundle (0.00s)
+=== RUN   TestRebuildRenameTextFileInLeafBundle
+--- PASS: TestRebuildRenameTextFileInLeafBundle (0.01s)
+=== RUN   TestRebuildRenameTextFileInBranchBundle
+--- PASS: TestRebuildRenameTextFileInBranchBundle (0.00s)
+=== RUN   TestRebuildRenameTextFileInHomeBundle
+--- PASS: TestRebuildRenameTextFileInHomeBundle (0.00s)
+=== RUN   TestRebuildRenameDirectoryWithLeafBundle
+--- PASS: TestRebuildRenameDirectoryWithLeafBundle (0.00s)
+=== RUN   TestRebuildRenameDirectoryWithBranchBundle
+--- PASS: TestRebuildRenameDirectoryWithBranchBundle (0.00s)
+=== RUN   TestRebuildRenameDirectoryWithRegularPageUsedInHome
+--- PASS: TestRebuildRenameDirectoryWithRegularPageUsedInHome (0.00s)
+=== RUN   TestRebuildAddRegularFileRegularPageUsedInHomeMultilingual
+--- PASS: TestRebuildAddRegularFileRegularPageUsedInHomeMultilingual (0.05s)
+=== RUN   TestRebuildRenameDirectoryWithBranchBundleFastRender
+--- PASS: TestRebuildRenameDirectoryWithBranchBundleFastRender (0.00s)
+=== RUN   TestRebuildAddPageListPagesInHome
+--- PASS: TestRebuildAddPageListPagesInHome (0.00s)
+=== RUN   TestRebuildAddPageWithSpaceListPagesInHome
+--- PASS: TestRebuildAddPageWithSpaceListPagesInHome (0.00s)
+=== RUN   TestRebuildScopedToOutputFormat
+--- PASS: TestRebuildScopedToOutputFormat (0.01s)
+=== RUN   TestRebuildBaseof
+--- PASS: TestRebuildBaseof (0.01s)
+=== RUN   TestRebuildSingleWithBaseof
+=== PAUSE TestRebuildSingleWithBaseof
+=== RUN   TestRebuildFromString
+--- PASS: TestRebuildFromString (0.00s)
+=== RUN   TestRebuildDeeplyNestedLink
+=== PAUSE TestRebuildDeeplyNestedLink
+=== RUN   TestRebuildVariations
+--- PASS: TestRebuildVariations (0.03s)
+=== RUN   TestRebuildVariationsJSNoneFingerprinted
+=== PAUSE TestRebuildVariationsJSNoneFingerprinted
+=== RUN   TestRebuildVariationsJSInNestedCachedPartialFingerprinted
+=== PAUSE TestRebuildVariationsJSInNestedCachedPartialFingerprinted
+=== RUN   TestRebuildVariationsJSInNestedPartialFingerprintedInBase
+=== PAUSE TestRebuildVariationsJSInNestedPartialFingerprintedInBase
+=== RUN   TestRebuildVariationsJSBundled
+=== PAUSE TestRebuildVariationsJSBundled
+=== RUN   TestRebuildEditData
+=== PAUSE TestRebuildEditData
+=== RUN   TestRebuildEditHomeContent
+=== PAUSE TestRebuildEditHomeContent
+=== RUN   TestRebuildVariationsAssetsJSImport
+=== PAUSE TestRebuildVariationsAssetsJSImport
+=== RUN   TestRebuildVariationsAssetsPostCSSImport
+    rebuild_test.go:1138: skip CI only
+--- SKIP: TestRebuildVariationsAssetsPostCSSImport (0.00s)
+=== RUN   TestRebuildI18n
+=== PAUSE TestRebuildI18n
+=== RUN   TestRebuildEditContentNonDefaultLanguage
+=== PAUSE TestRebuildEditContentNonDefaultLanguage
+=== RUN   TestRebuildEditContentNonDefaultLanguageDifferentBundles
+=== PAUSE TestRebuildEditContentNonDefaultLanguageDifferentBundles
+=== RUN   TestRebuildVariationsAssetsSassImport
+    rebuild_test.go:1342: skip CI only
+--- SKIP: TestRebuildVariationsAssetsSassImport (0.00s)
+=== RUN   TestRebuildConcat
+--- PASS: TestRebuildConcat (0.00s)
+=== RUN   TestRebuildEditArchetypeFile
+=== PAUSE TestRebuildEditArchetypeFile
+=== RUN   TestRebuildEditMixedCaseTemplateFileIssue12165
+=== PAUSE TestRebuildEditMixedCaseTemplateFileIssue12165
+=== RUN   TestRebuildEditAsciidocContentFile
+    rebuild_test.go:1529: skip asciidoc
+--- SKIP: TestRebuildEditAsciidocContentFile (0.00s)
+=== RUN   TestRebuildEditSingleListChangeUbuntuIssue12362
+=== PAUSE TestRebuildEditSingleListChangeUbuntuIssue12362
+=== RUN   TestRebuildHomeThenPageIssue12436
+=== PAUSE TestRebuildHomeThenPageIssue12436
+=== CONT  TestRebuildSingleWithBaseof
+=== CONT  TestRebuildVariationsAssetsJSImport
+=== CONT  TestRebuildVariationsJSInNestedPartialFingerprintedInBase
+=== CONT  TestRebuildEditMixedCaseTemplateFileIssue12165
+=== CONT  TestRebuildVariationsJSInNestedCachedPartialFingerprinted
+=== CONT  TestRebuildI18n
+=== CONT  TestRebuildDeeplyNestedLink
+=== CONT  TestRebuildEditHomeContent
+=== CONT  TestRebuildVariationsJSBundled
+=== CONT  TestRebuildEditArchetypeFile
+=== CONT  TestRebuildHomeThenPageIssue12436
+=== CONT  TestRebuildEditSingleListChangeUbuntuIssue12362
+=== CONT  TestRebuildEditContentNonDefaultLanguage
+=== CONT  TestRebuildVariationsJSNoneFingerprinted
+=== CONT  TestRebuildEditContentNonDefaultLanguageDifferentBundles
+=== CONT  TestRebuildEditData
+--- PASS: TestRebuildEditSingleListChangeUbuntuIssue12362 (0.01s)
+--- PASS: TestRebuildEditArchetypeFile (0.01s)
+--- PASS: TestRebuildEditHomeContent (0.01s)
+--- PASS: TestRebuildVariationsJSBundled (0.01s)
+--- PASS: TestRebuildVariationsJSNoneFingerprinted (0.01s)
+--- PASS: TestRebuildDeeplyNestedLink (0.01s)
+--- PASS: TestRebuildEditData (0.01s)
+--- PASS: TestRebuildEditMixedCaseTemplateFileIssue12165 (0.01s)
+--- PASS: TestRebuildVariationsJSInNestedPartialFingerprintedInBase (0.01s)
+--- PASS: TestRebuildVariationsJSInNestedCachedPartialFingerprinted (0.01s)
+--- PASS: TestRebuildEditContentNonDefaultLanguageDifferentBundles (0.01s)
+=== NAME  TestRebuildHomeThenPageIssue12436
+    rebuild_test.go:1622: 
+        error:
+          no substring match found
+        comment:
+          File: public/p1/index.html Match p1-content-foo
+        container:
+          "<p>p1-content|</p>"
+        want:
+          "p1-content-foo"
+        stack:
+          /testbed/hugolib/integrationtest_builder.go:281
+            s.Assert(content, qt.Contains, match, cm)
+          /testbed/hugolib/rebuild_test.go:1622
+            b.AssertFileContent("public/p1/index.html", "p1-content-foo")
+        
+--- FAIL: TestRebuildHomeThenPageIssue12436 (0.01s)
+--- PASS: TestRebuildI18n (0.01s)
+--- PASS: TestRebuildSingleWithBaseof (0.01s)
+--- PASS: TestRebuildEditContentNonDefaultLanguage (0.01s)
+--- PASS: TestRebuildVariationsAssetsJSImport (0.03s)
+FAIL
+FAIL	github.com/gohugoio/hugo/hugolib	0.187s
+testing: warning: no tests to run
+PASS
+ok  	github.com/gohugoio/hugo/hugolib/doctree	0.010s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/gohugoio/hugo/hugolib/filesystems	0.011s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/gohugoio/hugo/hugolib/segments	0.012s [no tests to run]
+FAIL
++ : '>>>>> End Test Output'
++ git checkout 196132753649e6e714f05c83122737cabd0da310 hugolib/rebuild_test.go hugolib/site_benchmark_new_test.go
+Updated 2 paths from cb0943b16

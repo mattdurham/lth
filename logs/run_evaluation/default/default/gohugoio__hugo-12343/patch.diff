@@ -1,0 +1,51 @@
+diff --git a/common/paths/path.go b/common/paths/path.go
+index 906270ca..dd331d2a 100644
+--- a/common/paths/path.go
++++ b/common/paths/path.go
+@@ -318,7 +318,7 @@ func isAllowedPathCharacter(s string, i int, r rune) bool {
+ 	}
+ 	// Check for the most likely first (faster).
+ 	isAllowed := unicode.IsLetter(r) || unicode.IsDigit(r)
+-	isAllowed = isAllowed || r == '.' || r == '/' || r == '\\' || r == '_' || r == '#' || r == '+' || r == '~' || r == '-' || r == '@'
++	isAllowed = isAllowed || r == '.' || r == '/' || r == '\\' || r == '_' || r == '+' || r == '~' || r == '-' || r == '@'
+ 	isAllowed = isAllowed || unicode.IsMark(r)
+ 	isAllowed = isAllowed || (r == '%' && i+2 < len(s) && ishex(s[i+1]) && ishex(s[i+2]))
+ 	return isAllowed
+@@ -375,6 +375,9 @@ func (df DirFile) String() string {
+ // Note, there is a url.PathEscape function, but that also
+ // escapes /.
+ func PathEscape(pth string) string {
++	// url.Parse treats # as a fragment identifier, so escape it first
++	// to prevent truncation of paths containing literal # characters.
++	pth = strings.ReplaceAll(pth, "#", "%23")
+ 	u, err := url.Parse(pth)
+ 	if err != nil {
+ 		panic(err)
+diff --git a/common/paths/url.go b/common/paths/url.go
+index 75b4b644..3f413014 100644
+--- a/common/paths/url.go
++++ b/common/paths/url.go
+@@ -186,6 +186,9 @@ func UrlToFilename(s string) (string, bool) {
+ 
+ // URLEscape escapes unicode letters.
+ func URLEscape(uri string) string {
++	// url.Parse treats # as a fragment identifier, so escape it first
++	// to prevent truncation of paths containing literal # characters.
++	uri = strings.ReplaceAll(uri, "#", "%23")
+ 	// escape unicode letters
+ 	u, err := url.Parse(uri)
+ 	if err != nil {
+diff --git a/helpers/path_test.go b/helpers/path_test.go
+index 6f369958..533b7a36 100644
+--- a/helpers/path_test.go
++++ b/helpers/path_test.go
+@@ -35,7 +35,8 @@ func TestMakePath(t *testing.T) {
+ 		expected      string
+ 		removeAccents bool
+ 	}{
+-		{"dot.slash/backslash\\underscore_pound#plus+hyphen-", "dot.slash/backslash\\underscore_pound#plus+hyphen-", true},
++		{"dot.slash/backslash\\underscore_poundplus+hyphen-", "dot.slash/backslash\\underscore_poundplus+hyphen-", true},
++		{"newsletter-#4", "newsletter-4", true}, // Issue #12169: '#' is a URL fragment separator and must not appear in paths
+ 		{"abcXYZ0123456789", "abcXYZ0123456789", true},
+ 		{"%20 %2", "%20-2", true},
+ 		{"foo- bar", "foo-bar", true},

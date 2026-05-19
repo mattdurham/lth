@@ -1,0 +1,191 @@
+2026-05-18 00:32:12,095 - INFO - Creating container for hashicorp__terraform-34814...
+2026-05-18 00:32:12,688 - INFO - Container for hashicorp__terraform-34814 created: a90c8e21860632935fe8889000190c1f45b0e2007d593b41c61fbed3d46fa8f0
+2026-05-18 00:32:13,286 - INFO - Container for hashicorp__terraform-34814 started: a90c8e21860632935fe8889000190c1f45b0e2007d593b41c61fbed3d46fa8f0
+2026-05-18 00:32:13,287 - INFO - Intermediate patch for hashicorp__terraform-34814 written to logs/run_evaluation/lth-work/lth-work/hashicorp__terraform-34814/patch.diff, now applying to container...
+2026-05-18 00:32:13,403 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-18 00:32:13,439 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-18 00:32:13,649 - INFO - >>>>> Applied Patch:
+patching file internal/communicator/ssh/communicator.go
+patching file internal/communicator/ssh/communicator_test.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 192 with fuzz 1 (offset -14 lines).
+
+2026-05-18 00:32:13,907 - INFO - Git diff before:
+diff --git a/internal/communicator/ssh/communicator.go b/internal/communicator/ssh/communicator.go
+index 1cec681bde..4d5482fcd9 100644
+--- a/internal/communicator/ssh/communicator.go
++++ b/internal/communicator/ssh/communicator.go
+@@ -326,6 +326,15 @@ func (c *Communicator) Disconnect() error {
+ 		}
+ 	}
+ 
++	if c.client != nil {
++		client := c.client
++		c.client = nil
++		c.conn = nil
++		// Close the SSH client first to send SSH_MSG_DISCONNECT before the
++		// underlying TCP socket closes, preventing sockets from staying ESTABLISHED.
++		return client.Close()
++	}
++
+ 	if c.conn != nil {
+ 		conn := c.conn
+ 		c.conn = nil
+diff --git a/internal/communicator/ssh/communicator_test.go b/internal/communicator/ssh/communicator_test.go
+index 77ad0bdc1d..1aafb38672 100644
+--- a/internal/communicator/ssh/communicator_test.go
++++ b/internal/communicator/ssh/communicator_test.go
+@@ -192,6 +192,58 @@ func TestStart(t *testing.T) {
+ 	}
+ }
+ 
++// TestDisconnectClosesSSHClient verifies that Disconnect sends SSH_MSG_DISCONNECT
++// by closing the ssh.Client before the raw TCP conn. Without this, sockets stay
++// in ESTABLISHED state because the OS never receives FIN packets.
++func TestDisconnectClosesSSHClient(t *testing.T) {
++	address := newMockLineServer(t, nil, testClientPublicKey)
++	parts := strings.Split(address, ":")
++
++	v := cty.ObjectVal(map[string]cty.Value{
++		"type":     cty.StringVal("ssh"),
++		"user":     cty.StringVal("user"),
++		"password": cty.StringVal("pass"),
++		"host":     cty.StringVal(parts[0]),
++		"port":     cty.StringVal(parts[1]),
++		"timeout":  cty.StringVal("30s"),
++	})
++
++	c, err := New(v)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	if err := c.Connect(nil); err != nil {
++		t.Fatal(err)
++	}
++
++	if c.client == nil {
++		t.Fatal("expected client to be non-nil after Connect")
++	}
++
++	// Hold a reference to the client so we can verify it was closed.
++	sshClient := c.client
++
++	if err := c.Disconnect(); err != nil {
++		t.Fatal(err)
++	}
++
++	if c.client != nil {
++		t.Error("expected c.client to be nil after Disconnect")
++	}
++	if c.conn != nil {
++		t.Error("expected c.conn to be nil after Disconnect")
++	}
++
++	// The SSH client must be closed: any operation on it should fail.
++	// If Disconnect only closed the raw TCP conn without calling client.Close(),
++	// this might succeed (the client object still looks alive), which is the bug.
++	_, err = sshClient.NewSession()
++	if err == nil {
++		t.Fatal("expected NewSession to fail on a disconnected client; SSH client was not closed by Disconnect")
++	}
++}
++
+ // TestKeepAlives verifies that the keepalive messages don't interfere with
+ // normal operation of the client.
+ func TestKeepAlives(t *testing.T) {
+2026-05-18 00:32:13,907 - INFO - Eval script for hashicorp__terraform-34814 written to logs/run_evaluation/lth-work/lth-work/hashicorp__terraform-34814/eval.sh; copying to container...
+2026-05-18 00:32:39,974 - INFO - Test runtime: 26.02 seconds
+2026-05-18 00:32:39,974 - INFO - Test output for hashicorp__terraform-34814 written to logs/run_evaluation/lth-work/lth-work/hashicorp__terraform-34814/test_output.txt
+2026-05-18 00:32:40,014 - INFO - Git diff after:
+diff --git a/internal/communicator/ssh/communicator.go b/internal/communicator/ssh/communicator.go
+index 1cec681bde..4d5482fcd9 100644
+--- a/internal/communicator/ssh/communicator.go
++++ b/internal/communicator/ssh/communicator.go
+@@ -326,6 +326,15 @@ func (c *Communicator) Disconnect() error {
+ 		}
+ 	}
+ 
++	if c.client != nil {
++		client := c.client
++		c.client = nil
++		c.conn = nil
++		// Close the SSH client first to send SSH_MSG_DISCONNECT before the
++		// underlying TCP socket closes, preventing sockets from staying ESTABLISHED.
++		return client.Close()
++	}
++
+ 	if c.conn != nil {
+ 		conn := c.conn
+ 		c.conn = nil
+diff --git a/internal/communicator/ssh/communicator_test.go b/internal/communicator/ssh/communicator_test.go
+index 77ad0bdc1d..1aafb38672 100644
+--- a/internal/communicator/ssh/communicator_test.go
++++ b/internal/communicator/ssh/communicator_test.go
+@@ -192,6 +192,58 @@ func TestStart(t *testing.T) {
+ 	}
+ }
+ 
++// TestDisconnectClosesSSHClient verifies that Disconnect sends SSH_MSG_DISCONNECT
++// by closing the ssh.Client before the raw TCP conn. Without this, sockets stay
++// in ESTABLISHED state because the OS never receives FIN packets.
++func TestDisconnectClosesSSHClient(t *testing.T) {
++	address := newMockLineServer(t, nil, testClientPublicKey)
++	parts := strings.Split(address, ":")
++
++	v := cty.ObjectVal(map[string]cty.Value{
++		"type":     cty.StringVal("ssh"),
++		"user":     cty.StringVal("user"),
++		"password": cty.StringVal("pass"),
++		"host":     cty.StringVal(parts[0]),
++		"port":     cty.StringVal(parts[1]),
++		"timeout":  cty.StringVal("30s"),
++	})
++
++	c, err := New(v)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	if err := c.Connect(nil); err != nil {
++		t.Fatal(err)
++	}
++
++	if c.client == nil {
++		t.Fatal("expected client to be non-nil after Connect")
++	}
++
++	// Hold a reference to the client so we can verify it was closed.
++	sshClient := c.client
++
++	if err := c.Disconnect(); err != nil {
++		t.Fatal(err)
++	}
++
++	if c.client != nil {
++		t.Error("expected c.client to be nil after Disconnect")
++	}
++	if c.conn != nil {
++		t.Error("expected c.conn to be nil after Disconnect")
++	}
++
++	// The SSH client must be closed: any operation on it should fail.
++	// If Disconnect only closed the raw TCP conn without calling client.Close(),
++	// this might succeed (the client object still looks alive), which is the bug.
++	_, err = sshClient.NewSession()
++	if err == nil {
++		t.Fatal("expected NewSession to fail on a disconnected client; SSH client was not closed by Disconnect")
++	}
++}
++
+ // TestKeepAlives verifies that the keepalive messages don't interfere with
+ // normal operation of the client.
+ func TestKeepAlives(t *testing.T) {
+2026-05-18 00:32:40,014 - INFO - Grading answer for hashicorp__terraform-34814...
+2026-05-18 00:32:40,015 - INFO - report: {'hashicorp__terraform-34814': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['TestProvisionerTimeout']}, 'PASS_TO_PASS': {'success': ['TestResourceProvider_Validate_good', 'TestResourceProvider_Validate_bad', 'TestResourceProvider_generateScript', 'TestResourceProvider_generateScriptEmptyInline', 'TestResourceProvider_CollectScripts_inline', 'TestResourceProvider_CollectScripts_script', 'TestResourceProvider_CollectScripts_scripts', 'TestResourceProvider_CollectScripts_scriptsEmpty', 'TestResourceProvisioner_StopClose', 'TestResourceProvisioner_connectionRequired', 'TestResourceProvisioner_nullsInOptionals', 'TestResourceProvisioner_nullsInOptionals/0', 'TestResourceProvisioner_nullsInOptionals/1', 'TestResourceProvisioner_nullsInOptionals/2', 'TestResourceProvisioner_nullsInOptionals/3', 'TestResourceProvisioner_nullsInOptionals/4'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for hashicorp__terraform-34814: resolved: False
+2026-05-18 00:32:40,015 - INFO - Attempting to stop container sweb.eval.hashicorp__terraform-34814.lth-work...
+2026-05-18 00:32:55,575 - INFO - Attempting to remove container sweb.eval.hashicorp__terraform-34814.lth-work...
+2026-05-18 00:32:55,921 - INFO - Container sweb.eval.hashicorp__terraform-34814.lth-work removed.
+2026-05-18 00:32:55,921 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.hashicorp_1776_terraform-34814:latest...
+2026-05-18 00:32:56,496 - INFO - Image swebench/sweb.eval.x86_64.hashicorp_1776_terraform-34814:latest removed.

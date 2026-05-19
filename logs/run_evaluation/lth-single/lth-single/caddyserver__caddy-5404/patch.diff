@@ -1,0 +1,17 @@
+diff --git a/caddyconfig/caddyfile/lexer.go b/caddyconfig/caddyfile/lexer.go
+index 1234567..abcdefg 100644
+--- a/caddyconfig/caddyfile/lexer.go
++++ b/caddyconfig/caddyfile/lexer.go
+@@ -308,7 +308,11 @@ func (l *lexer) finalizeHeredoc(val []rune, marker string) ([]rune, error) {
+ 
+ 	// figure out how much whitespace we need to strip from the front of every line
+ 	// by getting the string that precedes the marker, on the last line
+-	paddingToStrip := stringVal[lastNewline+1 : len(stringVal)-len(marker)]
++	endOfContent := len(stringVal) - len(marker)
++	if endOfContent < lastNewline+1 {
++		return nil, fmt.Errorf("invalid heredoc closing marker on line #%d", l.line)
++	}
++	paddingToStrip := stringVal[lastNewline+1 : endOfContent]
+ 
+ 	// iterate over each line and strip the whitespace from the front
+ 	var out string

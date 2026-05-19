@@ -1,0 +1,121 @@
+2026-05-18 00:34:16,891 - INFO - Creating container for prometheus__prometheus-15142...
+2026-05-18 00:34:17,580 - INFO - Container for prometheus__prometheus-15142 created: 14762be588fe3c37714dd0841381fbfe7c686dade55d6fcad34f07080b02bad9
+2026-05-18 00:34:18,160 - INFO - Container for prometheus__prometheus-15142 started: 14762be588fe3c37714dd0841381fbfe7c686dade55d6fcad34f07080b02bad9
+2026-05-18 00:34:18,160 - INFO - Intermediate patch for prometheus__prometheus-15142 written to logs/run_evaluation/lth-work/lth-work/prometheus__prometheus-15142/patch.diff, now applying to container...
+2026-05-18 00:34:18,274 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-18 00:34:18,308 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-18 00:34:18,524 - INFO - >>>>> Applied Patch:
+patching file tsdb/head_append.go
+Hunk #1 succeeded at 828 with fuzz 3 (offset -15 lines).
+patching file tsdb/head_test.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 1264 with fuzz 3.
+
+2026-05-18 00:34:18,724 - INFO - Git diff before:
+diff --git a/tsdb/head_append.go b/tsdb/head_append.go
+index b385758ca..9a92172ce 100644
+--- a/tsdb/head_append.go
++++ b/tsdb/head_append.go
+@@ -828,7 +828,7 @@ func (a *headAppender) AppendHistogramCTZeroSample(ref storage.SeriesRef, lset l
+ 		// Although we call `appendableFloatHistogram` with oooHistogramsEnabled=true, for CTZeroSamples OOO is not allowed.
+ 		// We set it to true to make this implementation as close as possible to the float implementation.
+ 		isOOO, _, err := s.appendableFloatHistogram(ct, zeroFloatHistogram, a.headMaxt, a.minValidTime, a.oooTimeWindow, true) // OOO is not allowed for CTZeroSamples.
+-		if err != nil {
++		if err == nil {
+ 			s.Unlock()
+ 			if errors.Is(err, storage.ErrOutOfOrderSample) {
+ 				return 0, storage.ErrOutOfOrderCT
+diff --git a/tsdb/head_test.go b/tsdb/head_test.go
+index 19dcc1f08..975668460 100644
+--- a/tsdb/head_test.go
++++ b/tsdb/head_test.go
+@@ -1264,6 +1264,63 @@ func TestHeadDeleteSimple(t *testing.T) {
+ 	}
+ 	smplsAll := buildSmpls([]int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
+ 	lblDefault := labels.Label{Name: "a", Value: "b"}
++// TestHead_RaceBetweenHistogramSeriesCreationAndGC verifies that AppendHistogram
++// correctly sets pendingCommit=true when a histogram sample is accepted, preventing
++// the GC from collecting a series that has a pending commit.
++func TestHead_RaceBetweenHistogramSeriesCreationAndGC(t *testing.T) {
++	for _, tc := range []struct {
++		name    string
++		h       *histogram.Histogram
++		fh      *histogram.FloatHistogram
++	}{
++		{
++			name: "integer histogram",
++			h:    tsdbutil.GenerateTestHistogram(1),
++		},
++		{
++			name: "float histogram",
++			fh:   tsdbutil.GenerateTestFloatHistogram(1),
++		},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			head, _ := newTestHead(t, 1000, compression.None, false)
++			require.NoError(t, head.Init(0))
++
++			const totalSeries = 100_000
++			series := make([]labels.Labels, totalSeries)
++			for i := range totalSeries {
++				series[i] = labels.FromStrings("foo", strconv.Itoa(i))
++			}
++			done := atomic.NewBool(false)
++
++			go func() {
++				defer done.Store(true)
++				app := head.Appender(context.Background())
++				defer func() {
++					if err := app.Commit(); err != nil {
++						t.Errorf("Failed to commit: %v", err)
++					}
++				}()
++				for i := range totalSeries {
++					_, err := app.AppendHistogram(0, series[i], 100, tc.h, tc.fh)
++					if err != nil {
++						t.Errorf("Failed to append histogram: %v", err)
++						return
++					}
++				}
++			}()
++
++			// Don't check the atomic.Bool on all iterations in order to perform more gc
++			// iterations and make the race condition more likely.
++			for i := 1; i%128 != 0 || !done.Load(); i++ {
++				head.gc()
++			}
++
++			require.Equal(t, totalSeries, int(head.NumSeries()))
++		})
++	}
++}
++
+ 	lblsDefault := labels.FromStrings("a", "b")
+ 
+ 	cases := []struct {
+2026-05-18 00:34:18,724 - INFO - Eval script for prometheus__prometheus-15142 written to logs/run_evaluation/lth-work/lth-work/prometheus__prometheus-15142/eval.sh; copying to container...
+2026-05-18 00:35:43,053 - INFO - Test runtime: 84.29 seconds
+2026-05-18 00:35:43,053 - INFO - Test output for prometheus__prometheus-15142 written to logs/run_evaluation/lth-work/lth-work/prometheus__prometheus-15142/test_output.txt
+2026-05-18 00:35:43,087 - INFO - Git diff after:
+diff --git a/tsdb/head_append.go b/tsdb/head_append.go
+index b385758ca..9a92172ce 100644
+--- a/tsdb/head_append.go
++++ b/tsdb/head_append.go
+@@ -828,7 +828,7 @@ func (a *headAppender) AppendHistogramCTZeroSample(ref storage.SeriesRef, lset l
+ 		// Although we call `appendableFloatHistogram` with oooHistogramsEnabled=true, for CTZeroSamples OOO is not allowed.
+ 		// We set it to true to make this implementation as close as possible to the float implementation.
+ 		isOOO, _, err := s.appendableFloatHistogram(ct, zeroFloatHistogram, a.headMaxt, a.minValidTime, a.oooTimeWindow, true) // OOO is not allowed for CTZeroSamples.
+-		if err != nil {
++		if err == nil {
+ 			s.Unlock()
+ 			if errors.Is(err, storage.ErrOutOfOrderSample) {
+ 				return 0, storage.ErrOutOfOrderCT
+2026-05-18 00:35:43,087 - INFO - Git diff changed after running eval script
+2026-05-18 00:35:43,087 - INFO - Grading answer for prometheus__prometheus-15142...
+2026-05-18 00:35:43,087 - INFO - report: {'prometheus__prometheus-15142': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['TestHeadAppendHistogramAndCommitConcurrency', 'TestHeadAppendHistogramAndCommitConcurrency/float_histogram', 'TestHeadAppendHistogramAndCommitConcurrency/integer_histogram']}, 'PASS_TO_PASS': {'success': ['TestHeadCompactionWithHistograms', 'TestHeadCompactionWithHistograms/float=true', 'TestHeadCompactionWithHistograms/float=false', 'TestHeadIndexReader_PostingsForLabelMatching', 'TestHeadIndexReader_PostingsForLabelMatching/n=1', 'TestHeadIndexReader_PostingsForLabelMatching/n=2', 'TestHeadIndexReader_PostingsForLabelMatching/missing_label', 'TestHead_HighConcurrencyReadAndWrite', 'TestHead_ReadWAL', 'TestHead_ReadWAL/compress=none', 'TestHead_ReadWAL/compress=snappy', 'TestHead_ReadWAL/compress=zstd', 'TestHead_WALMultiRef', 'TestHead_ActiveAppenders', 'TestHead_UnknownWALRecord', 'TestHead_Truncate', 'TestHeadDeleteSeriesWithoutSamples', 'TestHeadDeleteSeriesWithoutSamples/compress=none', 'TestHeadDeleteSeriesWithoutSamples/compress=snappy', 'TestHeadDeleteSeriesWithoutSamples/compress=zstd', 'TestHeadDeleteSimple', 'TestHeadDeleteSimple/compress=none', 'TestHeadDeleteSimple/compress=snappy', 'TestHeadDeleteSimple/compress=zstd', 'TestHead_LogRollback', 'TestHead_LogRollback/compress=none', 'TestHead_LogRollback/compress=snappy', 'TestHead_LogRollback/compress=zstd', 'TestHead_ReturnsSortedLabelValues', 'TestHeadReadWriterRepair', 'TestHeadSeriesChunkRace', 'TestHeadLabelNamesValuesWithMinMaxRange', 'TestHeadLabelNamesValuesWithMinMaxRange/maxt_less_than_head_min', 'TestHeadLabelNamesValuesWithMinMaxRange/mint_less_than_head_max', 'TestHeadLabelNamesValuesWithMinMaxRange/mint_and_maxt_outside_head', 'TestHeadLabelNamesValuesWithMinMaxRange/mint_and_maxt_within_head', 'TestHeadLabelValuesWithMatchers', 'TestHeadLabelValuesWithMatchers/get_tens_based_on_unique_id', 'TestHeadLabelValuesWithMatchers/get_unique_ids_based_on_a_ten', 'TestHeadLabelValuesWithMatchers/get_tens_by_pattern_matching_on_unique_id', 'TestHeadLabelValuesWithMatchers/get_tens_by_matching_for_presence_of_unique_label', 'TestHeadLabelValuesWithMatchers/get_unique_IDs_based_on_tens_not_being_equal_to_a_certain_value,_while_not_empty', 'TestHeadLabelNamesWithMatchers', 'TestHeadLabelNamesWithMatchers/get_with_non-empty_unique:_all', 'TestHeadLabelNamesWithMatchers/get_with_unique_ending_in_1:_only_unique', 'TestHeadLabelNamesWithMatchers/get_with_unique_=_value20:_all', 'TestHeadLabelNamesWithMatchers/get_tens_=_1:_unique_&_tens', 'TestHeadShardedPostings', 'TestHeadMintAfterTruncation', 'TestHeadExemplars', 'TestHeadInit_DiscardChunksWithUnsupportedEncoding', 'TestHeadMinOOOTimeUpdate', 'TestHeadMinOOOTimeUpdate/float', 'TestHeadMinOOOTimeUpdate/integer_histogram', 'TestHeadMinOOOTimeUpdate/float_histogram', 'TestHeadMinOOOTimeUpdate/gauge_int_histogram', 'TestHeadMinOOOTimeUpdate/gauge_float_histogram', 'TestHeadDetectsDuplicateSampleAtSizeLimit', 'TestHeadCompactionWhileAppendAndCommitExemplar', 'TestHeadAppender_AppendFloatWithSameTimestampAsPreviousHistogram'], 'failure': ['TestHeadAppender_AppendCT', 'TestHeadAppender_AppendCT/In_order_ct+normal_sample/floatSample', 'TestHeadAppender_AppendCT/In_order_ct+normal_sample/histogram', 'TestHeadAppender_AppendCT/In_order_ct+normal_sample/floathistogram', 'TestHeadAppender_AppendCT/Consecutive_appends_with_same_ct_ignore_ct/floatSample', 'TestHeadAppender_AppendCT/Consecutive_appends_with_same_ct_ignore_ct/histogram', 'TestHeadAppender_AppendCT/Consecutive_appends_with_same_ct_ignore_ct/floathistogram', 'TestHeadAppender_AppendCT/Consecutive_appends_with_newer_ct_do_not_ignore_ct/floatSample', 'TestHeadAppender_AppendCT/Consecutive_appends_with_newer_ct_do_not_ignore_ct/histogram', 'TestHeadAppender_AppendCT/Consecutive_appends_with_newer_ct_do_not_ignore_ct/floathistogram', 'TestHeadAppender_AppendCT/CT_equals_to_previous_sample_timestamp_is_ignored/floatSample', 'TestHeadAppender_AppendCT/CT_equals_to_previous_sample_timestamp_is_ignored/histogram', 'TestHeadAppender_AppendCT/CT_equals_to_previous_sample_timestamp_is_ignored/floathistogram', 'TestHeadCompactableDoesNotCompactEmptyHead']}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for prometheus__prometheus-15142: resolved: False
+2026-05-18 00:35:43,087 - INFO - Attempting to stop container sweb.eval.prometheus__prometheus-15142.lth-work...
+2026-05-18 00:35:58,709 - INFO - Attempting to remove container sweb.eval.prometheus__prometheus-15142.lth-work...
+2026-05-18 00:35:59,045 - INFO - Container sweb.eval.prometheus__prometheus-15142.lth-work removed.
+2026-05-18 00:35:59,045 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.prometheus_1776_prometheus-15142:latest...
+2026-05-18 00:35:59,857 - INFO - Image swebench/sweb.eval.x86_64.prometheus_1776_prometheus-15142:latest removed.

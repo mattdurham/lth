@@ -1,0 +1,29 @@
+--- a/internal/command/fmt.go
++++ b/internal/command/fmt.go
+@@ -30,6 +30,7 @@ var (
+ 	fmtSupportedExts = []string{
+ 		".tf",
+ 		".tfvars",
+ 		".tftest.hcl",
++		".tfmock.hcl",
+ 	}
+ )
+@@ -160,7 +161,7 @@ var (
+ 
+ 			if !fmtd {
+-				diags = diags.Append(fmt.Errorf("Only .tf, .tfvars, and .tftest.hcl files can be processed with terraform fmt"))
++				diags = diags.Append(fmt.Errorf("Only .tf, .tfvars, .tftest.hcl, and .tfmock.hcl files can be processed with terraform fmt"))
+ 				continue
+ 			}
+ 		}
+@@ -551,7 +552,7 @@ func (c *FmtCommand) Help() string {
+ 	helpText := `
+ Usage: terraform [global options] fmt [options] [target...]
+ 
+   Rewrites all Terraform configuration files to a canonical format. All
+-  configuration files (.tf), variables files (.tfvars), and testing files
+-  (.tftest.hcl) are updated. JSON files (.tf.json, .tfvars.json, or
+-  .tftest.json) are not modified.
++  configuration files (.tf), variables files (.tfvars), testing files
++  (.tftest.hcl), and mock data files (.tfmock.hcl) are updated. JSON files
++  (.tf.json, .tfvars.json, or .tftest.json) are not modified.

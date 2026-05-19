@@ -1,0 +1,59 @@
+diff --git a/gin.go b/gin.go
+index 2e033bf..fd86d34 100644
+--- a/gin.go
++++ b/gin.go
+@@ -728,7 +728,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
+ 				redirectTrailingSlash(c)
+ 				return
+ 			}
+-			if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectFixedPath) {
++			if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectTrailingSlash) {
+ 				return
+ 			}
+ 		}
+diff --git a/routes_test.go b/routes_test.go
+index 1cae3fc..8d0b72e 100644
+--- a/routes_test.go
++++ b/routes_test.go
+@@ -268,11 +268,41 @@ func TestRouteRedirectFixedPath(t *testing.T) {
+ 	assert.Equal(t, "/PATH3", w.Header().Get("Location"))
+ 	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+ 
++	// /path4 case-insensitively matches /Path4/ but RedirectTrailingSlash is false,
++	// so adding a trailing slash is not permitted and the request returns 404.
+ 	w = PerformRequest(router, http.MethodPost, "/path4")
++	assert.Equal(t, http.StatusNotFound, w.Code)
++}
++
++func TestRouteRedirectFixedPathWithTrailingSlash(t *testing.T) {
++	router := New()
++	router.RedirectFixedPath = true
++	router.RedirectTrailingSlash = true
++
++	router.POST("/Path4/", func(c *Context) {})
++
++	// Both RedirectFixedPath and RedirectTrailingSlash enabled: redirect is allowed.
++	w := PerformRequest(router, http.MethodPost, "/path4")
+ 	assert.Equal(t, "/Path4/", w.Header().Get("Location"))
+ 	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+ }
+ 
++func TestRouteRedirectFixedPathDoesNotRedirectTrailingSlash(t *testing.T) {
++	// Regression test: RedirectFixedPath must not redirect trailing slashes
++	// when RedirectTrailingSlash is false.
++	router := New()
++	router.RedirectTrailingSlash = false
++	router.RedirectFixedPath = true
++
++	router.GET("/ping", func(c *Context) {
++		c.String(http.StatusOK, "pong")
++	})
++
++	w := PerformRequest(router, http.MethodGet, "/ping/")
++	assert.Equal(t, http.StatusNotFound, w.Code)
++	assert.Equal(t, "", w.Header().Get("Location"))
++}
++
+ // TestContextParamsGet tests that a parameter can be parsed from the URL.
+ func TestRouteParamsByName(t *testing.T) {
+ 	name := ""

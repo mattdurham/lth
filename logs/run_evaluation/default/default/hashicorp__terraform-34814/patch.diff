@@ -1,0 +1,22 @@
+--- a/internal/communicator/ssh/communicator.go
++++ b/internal/communicator/ssh/communicator.go
+@@ -328,9 +328,16 @@ func (c *Communicator) Disconnect() error {
+ 		}
+ 	}
+ 
+-	if c.conn != nil {
++	if c.client != nil {
++		client := c.client
++		c.client = nil
++		c.conn = nil
++		return client.Close()
++	}
++
++	if c.conn != nil {
+ 		conn := c.conn
+ 		c.conn = nil
+ 		return conn.Close()
+ 	}
+ 
+ 	return nil
+ }

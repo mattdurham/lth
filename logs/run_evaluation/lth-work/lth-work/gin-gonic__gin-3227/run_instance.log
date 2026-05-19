@@ -1,0 +1,144 @@
+2026-05-16 12:59:50,100 - INFO - Creating container for gin-gonic__gin-3227...
+2026-05-16 12:59:50,419 - INFO - Container for gin-gonic__gin-3227 created: 2acd4bfdb8209d49d1bfe21395c5b9b6d723d06c411fe86d8bccc64b558a4457
+2026-05-16 12:59:50,567 - INFO - Container for gin-gonic__gin-3227 started: 2acd4bfdb8209d49d1bfe21395c5b9b6d723d06c411fe86d8bccc64b558a4457
+2026-05-16 12:59:50,568 - INFO - Intermediate patch for gin-gonic__gin-3227 written to logs/run_evaluation/lth-work/lth-work/gin-gonic__gin-3227/patch.diff, now applying to container...
+2026-05-16 12:59:50,650 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-16 12:59:50,679 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-16 12:59:50,746 - INFO - >>>>> Applied Patch:
+patching file gin.go
+Hunk #1 succeeded at 622 (offset -106 lines).
+patching file routes_test.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 220 with fuzz 1 (offset -48 lines).
+
+2026-05-16 12:59:50,798 - INFO - Git diff before:
+diff --git a/gin.go b/gin.go
+index a2e2e67..553222d 100644
+--- a/gin.go
++++ b/gin.go
+@@ -622,7 +622,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
+ 				redirectTrailingSlash(c)
+ 				return
+ 			}
+-			if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectFixedPath) {
++			if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectTrailingSlash) {
+ 				return
+ 			}
+ 		}
+diff --git a/routes_test.go b/routes_test.go
+index d7034b2..1861163 100644
+--- a/routes_test.go
++++ b/routes_test.go
+@@ -220,11 +220,41 @@ func TestRouteRedirectFixedPath(t *testing.T) {
+ 	assert.Equal(t, "/PATH3", w.Header().Get("Location"))
+ 	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+ 
++	// /path4 case-insensitively matches /Path4/ but RedirectTrailingSlash is false,
++	// so adding a trailing slash is not permitted and the request returns 404.
+ 	w = PerformRequest(router, http.MethodPost, "/path4")
++	assert.Equal(t, http.StatusNotFound, w.Code)
++}
++
++func TestRouteRedirectFixedPathWithTrailingSlash(t *testing.T) {
++	router := New()
++	router.RedirectFixedPath = true
++	router.RedirectTrailingSlash = true
++
++	router.POST("/Path4/", func(c *Context) {})
++
++	// Both RedirectFixedPath and RedirectTrailingSlash enabled: redirect is allowed.
++	w := PerformRequest(router, http.MethodPost, "/path4")
+ 	assert.Equal(t, "/Path4/", w.Header().Get("Location"))
+ 	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+ }
+ 
++func TestRouteRedirectFixedPathDoesNotRedirectTrailingSlash(t *testing.T) {
++	// Regression test: RedirectFixedPath must not redirect trailing slashes
++	// when RedirectTrailingSlash is false.
++	router := New()
++	router.RedirectTrailingSlash = false
++	router.RedirectFixedPath = true
++
++	router.GET("/ping", func(c *Context) {
++		c.String(http.StatusOK, "pong")
++	})
++
++	w := PerformRequest(router, http.MethodGet, "/ping/")
++	assert.Equal(t, http.StatusNotFound, w.Code)
++	assert.Equal(t, "", w.Header().Get("Location"))
++}
++
+ // TestContextParamsGet tests that a parameter can be parsed from the URL.
+ func TestRouteParamsByName(t *testing.T) {
+ 	name := ""
+2026-05-16 12:59:50,798 - INFO - Eval script for gin-gonic__gin-3227 written to logs/run_evaluation/lth-work/lth-work/gin-gonic__gin-3227/eval.sh; copying to container...
+2026-05-16 12:59:57,831 - INFO - Test runtime: 6.99 seconds
+2026-05-16 12:59:57,831 - INFO - Test output for gin-gonic__gin-3227 written to logs/run_evaluation/lth-work/lth-work/gin-gonic__gin-3227/test_output.txt
+2026-05-16 12:59:57,866 - INFO - Git diff after:
+diff --git a/gin.go b/gin.go
+index a2e2e67..553222d 100644
+--- a/gin.go
++++ b/gin.go
+@@ -622,7 +622,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
+ 				redirectTrailingSlash(c)
+ 				return
+ 			}
+-			if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectFixedPath) {
++			if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectTrailingSlash) {
+ 				return
+ 			}
+ 		}
+diff --git a/routes_test.go b/routes_test.go
+index d7034b2..1861163 100644
+--- a/routes_test.go
++++ b/routes_test.go
+@@ -220,11 +220,41 @@ func TestRouteRedirectFixedPath(t *testing.T) {
+ 	assert.Equal(t, "/PATH3", w.Header().Get("Location"))
+ 	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+ 
++	// /path4 case-insensitively matches /Path4/ but RedirectTrailingSlash is false,
++	// so adding a trailing slash is not permitted and the request returns 404.
+ 	w = PerformRequest(router, http.MethodPost, "/path4")
++	assert.Equal(t, http.StatusNotFound, w.Code)
++}
++
++func TestRouteRedirectFixedPathWithTrailingSlash(t *testing.T) {
++	router := New()
++	router.RedirectFixedPath = true
++	router.RedirectTrailingSlash = true
++
++	router.POST("/Path4/", func(c *Context) {})
++
++	// Both RedirectFixedPath and RedirectTrailingSlash enabled: redirect is allowed.
++	w := PerformRequest(router, http.MethodPost, "/path4")
+ 	assert.Equal(t, "/Path4/", w.Header().Get("Location"))
+ 	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+ }
+ 
++func TestRouteRedirectFixedPathDoesNotRedirectTrailingSlash(t *testing.T) {
++	// Regression test: RedirectFixedPath must not redirect trailing slashes
++	// when RedirectTrailingSlash is false.
++	router := New()
++	router.RedirectTrailingSlash = false
++	router.RedirectFixedPath = true
++
++	router.GET("/ping", func(c *Context) {
++		c.String(http.StatusOK, "pong")
++	})
++
++	w := PerformRequest(router, http.MethodGet, "/ping/")
++	assert.Equal(t, http.StatusNotFound, w.Code)
++	assert.Equal(t, "", w.Header().Get("Location"))
++}
++
+ // TestContextParamsGet tests that a parameter can be parsed from the URL.
+ func TestRouteParamsByName(t *testing.T) {
+ 	name := ""
+2026-05-16 12:59:57,866 - INFO - Grading answer for gin-gonic__gin-3227...
+2026-05-16 12:59:57,866 - INFO - report: {'gin-gonic__gin-3227': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['TestRedirectTrailingSlash']}, 'PASS_TO_PASS': {'success': [], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gin-gonic__gin-3227: resolved: False
+2026-05-16 12:59:57,866 - INFO - Attempting to stop container sweb.eval.gin-gonic__gin-3227.lth-work...
+2026-05-16 13:00:13,039 - INFO - Attempting to remove container sweb.eval.gin-gonic__gin-3227.lth-work...
+2026-05-16 13:00:13,102 - INFO - Container sweb.eval.gin-gonic__gin-3227.lth-work removed.
+2026-05-16 13:00:13,102 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-3227:latest...
+2026-05-16 13:00:13,404 - INFO - Image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-3227:latest removed.

@@ -1,0 +1,113 @@
+diff --git a/hugolib/content_map_page.go b/hugolib/content_map_page.go
+index 89df951e..1114428d 100644
+--- a/hugolib/content_map_page.go
++++ b/hugolib/content_map_page.go
+@@ -348,31 +348,28 @@ func (m *pageMap) getPagesInSection(q pageMapQueryPagesInSection) page.Pages {
+ 		w := &doctree.NodeShiftTreeWalker[contentNodeI]{
+ 			Tree:   m.treePages,
+ 			Prefix: prefix,
+-			Handle: func(key string, n contentNodeI, match doctree.DimensionFlag) (bool, error) {
+-				if q.Recursive {
+-					if p, ok := n.(*pageState); ok && include(p) {
+-						pas = append(pas, p)
+-					}
+-					return false, nil
+-				}
+-
+-				// We store both leafs and branches in the same tree, so for non-recursive walks,
+-				// we need to walk until the end, but can skip
+-				// any not belonging to child branches.
+-				if otherBranch != "" && strings.HasPrefix(key, otherBranch) {
+-					return false, nil
+-				}
++		}
+ 
++		w.Handle = func(key string, n contentNodeI, match doctree.DimensionFlag) (bool, error) {
++			if q.Recursive {
+ 				if p, ok := n.(*pageState); ok && include(p) {
+ 					pas = append(pas, p)
+ 				}
++				return false, nil
++			}
+ 
+-				if n.isContentNodeBranch() {
+-					otherBranch = key + "/"
+-				}
++			if p, ok := n.(*pageState); ok && include(p) {
++				pas = append(pas, p)
++			}
+ 
+-				return false, nil
+-			},
++			if n.isContentNodeBranch() {
++				currentBranch := key + "/"
++				if otherBranch == "" || otherBranch != currentBranch {
++					w.SkipPrefix(currentBranch)
++				}
++				otherBranch = currentBranch
++			}
++			return false, nil
+ 		}
+ 
+ 		err := w.Walk(context.Background())
+diff --git a/hugolib/pagecollections_test.go b/hugolib/pagecollections_test.go
+index 1cb1cbd7..4b0a7d8e 100644
+--- a/hugolib/pagecollections_test.go
++++ b/hugolib/pagecollections_test.go
+@@ -663,3 +663,62 @@ RegularPagesRecursive: {{ range .RegularPagesRecursive }}{{ .Kind }}:{{ .RelPerm
+ 
+ 	b.AssertFileContent("public/index.html", `RegularPagesRecursive: page:/p1/|page:/post/p2/||End.`)
+ }
++
++// Issue #12169: .Pages incorrectly includes pages from sibling sections when
++// directory names share a common prefix (e.g. "s1" and "s1-foo").
++//
++// Root cause: the non-recursive walk in getPagesInSection tracked which branch
++// subtree to skip using a single otherBranch string.  In lexicographic order,
++// '-' (ASCII 45) sorts before '/' (ASCII 47), so the tree visits:
++//
++//   /s1        (branch) → otherBranch = "/s1/"
++//   /s1-foo    (branch) → otherBranch = "/s1-foo/"   ← overwrites /s1/
++//   /s1-foo/p2 (page)   → HasPrefix("/s1-foo/p2", "/s1-foo/") = true  → skipped ✓
++//   /s1/p1     (page)   → HasPrefix("/s1/p1",     "/s1-foo/") = false → NOT skipped ✗
++//
++// Fix: replace the single-variable HasPrefix check with w.SkipPrefix, which
++// accumulates all branch prefixes so every child subtree is excluded regardless
++// of the order in which branches are encountered.
++func TestPagesSimilarSectionNames(t *testing.T) {
++	files := `
++-- hugo.toml --
++-- content/draftsection/_index.md --
++---
++draft: true
++---
++-- content/draftsection/sub/_index.md --
++-- content/draftsection/sub/d1.md --
++-- content/s1/_index.md --
++-- content/s1/p1.md --
++-- content/s1-foo/_index.md --
++-- content/s1-foo/p2.md --
++-- content/s1-foo/s2/_index.md --
++-- content/s1-foo/s2/p3.md --
++-- content/s1-foo/s2-foo/_index.md --
++-- content/s1-foo/s2-foo/p4.md --
++-- layouts/list.html --
++{{ .RelPermalink }}: Pages: {{ range .Pages }}{{ .RelPermalink }}|{{ end }}$
++
++`
++	b := Test(t, files)
++
++	// Home page must contain only the two top-level sections, not the
++	// regular pages that live inside them.
++	b.AssertFileContent("public/index.html", "/: Pages: /s1-foo/|/s1/|$")
++
++	// s1's Pages must contain only its direct regular page, not anything
++	// from the similarly-named s1-foo sibling.
++	b.AssertFileContent("public/s1/index.html", "/s1/: Pages: /s1/p1/|$")
++
++	// s1-foo contains its own regular page plus two nested sections.
++	b.AssertFileContent("public/s1-foo/index.html", "/s1-foo/: Pages: /s1-foo/p2/|/s1-foo/s2-foo/|/s1-foo/s2/|$")
++
++	// Nested sections are not confused by their own similarly-named siblings.
++	b.AssertFileContent("public/s1-foo/s2/index.html", "/s1-foo/s2/: Pages: /s1-foo/s2/p3/|$")
++}

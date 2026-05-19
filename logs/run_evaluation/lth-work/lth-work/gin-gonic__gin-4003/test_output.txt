@@ -1,0 +1,17 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout 9c081de9cdd1948f521d47d170d18cbc2981c33a gin_test.go
+Updated 0 paths from 2edc409
++ git apply --verbose --reject -
+Checking patch gin_test.go...
+Applied patch gin_test.go cleanly.
++ : '>>>>> Start Test Output'
++ go test . -v -run TestMethodNotAllowedNoRoute
+=== RUN   TestMethodNotAllowedNoRoute
+--- PASS: TestMethodNotAllowedNoRoute (0.00s)
+PASS
+ok  	github.com/gin-gonic/gin	0.007s
++ : '>>>>> End Test Output'
++ git checkout 9c081de9cdd1948f521d47d170d18cbc2981c33a gin_test.go
+Updated 1 path from 2edc409

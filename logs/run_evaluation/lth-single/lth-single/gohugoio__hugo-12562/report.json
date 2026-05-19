@@ -1,0 +1,35 @@
+{
+    "gohugoio__hugo-12562": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "TestGetPageContentAdapterBaseIssue12561"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "TestGetPageIndexIndex",
+                    "TestGetPageRelative",
+                    "TestGetPageIssue11883",
+                    "TestGetPageBundleToRegular",
+                    "TestGetPageMultilingual",
+                    "TestGetPageIssue12120"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

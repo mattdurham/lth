@@ -1,0 +1,45 @@
+{
+    "hashicorp__terraform-34814": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "TestProvisionerTimeout"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "TestResourceProvider_Validate_good",
+                    "TestResourceProvider_Validate_bad",
+                    "TestResourceProvider_generateScript",
+                    "TestResourceProvider_generateScriptEmptyInline",
+                    "TestResourceProvider_CollectScripts_inline",
+                    "TestResourceProvider_CollectScripts_script",
+                    "TestResourceProvider_CollectScripts_scripts",
+                    "TestResourceProvider_CollectScripts_scriptsEmpty",
+                    "TestResourceProvisioner_StopClose",
+                    "TestResourceProvisioner_connectionRequired",
+                    "TestResourceProvisioner_nullsInOptionals",
+                    "TestResourceProvisioner_nullsInOptionals/0",
+                    "TestResourceProvisioner_nullsInOptionals/1",
+                    "TestResourceProvisioner_nullsInOptionals/2",
+                    "TestResourceProvisioner_nullsInOptionals/3",
+                    "TestResourceProvisioner_nullsInOptionals/4"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

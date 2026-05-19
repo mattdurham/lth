@@ -1,0 +1,50 @@
+diff --git a/hugolib/rebuild_test.go b/hugolib/rebuild_test.go
+index b3f36d44..dbcb9622 100644
+--- a/hugolib/rebuild_test.go
++++ b/hugolib/rebuild_test.go
+@@ -2127,6 +2127,45 @@ Content before shortcode.
+ 	b.AssertFileContent("public/p1/index.html", "Single: P1|", fmt.Sprintf("This is %s wow.", currentYear))
+ }
+ 
++// Discourse forum topic 49465: editing a different page during server rebuild
++// should trigger a browser reload for that page too.
++func TestRebuildSimultaneousPageEdits(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['rss','sitemap','taxonomy','term']
++disableLiveReload = true
++-- layouts/_default/list.html --
++{{ .Content }}
++-- layouts/_default/single.html --
++{{ .Content }}
++-- content/_index.md --
++---
++title: home
++---
++home-content|
++-- content/p1/index.md --
++---
++title: p1
++---
++p1-content|
++`
++
++	b := TestRunning(t, files)
++
++	b.AssertFileContent("public/index.html", "home-content|")
++	b.AssertFileContent("public/p1/index.html", "p1-content|")
++
++	// Edit both files simultaneously (single Build call) — regression for forum topic 49465.
++	b.EditFileReplaceAll("content/_index.md", "home-content|", "home-content|foo").
++		EditFileReplaceAll("content/p1/index.md", "p1-content|", "p1-content|bar").
++		Build()
++
++	b.AssertFileContent("public/index.html", "home-content|foo")
++	b.AssertFileContent("public/p1/index.html", "p1-content|bar")
++}
++
+ // Issue 14740.
+ func TestRebuildEditTagsListLayout(t *testing.T) {
+ 	files := `

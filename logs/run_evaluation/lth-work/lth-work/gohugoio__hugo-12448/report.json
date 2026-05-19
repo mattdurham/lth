@@ -1,0 +1,63 @@
+{
+    "gohugoio__hugo-12448": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "TestRebuildHomeThenPageIssue12436"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "TestRebuildOnAssetChange",
+                    "TestRebuildEditTextFileInLeafBundle",
+                    "TestRebuildEditTextFileInHomeBundle",
+                    "TestRebuildEditTextFileInBranchBundle",
+                    "TestRebuildRenameTextFileInLeafBundle",
+                    "TestRebuildRenameTextFileInBranchBundle",
+                    "TestRebuildRenameTextFileInHomeBundle",
+                    "TestRebuildRenameDirectoryWithLeafBundle",
+                    "TestRebuildRenameDirectoryWithBranchBundle",
+                    "TestRebuildRenameDirectoryWithRegularPageUsedInHome",
+                    "TestRebuildAddRegularFileRegularPageUsedInHomeMultilingual",
+                    "TestRebuildRenameDirectoryWithBranchBundleFastRender",
+                    "TestRebuildAddPageListPagesInHome",
+                    "TestRebuildAddPageWithSpaceListPagesInHome",
+                    "TestRebuildScopedToOutputFormat",
+                    "TestRebuildBaseof",
+                    "TestRebuildFromString",
+                    "TestRebuildVariations",
+                    "TestRebuildConcat",
+                    "TestRebuildEditSingleListChangeUbuntuIssue12362",
+                    "TestRebuildVariationsAssetsJSImport",
+                    "TestRebuildEditArchetypeFile",
+                    "TestRebuildVariationsJSInNestedPartialFingerprintedInBase",
+                    "TestRebuildI18n",
+                    "TestRebuildVariationsJSNoneFingerprinted",
+                    "TestRebuildVariationsJSInNestedCachedPartialFingerprinted",
+                    "TestRebuildEditContentNonDefaultLanguageDifferentBundles",
+                    "TestRebuildDeeplyNestedLink",
+                    "TestRebuildEditContentNonDefaultLanguage",
+                    "TestRebuildEditHomeContent",
+                    "TestRebuildSingleWithBaseof",
+                    "TestRebuildEditData",
+                    "TestRebuildVariationsJSBundled",
+                    "TestRebuildEditMixedCaseTemplateFileIssue12165"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

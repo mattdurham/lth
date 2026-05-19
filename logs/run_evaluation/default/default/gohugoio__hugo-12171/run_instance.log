@@ -1,0 +1,128 @@
+2026-05-18 17:06:27,099 - INFO - Creating container for gohugoio__hugo-12171...
+2026-05-18 17:06:27,550 - INFO - Container for gohugoio__hugo-12171 created: 5a0a2780d9a80ed511c356c853f1b1ed5c98c5316626e84e5e4e848b845d12ba
+2026-05-18 17:06:27,671 - INFO - Container for gohugoio__hugo-12171 started: 5a0a2780d9a80ed511c356c853f1b1ed5c98c5316626e84e5e4e848b845d12ba
+2026-05-18 17:06:27,671 - INFO - Intermediate patch for gohugoio__hugo-12171 written to logs/run_evaluation/default/default/gohugoio__hugo-12171/patch.diff, now applying to container...
+2026-05-18 17:06:27,757 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-18 17:06:27,798 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-18 17:06:27,866 - INFO - >>>>> Applied Patch:
+patching file hugolib/content_map_page.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 348 with fuzz 1.
+
+2026-05-18 17:06:28,150 - INFO - Git diff before:
+diff --git a/hugolib/content_map_page.go b/hugolib/content_map_page.go
+index 89df951e9..900af5c68 100644
+--- a/hugolib/content_map_page.go
++++ b/hugolib/content_map_page.go
+@@ -348,31 +348,29 @@ func (m *pageMap) getPagesInSection(q pageMapQueryPagesInSection) page.Pages {
+ 		w := &doctree.NodeShiftTreeWalker[contentNodeI]{
+ 			Tree:   m.treePages,
+ 			Prefix: prefix,
+-			Handle: func(key string, n contentNodeI, match doctree.DimensionFlag) (bool, error) {
+-				if q.Recursive {
+-					if p, ok := n.(*pageState); ok && include(p) {
+-						pas = append(pas, p)
+-					}
+-					return false, nil
+-				}
+-
+-				// We store both leafs and branches in the same tree, so for non-recursive walks,
+-				// we need to walk until the end, but can skip
+-				// any not belonging to child branches.
+-				if otherBranch != "" && strings.HasPrefix(key, otherBranch) {
+-					return false, nil
+-				}
++		}
+ 
++		w.Handle = func(key string, n contentNodeI, match doctree.DimensionFlag) (bool, error) {
++			if q.Recursive {
+ 				if p, ok := n.(*pageState); ok && include(p) {
+ 					pas = append(pas, p)
+ 				}
++				return false, nil
++			}
++
++			if p, ok := n.(*pageState); ok && include(p) {
++				pas = append(pas, p)
++			}
+ 
+-				if n.isContentNodeBranch() {
+-					otherBranch = key + "/"
++			if n.isContentNodeBranch() {
++				currentBranch := key + "/"
++				if otherBranch == "" || otherBranch != currentBranch {
++					w.SkipPrefix(currentBranch)
+ 				}
++				otherBranch = currentBranch
++			}
+ 
+-				return false, nil
+-			},
++			return false, nil
+ 		}
+ 
+ 		err := w.Walk(context.Background())
+2026-05-18 17:06:28,150 - INFO - Eval script for gohugoio__hugo-12171 written to logs/run_evaluation/default/default/gohugoio__hugo-12171/eval.sh; copying to container...
+2026-05-18 17:06:35,394 - INFO - Test runtime: 7.21 seconds
+2026-05-18 17:06:35,394 - INFO - Test output for gohugoio__hugo-12171 written to logs/run_evaluation/default/default/gohugoio__hugo-12171/test_output.txt
+2026-05-18 17:06:35,432 - INFO - Git diff after:
+diff --git a/hugolib/content_map_page.go b/hugolib/content_map_page.go
+index 89df951e9..900af5c68 100644
+--- a/hugolib/content_map_page.go
++++ b/hugolib/content_map_page.go
+@@ -348,31 +348,29 @@ func (m *pageMap) getPagesInSection(q pageMapQueryPagesInSection) page.Pages {
+ 		w := &doctree.NodeShiftTreeWalker[contentNodeI]{
+ 			Tree:   m.treePages,
+ 			Prefix: prefix,
+-			Handle: func(key string, n contentNodeI, match doctree.DimensionFlag) (bool, error) {
+-				if q.Recursive {
+-					if p, ok := n.(*pageState); ok && include(p) {
+-						pas = append(pas, p)
+-					}
+-					return false, nil
+-				}
+-
+-				// We store both leafs and branches in the same tree, so for non-recursive walks,
+-				// we need to walk until the end, but can skip
+-				// any not belonging to child branches.
+-				if otherBranch != "" && strings.HasPrefix(key, otherBranch) {
+-					return false, nil
+-				}
++		}
+ 
++		w.Handle = func(key string, n contentNodeI, match doctree.DimensionFlag) (bool, error) {
++			if q.Recursive {
+ 				if p, ok := n.(*pageState); ok && include(p) {
+ 					pas = append(pas, p)
+ 				}
++				return false, nil
++			}
++
++			if p, ok := n.(*pageState); ok && include(p) {
++				pas = append(pas, p)
++			}
+ 
+-				if n.isContentNodeBranch() {
+-					otherBranch = key + "/"
++			if n.isContentNodeBranch() {
++				currentBranch := key + "/"
++				if otherBranch == "" || otherBranch != currentBranch {
++					w.SkipPrefix(currentBranch)
+ 				}
++				otherBranch = currentBranch
++			}
+ 
+-				return false, nil
+-			},
++			return false, nil
+ 		}
+ 
+ 		err := w.Walk(context.Background())
+2026-05-18 17:06:35,432 - INFO - Grading answer for gohugoio__hugo-12171...
+2026-05-18 17:06:35,432 - INFO - report: {'gohugoio__hugo-12171': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['TestPagesSimilarSectionNames'], 'failure': []}, 'PASS_TO_PASS': {'success': ['TestBundleDuplicatePagesAndResources', 'TestRegularPagesRecursive', 'TestRegularPagesRecursiveHome', 'TestPagesPrevNext', 'TestPaginatorNodePagesOnly', 'TestRebuildAddPageListPagesInHome', 'TestRebuildAddPageWithSpaceListPagesInHome', 'TestTaxonomiesListPages', 'TestOrderedPages', 'TestGroupedPages', 'TestTitleCaseStyleWithAutomaticSectionPages', 'TestMenusSectionPagesMenu'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gohugoio__hugo-12171: resolved: True
+2026-05-18 17:06:35,432 - INFO - Attempting to stop container sweb.eval.gohugoio__hugo-12171.default...
+2026-05-18 17:06:50,604 - INFO - Attempting to remove container sweb.eval.gohugoio__hugo-12171.default...
+2026-05-18 17:06:50,690 - INFO - Container sweb.eval.gohugoio__hugo-12171.default removed.
+2026-05-18 17:06:50,690 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gohugoio_1776_hugo-12171:latest...
+2026-05-18 17:06:51,089 - INFO - Image swebench/sweb.eval.x86_64.gohugoio_1776_hugo-12171:latest removed.

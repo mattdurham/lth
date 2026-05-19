@@ -38,13 +38,9 @@ func (a Approach) BuildPrompt(p dataset.Problem) string {
 func buildDefaultPrompt(p dataset.Problem) string {
 	return fmt.Sprintf(
 		"You are a software engineer. Here is a GitHub issue:\n\n<issue>\n%s\n</issue>\n\n"+
-			"Fix the issue by modifying the repository. Output your fix as a unified diff wrapped in <patch>...</patch> XML tags.\n\n"+
-			"IMPORTANT patch format rules:\n"+
-			"- Use standard unified diff format with --- and +++ headers\n"+
-			"- Do NOT include 'index HASH..HASH' lines — omit them entirely\n"+
-			"- Use --- a/path/to/file and +++ b/path/to/file headers\n"+
-			"- Include correct @@ line numbers matching the actual file\n"+
-			"- Output the patch and nothing else between the tags",
+			"You are working inside the actual repository. Read the relevant source files, "+
+			"identify the bug, and fix it by editing the files directly using your file tools. "+
+			"Do not output a patch — your file changes will be captured automatically.",
 		p.ProblemStatement,
 	)
 }
@@ -53,9 +49,9 @@ func buildBobWorkPrompt(p dataset.Problem) string {
 	return fmt.Sprintf(
 		"Before starting, search lth for prior experience with this repo and any files you touch:\n"+
 			"  ~/bin/lth search \"%s\" --layers L3,L4,L5 --top 5\n"+
-			"  # Before editing any file, also run: ~/bin/lth search \"<filename>\" --layers L3,L4,L5 --top 5\n\n"+
+			"  # Before editing any file: ~/bin/lth read <filepath>\n\n"+
 			"/bob:work \"%s\"\n\n"+
-			"After completing the work, output your fix as a unified diff in git diff format, wrapped in <patch>...</patch> XML tags.",
+			"You are working inside the actual repository. Edit files directly — changes are captured automatically via git diff.",
 		p.Repo, p.ProblemStatement,
 	)
 }
@@ -69,13 +65,9 @@ func buildLthSinglePrompt(p dataset.Problem) string {
 			"  ~/bin/lth prompt \"%s\" --top-each 3 --ppr=false --expand=false\n\n"+
 			"Apply what you find as context, then fix this GitHub issue:\n\n"+
 			"<issue>\n%s\n</issue>\n\n"+
-			"Read the relevant files in the repository, make the minimal fix, and output your change as a unified diff wrapped in <patch>...</patch> XML tags.\n\n"+
-			"IMPORTANT patch format rules:\n"+
-			"- Use standard unified diff format with --- and +++ headers\n"+
-			"- Do NOT include 'index HASH..HASH' lines — omit them entirely\n"+
-			"- Use --- a/path/to/file and +++ b/path/to/file headers\n"+
-			"- Include correct @@ line numbers matching the actual file\n"+
-			"- Output the patch and nothing else between the tags",
+			"You are working inside the actual repository. Read the relevant source files using "+
+			"your file tools, identify the bug, and fix it by editing the files directly. "+
+			"Do not output a patch — your file changes will be captured automatically.",
 		p.Repo+" "+p.ProblemStatement[:min(len(p.ProblemStatement), 100)],
 		p.ProblemStatement,
 	)
@@ -92,9 +84,9 @@ func buildLthWorkPrompt(p dataset.Problem) string {
 	return fmt.Sprintf(
 		"Before starting, search lth for prior experience with this repo and any files you touch:\n"+
 			"  ~/bin/lth search \"%s\" --layers L3,L4,L5 --top 5\n"+
-			"  # Before editing any file, also run: ~/bin/lth search \"<filename>\" --layers L3,L4,L5 --top 5\n\n"+
+			"  # Before editing any file: ~/bin/lth read <filepath>\n\n"+
 			"/lth-work \"%s\"\n\n"+
-			"After completing the work, output your fix as a unified diff in git diff format, wrapped in <patch>...</patch> XML tags.",
+			"You are working inside the actual repository. Edit files directly — changes are captured automatically via git diff.",
 		p.Repo, p.ProblemStatement,
 	)
 }

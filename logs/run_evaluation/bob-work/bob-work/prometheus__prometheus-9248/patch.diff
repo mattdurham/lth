@@ -1,0 +1,30 @@
+diff --git a/promql/engine.go b/promql/engine.go
+index e5dbcd2d7..5d530f34a 100644
+--- a/promql/engine.go
++++ b/promql/engine.go
+@@ -2085,6 +2085,8 @@ func scalarBinop(op parser.ItemType, lhs, rhs float64) float64 {
+ 		return btos(lhs >= rhs)
+ 	case parser.LTE:
+ 		return btos(lhs <= rhs)
++	case parser.ATAN2:
++		return math.Atan2(lhs, rhs)
+ 	}
+ 	panic(errors.Errorf("operator %q not allowed for Scalar operations", op))
+ }
+diff --git a/promql/promqltest/testdata/operators.test b/promql/promqltest/testdata/operators.test
+index a6072eef3..7056213c9 100644
+--- a/promql/promqltest/testdata/operators.test
++++ b/promql/promqltest/testdata/operators.test
+@@ -521,6 +521,12 @@ eval instant at 1m trigy atan2 trigx
+ eval instant at 1m trigy atan2 trigNaN
+   {__name__="trigy", x="1"} NaN
+ 
++eval instant at 1m 10 atan2 20
++  {} 0.4636476090008257
++
++eval instant at 1m 10 atan2 NaN
++  {} NaN
++
+ # Test that unary minus works as expected.
+ eval instant at 1m -1 * test_metric0
+   {l="1"} -1

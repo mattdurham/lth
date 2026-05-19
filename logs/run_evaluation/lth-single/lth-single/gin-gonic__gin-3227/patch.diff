@@ -1,0 +1,20 @@
+--- a/gin.go
++++ b/gin.go
+@@ -418,7 +418,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
+ 				c.writermem.WriteHeaderNow()
+ 				return
+ 			}
+-			if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectFixedPath) {
++			if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectTrailingSlash) {
+ 				return
+ 			}
+ 		}
+@@ -435,7 +435,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
+ 			c.writermem.WriteHeaderNow()
+ 			return
+ 		}
+-		if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectFixedPath) {
++		if engine.RedirectFixedPath && redirectFixedPath(c, root, engine.RedirectTrailingSlash) {
+ 			return
+ 		}
+ 	}

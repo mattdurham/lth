@@ -1,0 +1,13 @@
+diff --git a/promql/engine.go b/promql/engine.go
+index f0e8c8c32..a1b2e4d3a 100644
+--- a/promql/engine.go
++++ b/promql/engine.go
+@@ -435,6 +435,9 @@ func (ng *Engine) SetQueryLogger(l QueryLogger) {
+ 
+ // Close closes the Engine and stops all background processes.
+ func (ng *Engine) Close() {
++	if ng == nil {
++		return
++	}
+ 	ng.activeQueryTracker.Close()
+ }

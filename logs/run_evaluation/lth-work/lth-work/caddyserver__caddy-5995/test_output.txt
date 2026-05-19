@@ -1,0 +1,40 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout c839a98ff527932fd14460829142c486f4531a7b caddytest/integration/caddyfile_test.go replacer_test.go
+Updated 0 paths from 3a4a9745
++ git apply --verbose --reject -
+<stdin>:74: trailing whitespace.
+	
+Checking patch caddytest/integration/caddyfile_adapt/uri_replace_brace_escape.txt...
+Checking patch caddytest/integration/caddyfile_test.go...
+Checking patch replacer_test.go...
+Applied patch caddytest/integration/caddyfile_adapt/uri_replace_brace_escape.txt cleanly.
+Applied patch caddytest/integration/caddyfile_test.go cleanly.
+Applied patch replacer_test.go cleanly.
+warning: 1 line adds whitespace errors.
++ : '>>>>> Start Test Output'
++ go test -v ./caddytest/integration -run '^TestUriReplace'
+=== RUN   TestUriReplace
+{"level":"info","ts":1779002141.3481076,"msg":"using provided configuration","config_file":"/tmp/3577208836","config_adapter":"caddyfile"}
+{"level":"info","ts":1779002141.348384,"logger":"admin","msg":"admin endpoint started","address":"localhost:2999","enforce_origin":false,"origins":["//localhost:2999","//[::1]:2999","//127.0.0.1:2999"]}
+{"level":"info","ts":1779002141.3484454,"msg":"autosaved config (load with --resume flag)","file":"/root/.config/caddy/autosave.json"}
+{"level":"info","ts":1779002141.3484478,"msg":"serving initial configuration"}
+{"level":"info","ts":1779002142.3488748,"logger":"admin.api","msg":"received request","method":"GET","host":"localhost:2999","uri":"/config/","remote_ip":"127.0.0.1","remote_port":"58438","headers":{"Accept-Encoding":["gzip"],"User-Agent":["Go-http-client/1.1"]}}
+{"level":"info","ts":1779002142.3492632,"logger":"admin.api","msg":"received request","method":"GET","host":"localhost:2999","uri":"/config/","remote_ip":"127.0.0.1","remote_port":"58448","headers":{"Accept-Encoding":["gzip"],"User-Agent":["Go-http-client/1.1"]}}
+{"level":"info","ts":1779002142.3495183,"logger":"admin.api","msg":"received request","method":"POST","host":"localhost:2999","uri":"/load","remote_ip":"127.0.0.1","remote_port":"58460","headers":{"Accept-Encoding":["gzip"],"Content-Length":["122"],"Content-Type":["text/caddyfile"],"User-Agent":["Go-http-client/1.1"]}}
+{"level":"info","ts":1779002142.350142,"logger":"admin","msg":"admin endpoint started","address":"localhost:2999","enforce_origin":false,"origins":["//localhost:2999","//[::1]:2999","//127.0.0.1:2999"]}
+{"level":"warn","ts":1779002142.3501947,"logger":"http.auto_https","msg":"server is listening only on the HTTP port, so no automatic HTTPS will be applied to this server","server_name":"srv0","http_port":9080}
+{"level":"info","ts":1779002142.3502755,"logger":"tls.cache.maintenance","msg":"started background certificate maintenance","cache":"0xc0003e1180"}
+{"level":"info","ts":1779002142.3502955,"logger":"http.log","msg":"server running","name":"srv0","protocols":["h1","h2","h3"]}
+{"level":"info","ts":1779002142.3503811,"msg":"autosaved config (load with --resume flag)","file":"/root/.config/caddy/autosave.json"}
+{"level":"info","ts":1779002142.350386,"logger":"admin.api","msg":"load complete"}
+{"level":"info","ts":1779002142.3504322,"msg":"caddytest: config load time took 1.130269ms"}
+{"level":"info","ts":1779002142.3508072,"logger":"admin.api","msg":"received request","method":"GET","host":"localhost:2999","uri":"/config/","remote_ip":"127.0.0.1","remote_port":"58476","headers":{"Accept-Encoding":["gzip"],"User-Agent":["Go-http-client/1.1"]}}
+{"level":"info","ts":1779002142.3509092,"msg":"caddytest: redirecting the dialer from localhost:9080 to 127.0.0.1:9080"}
+--- PASS: TestUriReplace (1.00s)
+PASS
+ok  	github.com/caddyserver/caddy/v2/caddytest/integration	1.021s
++ : '>>>>> End Test Output'
++ git checkout c839a98ff527932fd14460829142c486f4531a7b caddytest/integration/caddyfile_test.go replacer_test.go
+Updated 2 paths from 3a4a9745

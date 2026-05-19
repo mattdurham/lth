@@ -1,0 +1,18 @@
+--- a/internal/terraform/transform_attach_config_resource.go
++++ b/internal/terraform/transform_attach_config_resource.go
+@@ -43,7 +43,11 @@ func (t *AttachResourceConfigTransformer) Transform(g *Graph) error {
+ 		for _, rem := range c.Module.Removed {
+ 			resAddr, ok := rem.From.RelSubject.(addrs.ConfigResource)
+ 			if !ok {
+ 				// Not for a resource at all, so can't possibly match.
+ 				// Non-resource removed targets have nothing to attach.
+ 				continue
+ 			}
+-			removed.Put(resAddr, rem)
++			absAddr := addrs.ConfigResource{
++				Module:   append(c.Path, resAddr.Module...),
++				Resource: resAddr.Resource,
++			}
++			removed.Put(absAddr, rem)
+ 		}
+ 	})

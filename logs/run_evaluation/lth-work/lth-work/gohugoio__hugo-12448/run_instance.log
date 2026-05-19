@@ -1,0 +1,73 @@
+2026-05-16 13:02:30,728 - INFO - Creating container for gohugoio__hugo-12448...
+2026-05-16 13:02:31,087 - INFO - Container for gohugoio__hugo-12448 created: c7fdebbfeed968f990eb9476f2144c3958c23cf989afd32fa51a3de4ce851472
+2026-05-16 13:02:31,260 - INFO - Container for gohugoio__hugo-12448 started: c7fdebbfeed968f990eb9476f2144c3958c23cf989afd32fa51a3de4ce851472
+2026-05-16 13:02:31,260 - INFO - Intermediate patch for gohugoio__hugo-12448 written to logs/run_evaluation/lth-work/lth-work/gohugoio__hugo-12448/patch.diff, now applying to container...
+2026-05-16 13:02:31,349 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-16 13:02:31,371 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-16 13:02:31,442 - INFO - >>>>> Applied Patch:
+patching file hugolib/rebuild_test.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 1585 with fuzz 3 (offset -542 lines).
+
+2026-05-16 13:02:31,727 - INFO - Git diff before:
+diff --git a/hugolib/rebuild_test.go b/hugolib/rebuild_test.go
+index 4336d8b61..6c41b5687 100644
+--- a/hugolib/rebuild_test.go
++++ b/hugolib/rebuild_test.go
+@@ -1585,3 +1585,42 @@ title: p1
+ 	b.AddFiles("content/p2.md", "---\ntitle: p2\n---").Build()
+ 	b.AssertFileContent("public/index.html", "p1|p2|") // this test passes, which doesn't match reality
+ }
++// Discourse forum topic 49465: editing a different page during server rebuild
++// should trigger a browser reload for that page too.
++func TestRebuildSimultaneousPageEdits(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['rss','sitemap','taxonomy','term']
++disableLiveReload = true
++-- layouts/_default/list.html --
++{{ .Content }}
++-- layouts/_default/single.html --
++{{ .Content }}
++-- content/_index.md --
++---
++title: home
++---
++home-content|
++-- content/p1/index.md --
++---
++title: p1
++---
++p1-content|
++`
++
++	b := TestRunning(t, files)
++
++	b.AssertFileContent("public/index.html", "home-content|")
++	b.AssertFileContent("public/p1/index.html", "p1-content|")
++
++	// Edit both files simultaneously (single Build call) — regression for forum topic 49465.
++	b.EditFileReplaceAll("content/_index.md", "home-content|", "home-content|foo").
++		EditFileReplaceAll("content/p1/index.md", "p1-content|", "p1-content|bar").
++		Build()
++
++	b.AssertFileContent("public/index.html", "home-content|foo")
++	b.AssertFileContent("public/p1/index.html", "p1-content|bar")
++}
++
+2026-05-16 13:02:31,727 - INFO - Eval script for gohugoio__hugo-12448 written to logs/run_evaluation/lth-work/lth-work/gohugoio__hugo-12448/eval.sh; copying to container...
+2026-05-16 13:02:42,648 - INFO - Test runtime: 10.88 seconds
+2026-05-16 13:02:42,648 - INFO - Test output for gohugoio__hugo-12448 written to logs/run_evaluation/lth-work/lth-work/gohugoio__hugo-12448/test_output.txt
+2026-05-16 13:02:42,688 - INFO - Git diff after:
+
+2026-05-16 13:02:42,688 - INFO - Git diff changed after running eval script
+2026-05-16 13:02:42,688 - INFO - Grading answer for gohugoio__hugo-12448...
+2026-05-16 13:02:42,689 - INFO - report: {'gohugoio__hugo-12448': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['TestRebuildHomeThenPageIssue12436']}, 'PASS_TO_PASS': {'success': ['TestRebuildOnAssetChange', 'TestRebuildEditTextFileInLeafBundle', 'TestRebuildEditTextFileInHomeBundle', 'TestRebuildEditTextFileInBranchBundle', 'TestRebuildRenameTextFileInLeafBundle', 'TestRebuildRenameTextFileInBranchBundle', 'TestRebuildRenameTextFileInHomeBundle', 'TestRebuildRenameDirectoryWithLeafBundle', 'TestRebuildRenameDirectoryWithBranchBundle', 'TestRebuildRenameDirectoryWithRegularPageUsedInHome', 'TestRebuildAddRegularFileRegularPageUsedInHomeMultilingual', 'TestRebuildRenameDirectoryWithBranchBundleFastRender', 'TestRebuildAddPageListPagesInHome', 'TestRebuildAddPageWithSpaceListPagesInHome', 'TestRebuildScopedToOutputFormat', 'TestRebuildBaseof', 'TestRebuildFromString', 'TestRebuildVariations', 'TestRebuildConcat', 'TestRebuildEditSingleListChangeUbuntuIssue12362', 'TestRebuildVariationsAssetsJSImport', 'TestRebuildEditArchetypeFile', 'TestRebuildVariationsJSInNestedPartialFingerprintedInBase', 'TestRebuildI18n', 'TestRebuildVariationsJSNoneFingerprinted', 'TestRebuildVariationsJSInNestedCachedPartialFingerprinted', 'TestRebuildEditContentNonDefaultLanguageDifferentBundles', 'TestRebuildDeeplyNestedLink', 'TestRebuildEditContentNonDefaultLanguage', 'TestRebuildEditHomeContent', 'TestRebuildSingleWithBaseof', 'TestRebuildEditData', 'TestRebuildVariationsJSBundled', 'TestRebuildEditMixedCaseTemplateFileIssue12165'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gohugoio__hugo-12448: resolved: False
+2026-05-16 13:02:42,689 - INFO - Attempting to stop container sweb.eval.gohugoio__hugo-12448.lth-work...
+2026-05-16 13:02:57,890 - INFO - Attempting to remove container sweb.eval.gohugoio__hugo-12448.lth-work...
+2026-05-16 13:02:58,010 - INFO - Container sweb.eval.gohugoio__hugo-12448.lth-work removed.
+2026-05-16 13:02:58,010 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gohugoio_1776_hugo-12448:latest...
+2026-05-16 13:02:58,461 - INFO - Image swebench/sweb.eval.x86_64.gohugoio_1776_hugo-12448:latest removed.

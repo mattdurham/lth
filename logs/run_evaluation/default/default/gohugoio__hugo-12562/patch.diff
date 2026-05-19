@@ -1,0 +1,19 @@
+diff --git a/hugolib/content_map.go b/hugolib/content_map.go
+--- a/hugolib/content_map.go
++++ b/hugolib/content_map.go
+@@ -443,6 +443,8 @@ func (h *HugoSites) addContentAdapterPages(s *Site, pi *paths.Path, contentAdap
+ 	}
+ 	handleBuildInfo(s, bi)
+ 
++	s.pageMap.pageReverseIndex.Reset()
++
+ 	if !rebuild && (bi.EnableAllLanguages || bi.EnableAllDimensions) {
+ 		// Clone and insert the adapter for the other sites.
+ 		var iter iter.Seq[*Site]
+@@ -468,6 +470,7 @@ func (h *HugoSites) addContentAdapterPages(s *Site, pi *paths.Path, contentAdap
+ 			}
+ 			handleBuildInfo(ss, bi)
+ 
++			ss.pageMap.pageReverseIndex.Reset()
+ 			// Insert into the correct language tree so it get rebuilt on changes.
+ 			ss.pageMap.treePagesFromTemplateAdapters.Insert(pi.Base(), clone)

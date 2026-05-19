@@ -1,0 +1,90 @@
+2026-05-17 03:18:23,046 - INFO - Creating container for gin-gonic__gin-4003...
+2026-05-17 03:18:23,129 - INFO - Container for gin-gonic__gin-4003 created: 73b166f266d1dac7bd047f30945017d0874176fe1edd6f3510ef7dcf413e8d6f
+2026-05-17 03:18:23,255 - INFO - Container for gin-gonic__gin-4003 started: 73b166f266d1dac7bd047f30945017d0874176fe1edd6f3510ef7dcf413e8d6f
+2026-05-17 03:18:23,255 - INFO - Intermediate patch for gin-gonic__gin-4003 written to logs/run_evaluation/lth-work/lth-work/gin-gonic__gin-4003/patch.diff, now applying to container...
+2026-05-17 03:18:23,334 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-17 03:18:23,357 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-17 03:18:23,406 - INFO - >>>>> Applied Patch:
+patching file gin.go
+Hunk #1 succeeded at 690 (offset 41 lines).
+patching file routes_test.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 770 with fuzz 1.
+
+2026-05-17 03:18:23,459 - INFO - Git diff before:
+diff --git a/gin.go b/gin.go
+index 5ba1cf6..7b506ba 100644
+--- a/gin.go
++++ b/gin.go
+@@ -690,7 +690,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
+ 	if engine.HandleMethodNotAllowed {
+ 		// According to RFC 7231 section 6.5.5, MUST generate an Allow header field in response
+ 		// containing a list of the target resource's currently supported methods.
+-		allowed := make([]string, 0, len(t)-1)
++		allowed := make([]string, 0, len(t))
+ 		for _, tree := range engine.trees {
+ 			if tree.method == httpMethod {
+ 				continue
+diff --git a/routes_test.go b/routes_test.go
+index 73f393e..1bfb4dd 100644
+--- a/routes_test.go
++++ b/routes_test.go
+@@ -770,6 +770,14 @@ func TestRouteContextHoldsFullPath(t *testing.T) {
+ 	assert.Equal(t, http.StatusNotFound, w.Code)
+ }
+ 
++func TestHandleMethodNotAllowedWithNoHandlers(t *testing.T) {
++	router := New()
++	router.HandleMethodNotAllowed = true
++
++	w := PerformRequest(router, http.MethodGet, "/")
++	assert.Equal(t, http.StatusNotFound, w.Code)
++}
++
+ func TestEngineHandleMethodNotAllowedCornerCase(t *testing.T) {
+ 	r := New()
+ 	r.HandleMethodNotAllowed = true
+2026-05-17 03:18:23,459 - INFO - Eval script for gin-gonic__gin-4003 written to logs/run_evaluation/lth-work/lth-work/gin-gonic__gin-4003/eval.sh; copying to container...
+2026-05-17 03:18:28,287 - INFO - Test runtime: 4.79 seconds
+2026-05-17 03:18:28,287 - INFO - Test output for gin-gonic__gin-4003 written to logs/run_evaluation/lth-work/lth-work/gin-gonic__gin-4003/test_output.txt
+2026-05-17 03:18:28,321 - INFO - Git diff after:
+diff --git a/gin.go b/gin.go
+index 5ba1cf6..7b506ba 100644
+--- a/gin.go
++++ b/gin.go
+@@ -690,7 +690,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
+ 	if engine.HandleMethodNotAllowed {
+ 		// According to RFC 7231 section 6.5.5, MUST generate an Allow header field in response
+ 		// containing a list of the target resource's currently supported methods.
+-		allowed := make([]string, 0, len(t)-1)
++		allowed := make([]string, 0, len(t))
+ 		for _, tree := range engine.trees {
+ 			if tree.method == httpMethod {
+ 				continue
+diff --git a/routes_test.go b/routes_test.go
+index 73f393e..1bfb4dd 100644
+--- a/routes_test.go
++++ b/routes_test.go
+@@ -770,6 +770,14 @@ func TestRouteContextHoldsFullPath(t *testing.T) {
+ 	assert.Equal(t, http.StatusNotFound, w.Code)
+ }
+ 
++func TestHandleMethodNotAllowedWithNoHandlers(t *testing.T) {
++	router := New()
++	router.HandleMethodNotAllowed = true
++
++	w := PerformRequest(router, http.MethodGet, "/")
++	assert.Equal(t, http.StatusNotFound, w.Code)
++}
++
+ func TestEngineHandleMethodNotAllowedCornerCase(t *testing.T) {
+ 	r := New()
+ 	r.HandleMethodNotAllowed = true
+2026-05-17 03:18:28,321 - INFO - Grading answer for gin-gonic__gin-4003...
+2026-05-17 03:18:28,321 - INFO - report: {'gin-gonic__gin-4003': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['TestMethodNotAllowedNoRoute'], 'failure': []}, 'PASS_TO_PASS': {'success': [], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gin-gonic__gin-4003: resolved: True
+2026-05-17 03:18:28,321 - INFO - Attempting to stop container sweb.eval.gin-gonic__gin-4003.lth-work...
+2026-05-17 03:18:43,490 - INFO - Attempting to remove container sweb.eval.gin-gonic__gin-4003.lth-work...
+2026-05-17 03:18:43,556 - INFO - Container sweb.eval.gin-gonic__gin-4003.lth-work removed.
+2026-05-17 03:18:43,556 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-4003:latest...
+2026-05-17 03:18:43,861 - INFO - Image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-4003:latest removed.

@@ -1,0 +1,30 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout 83235262d06a060bd22c168b3413903667b8aeb6 markup/goldmark/blockquotes/blockquotes_integration_test.go
+Updated 0 paths from 9d48fb46a
++ git apply --verbose --reject -
+<stdin>:10: trailing whitespace.
+> [!nOtE]  
+Checking patch markup/goldmark/blockquotes/blockquotes_integration_test.go...
+Applied patch markup/goldmark/blockquotes/blockquotes_integration_test.go cleanly.
+warning: 1 line adds whitespace errors.
++ : '>>>>> Start Test Output'
++ go test -v ./markup/goldmark/blockquotes/...
+=== RUN   TestResolveGitHubAlert
+=== PAUSE TestResolveGitHubAlert
+=== RUN   TestBlockquoteHook
+=== PAUSE TestBlockquoteHook
+=== RUN   TestBlockquoteEmptyIssue12756
+=== PAUSE TestBlockquoteEmptyIssue12756
+=== CONT  TestResolveGitHubAlert
+=== CONT  TestBlockquoteEmptyIssue12756
+=== CONT  TestBlockquoteHook
+--- PASS: TestResolveGitHubAlert (0.00s)
+--- PASS: TestBlockquoteEmptyIssue12756 (0.00s)
+--- PASS: TestBlockquoteHook (0.01s)
+PASS
+ok  	github.com/gohugoio/hugo/markup/goldmark/blockquotes	0.019s
++ : '>>>>> End Test Output'
++ git checkout 83235262d06a060bd22c168b3413903667b8aeb6 markup/goldmark/blockquotes/blockquotes_integration_test.go
+Updated 1 path from 9d48fb46a

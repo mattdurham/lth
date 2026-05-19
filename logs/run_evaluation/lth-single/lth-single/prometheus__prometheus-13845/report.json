@@ -1,0 +1,68 @@
+{
+    "prometheus__prometheus-13845": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "TestRangeQuery",
+                    "TestRangeQuery/drop-metric-name",
+                    "TestLabels_DropMetricName"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "TestRangeQuery/sum_over_time_with_all_values",
+                    "TestRangeQuery/sum_over_time_with_trailing_values",
+                    "TestRangeQuery/sum_over_time_with_all_values_long",
+                    "TestRangeQuery/sum_over_time_with_all_values_random",
+                    "TestRangeQuery/metric_query",
+                    "TestRangeQuery/metric_query_with_trailing_values",
+                    "TestRangeQuery/short-circuit",
+                    "TestLabels_String",
+                    "TestLabels_MatchLabels",
+                    "TestLabels_HasDuplicateLabelNames",
+                    "TestLabels_WithoutEmpty",
+                    "TestLabels_WithoutEmpty/#00",
+                    "TestLabels_WithoutEmpty/#01",
+                    "TestLabels_WithoutEmpty/#02",
+                    "TestLabels_WithoutEmpty/#03",
+                    "TestLabels_WithoutEmpty/#04",
+                    "TestLabels_WithoutEmpty/#05",
+                    "TestLabels_IsValid",
+                    "TestLabels_IsValid/#00",
+                    "TestLabels_IsValid/#01",
+                    "TestLabels_IsValid/#02",
+                    "TestLabels_IsValid/#03",
+                    "TestLabels_IsValid/#04",
+                    "TestLabels_IsValid/#05",
+                    "TestLabels_IsValid/#06",
+                    "TestLabels_IsValid/#07",
+                    "TestLabels_IsValid/#08",
+                    "TestLabels_Equal",
+                    "TestLabels_FromStrings",
+                    "TestLabels_Compare",
+                    "TestLabels_Has",
+                    "TestLabels_Get",
+                    "TestLabels_Copy",
+                    "TestLabels_Map",
+                    "TestLabels_BytesWithLabels",
+                    "TestLabels_BytesWithoutLabels",
+                    "TestLabels_Hash"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

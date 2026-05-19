@@ -1,0 +1,123 @@
+diff --git a/internal/terraform/node_resource_validate.go b/internal/terraform/node_resource_validate.go
+index 9a67341..fab2ab3 100644
+--- a/internal/terraform/node_resource_validate.go
++++ b/internal/terraform/node_resource_validate.go
+@@ -843,6 +843,17 @@ func (n *NodeValidatableResource) validateConfigGen(ctx EvalContext) tfdiags.Dia
+ 				Detail:   "The given import block is not compatible with config generation. The -generate-config-out option cannot be used with import blocks which use for_each, or resources which use for_each or count.",
+ 				Subject:  imp.Config.To.Range().Ptr(),
+ 			})
++			continue
++		}
++
++		if n.generateConfigPath == "" {
++			// Not generating config, so this resource must already exist in the configuration.
++			diags = diags.Append(&hcl.Diagnostic{
++				Severity: hcl.DiagError,
++				Summary:  "Configuration for import target does not exist",
++				Detail:   fmt.Sprintf(`The configuration for the given import target %s does not exist. All target instances must have an associated configuration to be imported.`, n.Addr),
++				Subject:  imp.Config.To.Range().Ptr(),
++			})
+ 		}
+ 	}
+ 	return diags
+diff --git a/internal/terraform/context_validate_import_test.go b/internal/terraform/context_validate_import_test.go
+new file mode 100644
+index 0000000..be476a7
+--- /dev/null
++++ b/internal/terraform/context_validate_import_test.go
+@@ -0,0 +1,95 @@
++// Copyright IBM Corp. 2014, 2026
++// SPDX-License-Identifier: BUSL-1.1
++
++package terraform
++
++import (
++	"testing"
++
++	"github.com/hashicorp/terraform/internal/addrs"
++	"github.com/hashicorp/terraform/internal/providers"
++)
++
++// TestContext2Validate_importUndefinedLocal reproduces the bug where
++// terraform validate does not catch an undefined local value in an import
++// block's id field.
++func TestContext2Validate_importUndefinedLocal(t *testing.T) {
++	p := simpleMockProvider()
++	ctx := testContext2(t, &ContextOpts{
++		Providers: map[addrs.Provider]providers.Factory{
++			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
++		},
++	})
++
++	m := testModuleInline(t, map[string]string{
++		"main.tf": `
++resource "test_object" "a" {
++}
++
++import {
++  to = test_object.a
++  id = local.something_not_defined
++}
++`,
++	})
++
++	diags := ctx.Validate(m, &ValidateOpts{})
++	if !diags.HasErrors() {
++		t.Fatal("expected error for undefined local in import id, but got none")
++	}
++}
++
++// TestContext2Validate_importUndefinedVar reproduces the bug where
++// terraform validate does not catch an undefined variable in an import
++// block's id field.
++func TestContext2Validate_importUndefinedVar(t *testing.T) {
++	p := simpleMockProvider()
++	ctx := testContext2(t, &ContextOpts{
++		Providers: map[addrs.Provider]providers.Factory{
++			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
++		},
++	})
++
++	m := testModuleInline(t, map[string]string{
++		"main.tf": `
++resource "test_object" "a" {
++}
++
++import {
++  to = test_object.a
++  id = var.some_other_undefined_thing
++}
++`,
++	})
++
++	diags := ctx.Validate(m, &ValidateOpts{})
++	if !diags.HasErrors() {
++		t.Fatal("expected error for undefined variable in import id, but got none")
++	}
++}
++
++// TestContext2Validate_importNonExistentResource reproduces the bug where
++// terraform validate does not catch a reference to a non-existent resource
++// in an import block's to field.
++func TestContext2Validate_importNonExistentResource(t *testing.T) {
++	p := simpleMockProvider()
++	ctx := testContext2(t, &ContextOpts{
++		Providers: map[addrs.Provider]providers.Factory{
++			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
++		},
++	})
++
++	m := testModuleInline(t, map[string]string{
++		"main.tf": `
++import {
++  to  = test_object.not_a_real_resource
++  id  = "blah"
++}
++`,
++	})
++
++	diags := ctx.Validate(m, &ValidateOpts{})
++	if !diags.HasErrors() {
++		t.Fatal("expected error for non-existent resource in import to field, but got none")
++	}
++}

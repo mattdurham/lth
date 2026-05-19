@@ -1,0 +1,42 @@
+{
+    "gin-gonic__gin-2755": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "TestTreeInvalidParamsType"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "TestTreeAddAndGet",
+                    "TestTreeWildcard",
+                    "TestTreeWildcardConflict",
+                    "TestTreeChildConflict",
+                    "TestTreeDupliatePath",
+                    "TestTreeCatchAllConflict",
+                    "TestTreeCatchAllConflictRoot",
+                    "TestTreeCatchMaxParams",
+                    "TestTreeDoubleWildcard",
+                    "TestTreeTrailingSlashRedirect",
+                    "TestTreeRootTrailingSlashRedirect",
+                    "TestTreeFindCaseInsensitivePath",
+                    "TestTreeInvalidNodeType"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

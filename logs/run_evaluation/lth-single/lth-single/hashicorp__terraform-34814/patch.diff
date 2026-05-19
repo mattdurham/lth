@@ -1,0 +1,29 @@
+--- a/internal/communicator/ssh/communicator.go
++++ b/internal/communicator/ssh/communicator.go
+@@ -314,6 +314,14 @@ func (c *Communicator) Disconnect() error {
+ 	if c.cancelKeepAlive != nil {
+ 		c.cancelKeepAlive()
+ 	}
+ 
+ 	if c.config.sshAgent != nil {
+ 		if err := c.config.sshAgent.Close(); err != nil {
+ 			return err
+ 		}
+ 	}
+ 
++	if c.client != nil {
++		client := c.client
++		c.client = nil
++		if err := client.Close(); err != nil {
++			log.Printf("[WARN] error closing SSH client: %s", err)
++		}
++	}
++
+ 	if c.conn != nil {
+ 		conn := c.conn
+ 		c.conn = nil
+ 		return conn.Close()
+ 	}
+ 
+ 	return nil
+ }

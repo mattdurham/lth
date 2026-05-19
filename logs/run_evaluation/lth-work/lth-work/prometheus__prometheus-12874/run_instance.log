@@ -1,0 +1,52 @@
+2026-05-16 13:08:34,534 - INFO - Creating container for prometheus__prometheus-12874...
+2026-05-16 13:08:34,708 - INFO - Container for prometheus__prometheus-12874 created: 79af04189f3fce9c5a3d745f5963fc4ea8757a8385969ec31ae2872027ca0d56
+2026-05-16 13:08:34,891 - INFO - Container for prometheus__prometheus-12874 started: 79af04189f3fce9c5a3d745f5963fc4ea8757a8385969ec31ae2872027ca0d56
+2026-05-16 13:08:34,891 - INFO - Intermediate patch for prometheus__prometheus-12874 written to logs/run_evaluation/lth-work/lth-work/prometheus__prometheus-12874/patch.diff, now applying to container...
+2026-05-16 13:08:34,964 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-16 13:08:34,987 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-16 13:08:35,052 - INFO - >>>>> Applied Patch:
+patching file tsdb/head_append.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 1283 with fuzz 1.
+
+2026-05-16 13:08:35,221 - INFO - Git diff before:
+diff --git a/tsdb/head_append.go b/tsdb/head_append.go
+index 901694375..e271ff6c5 100644
+--- a/tsdb/head_append.go
++++ b/tsdb/head_append.go
+@@ -1283,6 +1283,9 @@ func (s *memSeries) appendPreprocessor(t int64, e chunkenc.Encoding, o chunkOpts
+ 		c = s.cutNewHeadChunk(t, e, o.chunkRange)
+ 		chunkCreated = true
+ 	} else if len(c.chunk.Bytes()) > maxBytesPerXORChunk {
++		if c.maxTime >= t {
++			return c, false, false
++		}
+ 		c = s.cutNewHeadChunk(t, e, o.chunkRange)
+ 		chunkCreated = true
+ 	}
+2026-05-16 13:08:35,221 - INFO - Eval script for prometheus__prometheus-12874 written to logs/run_evaluation/lth-work/lth-work/prometheus__prometheus-12874/eval.sh; copying to container...
+2026-05-16 13:08:58,138 - INFO - Test runtime: 22.88 seconds
+2026-05-16 13:08:58,138 - INFO - Test output for prometheus__prometheus-12874 written to logs/run_evaluation/lth-work/lth-work/prometheus__prometheus-12874/test_output.txt
+2026-05-16 13:08:58,178 - INFO - Git diff after:
+diff --git a/tsdb/head_append.go b/tsdb/head_append.go
+index 901694375..e271ff6c5 100644
+--- a/tsdb/head_append.go
++++ b/tsdb/head_append.go
+@@ -1283,6 +1283,9 @@ func (s *memSeries) appendPreprocessor(t int64, e chunkenc.Encoding, o chunkOpts
+ 		c = s.cutNewHeadChunk(t, e, o.chunkRange)
+ 		chunkCreated = true
+ 	} else if len(c.chunk.Bytes()) > maxBytesPerXORChunk {
++		if c.maxTime >= t {
++			return c, false, false
++		}
+ 		c = s.cutNewHeadChunk(t, e, o.chunkRange)
+ 		chunkCreated = true
+ 	}
+2026-05-16 13:08:58,178 - INFO - Grading answer for prometheus__prometheus-12874...
+2026-05-16 13:08:58,179 - INFO - report: {'prometheus__prometheus-12874': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['TestHeadDetectsDuplicateSampleAtSizeLimit'], 'failure': []}, 'PASS_TO_PASS': {'success': ['TestHeadCompactionWithHistograms', 'TestHeadCompactionWithHistograms/float=true', 'TestHeadCompactionWithHistograms/float=false', 'TestHead_HighConcurrencyReadAndWrite', 'TestHead_ReadWAL', 'TestHead_ReadWAL/compress=none', 'TestHead_ReadWAL/compress=snappy', 'TestHead_ReadWAL/compress=zstd', 'TestHead_WALMultiRef', 'TestHead_ActiveAppenders', 'TestHead_UnknownWALRecord', 'TestHead_Truncate', 'TestHeadDeleteSeriesWithoutSamples', 'TestHeadDeleteSeriesWithoutSamples/compress=none', 'TestHeadDeleteSeriesWithoutSamples/compress=snappy', 'TestHeadDeleteSeriesWithoutSamples/compress=zstd', 'TestHeadDeleteSimple', 'TestHeadDeleteSimple/compress=none', 'TestHeadDeleteSimple/compress=snappy', 'TestHeadDeleteSimple/compress=zstd', 'TestHead_LogRollback', 'TestHead_LogRollback/compress=none', 'TestHead_LogRollback/compress=snappy', 'TestHead_LogRollback/compress=zstd', 'TestHeadReadWriterRepair', 'TestHeadSeriesChunkRace', 'TestHeadLabelNamesValuesWithMinMaxRange', 'TestHeadLabelNamesValuesWithMinMaxRange/maxt_less_than_head_min', 'TestHeadLabelNamesValuesWithMinMaxRange/mint_less_than_head_max', 'TestHeadLabelNamesValuesWithMinMaxRange/mint_and_maxt_outside_head', 'TestHeadLabelNamesValuesWithMinMaxRange/mint_and_maxt_within_head', 'TestHeadLabelValuesWithMatchers', 'TestHeadLabelValuesWithMatchers/get_tens_based_on_unique_id', 'TestHeadLabelValuesWithMatchers/get_unique_ids_based_on_a_ten', 'TestHeadLabelValuesWithMatchers/get_tens_by_pattern_matching_on_unique_id', 'TestHeadLabelValuesWithMatchers/get_tens_by_matching_for_absence_of_unique_label', 'TestHeadLabelNamesWithMatchers', 'TestHeadLabelNamesWithMatchers/get_with_non-empty_unique:_all', 'TestHeadLabelNamesWithMatchers/get_with_unique_ending_in_1:_only_unique', 'TestHeadLabelNamesWithMatchers/get_with_unique_=_value20:_all', 'TestHeadLabelNamesWithMatchers/get_tens_=_1:_unique_&_tens', 'TestHeadMintAfterTruncation', 'TestHeadExemplars', 'TestHeadInit_DiscardChunksWithUnsupportedEncoding', 'TestHeadMinOOOTimeUpdate'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for prometheus__prometheus-12874: resolved: True
+2026-05-16 13:08:58,179 - INFO - Attempting to stop container sweb.eval.prometheus__prometheus-12874.lth-work...
+2026-05-16 13:09:13,364 - INFO - Attempting to remove container sweb.eval.prometheus__prometheus-12874.lth-work...
+2026-05-16 13:09:13,460 - INFO - Container sweb.eval.prometheus__prometheus-12874.lth-work removed.
+2026-05-16 13:09:13,460 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.prometheus_1776_prometheus-12874:latest...
+2026-05-16 13:09:14,043 - INFO - Image swebench/sweb.eval.x86_64.prometheus_1776_prometheus-12874:latest removed.

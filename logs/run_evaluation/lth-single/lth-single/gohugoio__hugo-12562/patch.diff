@@ -1,0 +1,12 @@
+--- a/hugolib/content_map_page.go
++++ b/hugolib/content_map_page.go
+@@ -897,9 +897,9 @@ func (m *pageMap) newPageReverseIndex() *contentTreeReverseIndex {
+ 				Handle: func(s string, n contentNodeI, match doctree.DimensionFlag) (bool, error) {
+ 					p := n.(*pageState)
+-					if p.File() != nil {
+-						add(p.File().FileInfo().Meta().PathInfo.BaseNameNoIdentifier(), p)
++					if p.PathInfo() != nil {
++						add(p.PathInfo().BaseNameNoIdentifier(), p)
+ 					}
+ 					return false, nil
+ 				},

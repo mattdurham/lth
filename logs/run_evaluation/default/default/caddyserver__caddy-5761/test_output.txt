@@ -1,0 +1,20 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout 0a6d3333b2c92553e66c93c14d3258a790aac639 caddyconfig/caddyfile/lexer_test.go
+Updated 0 paths from 3e25ab2d
++ git apply --verbose --reject -
+Checking patch caddyconfig/caddyfile/lexer_test.go...
+Applied patch caddyconfig/caddyfile/lexer_test.go cleanly.
++ : '>>>>> Start Test Output'
++ go test -v ./caddyconfig/caddyfile -run 'TestLexer.*'
+=== RUN   TestLexer
+    lexer_test.go:477: Test case 26 token 1: expected text 'content' but was 'content
+        '
+--- FAIL: TestLexer (0.00s)
+FAIL
+FAIL	github.com/caddyserver/caddy/v2/caddyconfig/caddyfile	0.003s
+FAIL
++ : '>>>>> End Test Output'
++ git checkout 0a6d3333b2c92553e66c93c14d3258a790aac639 caddyconfig/caddyfile/lexer_test.go
+Updated 1 path from 3e25ab2d

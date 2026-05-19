@@ -1,0 +1,34 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout 2ee0e963942d91be7944dfcc07dc8c02a4a78566 context_test.go
+Updated 0 paths from 8751f33
++ git apply --verbose --reject -
+Checking patch context_test.go...
+Checking patch render/reader_test.go...
+Applied patch context_test.go cleanly.
+Applied patch render/reader_test.go cleanly.
++ : '>>>>> Start Test Output'
++ go test -v ./... -run '^Test.*Reader'
+?   	github.com/gin-gonic/gin/ginS	[no test files]
+?   	github.com/gin-gonic/gin/internal/json	[no test files]
+=== RUN   TestContextRenderDataFromReader
+--- PASS: TestContextRenderDataFromReader (0.00s)
+=== RUN   TestContextRenderDataFromReaderNoHeaders
+--- PASS: TestContextRenderDataFromReaderNoHeaders (0.00s)
+PASS
+ok  	github.com/gin-gonic/gin	0.003s
+testing: warning: no tests to run
+PASS
+ok  	github.com/gin-gonic/gin/binding	0.002s [no tests to run]
+=== RUN   TestReaderRenderNoHeaders
+--- PASS: TestReaderRenderNoHeaders (0.00s)
+=== RUN   TestRenderReader
+--- PASS: TestRenderReader (0.00s)
+=== RUN   TestRenderReaderNoContentLength
+--- PASS: TestRenderReaderNoContentLength (0.00s)
+PASS
+ok  	github.com/gin-gonic/gin/render	0.002s
++ : '>>>>> End Test Output'
++ git checkout 2ee0e963942d91be7944dfcc07dc8c02a4a78566 context_test.go
+Updated 1 path from 8751f33

@@ -1,0 +1,84 @@
+2026-05-17 03:26:19,691 - INFO - Creating container for gin-gonic__gin-1805...
+2026-05-17 03:26:19,770 - INFO - Container for gin-gonic__gin-1805 created: 1535f9dea421c131d1df2185dc4e156340b5f5c5b50a6528eb5cd1a8c4f6db69
+2026-05-17 03:26:19,895 - INFO - Container for gin-gonic__gin-1805 started: 1535f9dea421c131d1df2185dc4e156340b5f5c5b50a6528eb5cd1a8c4f6db69
+2026-05-17 03:26:19,895 - INFO - Intermediate patch for gin-gonic__gin-1805 written to logs/run_evaluation/default/default/gin-gonic__gin-1805/patch.diff, now applying to container...
+2026-05-17 03:26:19,971 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-17 03:26:20,006 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-17 03:26:20,058 - INFO - >>>>> Applied Patch:
+patching file routergroup.go
+patching file routes_test.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 452 with fuzz 1 (offset 1 line).
+
+2026-05-17 03:26:20,101 - INFO - Git diff before:
+diff --git a/routergroup.go b/routergroup.go
+index 297d357..a1e6c92 100644
+--- a/routergroup.go
++++ b/routergroup.go
+@@ -195,7 +195,7 @@ func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileS
+ 		// Check if file exists and/or if we have permission to access it
+ 		if _, err := fs.Open(file); err != nil {
+ 			c.Writer.WriteHeader(http.StatusNotFound)
+-			c.handlers = group.engine.allNoRoute
++			c.handlers = group.engine.noRoute
+ 			// Reset index
+ 			c.index = -1
+ 			return
+diff --git a/routes_test.go b/routes_test.go
+index a842704..24c88d9 100644
+--- a/routes_test.go
++++ b/routes_test.go
+@@ -452,6 +452,27 @@ func TestRouterStaticFSFileNotFound(t *testing.T) {
+ 	})
+ }
+ 
++// Reproduction test for the bug of issue #1805
++func TestMiddlewareCalledOnceByRouterStaticFSNotFound(t *testing.T) {
++	router := New()
++
++	// Middleware must be called just only once by per request.
++	middlewareCalledNum := 0
++	router.Use(func(c *Context) {
++		middlewareCalledNum += 1
++	})
++
++	router.StaticFS("/", http.FileSystem(http.Dir("/thisreallydoesntexist/")))
++
++	// First access
++	performRequest(router, "GET", "/nonexistent")
++	assert.Equal(t, 1, middlewareCalledNum)
++
++	// Second access
++	performRequest(router, "HEAD", "/nonexistent")
++	assert.Equal(t, 2, middlewareCalledNum)
++}
++
+ func TestRouteRawPath(t *testing.T) {
+ 	route := New()
+ 	route.UseRawPath = true
+2026-05-17 03:26:20,101 - INFO - Eval script for gin-gonic__gin-1805 written to logs/run_evaluation/default/default/gin-gonic__gin-1805/eval.sh; copying to container...
+2026-05-17 03:26:24,487 - INFO - Test runtime: 4.35 seconds
+2026-05-17 03:26:24,487 - INFO - Test output for gin-gonic__gin-1805 written to logs/run_evaluation/default/default/gin-gonic__gin-1805/test_output.txt
+2026-05-17 03:26:24,527 - INFO - Git diff after:
+diff --git a/routergroup.go b/routergroup.go
+index 297d357..a1e6c92 100644
+--- a/routergroup.go
++++ b/routergroup.go
+@@ -195,7 +195,7 @@ func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileS
+ 		// Check if file exists and/or if we have permission to access it
+ 		if _, err := fs.Open(file); err != nil {
+ 			c.Writer.WriteHeader(http.StatusNotFound)
+-			c.handlers = group.engine.allNoRoute
++			c.handlers = group.engine.noRoute
+ 			// Reset index
+ 			c.index = -1
+ 			return
+2026-05-17 03:26:24,527 - INFO - Git diff changed after running eval script
+2026-05-17 03:26:24,527 - INFO - Grading answer for gin-gonic__gin-1805...
+2026-05-17 03:26:24,527 - INFO - report: {'gin-gonic__gin-1805': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['TestMiddlewareCalledOnceByRouterStaticFSNotFound'], 'failure': []}, 'PASS_TO_PASS': {'success': ['TestCreateDefaultRouter', 'TestRouterGroupBasic', 'TestRouterGroupBasicHandle', 'TestRouterGroupInvalidStatic', 'TestRouterGroupInvalidStaticFile', 'TestRouterGroupTooManyHandlers', 'TestRouterGroupBadMethod', 'TestRouterGroupPipeline', 'TestRouterMethod', 'TestRouterGroupRouteOK', 'TestRouterNotFound', 'TestRouterStaticFSNotFound', 'TestRouterStaticFSFileNotFound'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gin-gonic__gin-1805: resolved: True
+2026-05-17 03:26:24,527 - INFO - Attempting to stop container sweb.eval.gin-gonic__gin-1805.default...
+2026-05-17 03:26:39,690 - INFO - Attempting to remove container sweb.eval.gin-gonic__gin-1805.default...
+2026-05-17 03:26:39,751 - INFO - Container sweb.eval.gin-gonic__gin-1805.default removed.
+2026-05-17 03:26:39,751 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-1805:latest...
+2026-05-17 03:26:40,005 - INFO - Image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-1805:latest removed.

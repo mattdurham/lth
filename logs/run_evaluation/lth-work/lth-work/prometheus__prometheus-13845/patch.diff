@@ -1,0 +1,101 @@
+diff --git a/model/labels/labels_slicelabels.go b/model/labels/labels_slicelabels.go
+index 3b09c7061..338cd47b6 100644
+--- a/model/labels/labels_slicelabels.go
++++ b/model/labels/labels_slicelabels.go
+@@ -358,9 +358,11 @@ func (ls Labels) DropReserved(shouldDropFn func(name string) bool) Labels {
+ 			if shouldDropFn(l.Name) {
+ 				i := i - rm // Offsetting after removals.
+ 				if i == 0 { // Make common case fast with no allocations.
+ 					ls = ls[1:]
+ 				} else {
+-					ls = append(ls[:i], ls[i+1:]...)
++					// Avoid modifying original Labels - use [:i:i] so that left slice would not
++					// have any spare capacity and append would have to allocate a new slice for the result.
++					ls = append(ls[:i:i], ls[i+1:]...)
+ 				}
+ 				rm++
+ 			}
+diff --git a/promql/engine_test.go b/promql/engine_test.go
+index 739818d7c..246c64fff 100644
+--- a/promql/engine_test.go
++++ b/promql/engine_test.go
+@@ -4296,3 +4296,79 @@ func TestHistogram_CounterResetHint(t *testing.T) {
+ 		})
+ 	}
+ }
++
++// TestRangeQueryDuplicateSeries reproduces the bug introduced in PR #13446 where
++// DropMetricName (now DropReserved) modifies the slicelabels Labels backing array
++// in-place. In a range query, the same labels.Labels object is shared across all
++// timesteps. With the non-delayed name removal path, DropReserved is called once
++// per step; each call corrupts the backing array so that subsequent hash lookups
++// produce a different hash, creating N duplicate series in the output instead of 1.
++//
++// Prerequisites for the bug to trigger:
++//   - slicelabels build tag
++//   - metric has at least one label lexicographically smaller than __name__ (e.g. __address__)
++//   - metric has at least one label lexicographically larger than __name__ (e.g. job)
++//   - query drops the metric name (arithmetic like * 2)
++//   - range query with multiple steps
++//
++// The fix uses append(ls[:i:i], ls[i+1:]...) instead of
++// append(ls[:i], ls[i+1:]...) to prevent modification of the original backing array.
++//
++// Note: with EnableDelayedNameRemoval=true (the default), the non-delayed code path
++// is bypassed so DropReserved is only called once at the end, and the bug does not
++// trigger. This test uses EnableDelayedNameRemoval=false to exercise the original code path.
++func TestRangeQueryDuplicateSeries(t *testing.T) {
++	// The metric has:
++	//   __address__="bar"  (lexicographically < __name__)
++	//   __name__="mymetric"
++	//   job="1"            (lexicographically > __name__)
++	stor := promqltest.LoadedStorage(t, `
++load 60s
++  mymetric{__address__="bar",job="1"} 100+0x3
++`)
++	defer stor.Close()
++
++	// Use EnableDelayedNameRemoval=false to exercise the non-delayed code path
++	// where DropReserved is called at each step of the range evaluation.
++	// This is the path affected by the slicelabels bug in PR #13446.
++	engine := promqltest.NewTestEngineWithOpts(t, promql.EngineOpts{
++		MaxSamples:               promqltest.DefaultMaxSamplesPerQuery,
++		Timeout:                  100 * time.Second,
++		EnableAtModifier:         true,
++		EnableNegativeOffset:     true,
++		EnableDelayedNameRemoval: false,
++	})
++	ctx := context.Background()
++
++	// Range query that drops the metric name via arithmetic.
++	qry, err := engine.NewRangeQuery(
++		ctx,
++		stor,
++		nil,
++		"mymetric * 2",
++		time.Unix(0, 0),
++		time.Unix(120, 0),
++		60*time.Second,
++	)
++	require.NoError(t, err)
++	defer qry.Close()
++
++	res := qry.Exec(ctx)
++	require.NoError(t, res.Err)
++
++	mat, ok := res.Value.(promql.Matrix)
++	require.True(t, ok, "expected Matrix result, got %T", res.Value)
++
++	// The bug manifests as multiple series instead of one (one per step).
++	require.Len(t, mat, 1, "expected exactly 1 series, got %d (possible slicelabels duplicate series bug)", len(mat))
++
++	expectedLabels := labels.FromStrings("__address__", "bar", "job", "1")
++	require.Equal(t, expectedLabels, mat[0].Metric, "unexpected labels on result series")
++
++	expectedFloats := []promql.FPoint{
++		{T: 0, F: 200},
++		{T: 60000, F: 200},
++		{T: 120000, F: 200},
++	}
++	require.Equal(t, expectedFloats, mat[0].Floats, "unexpected float points in result series")
++}

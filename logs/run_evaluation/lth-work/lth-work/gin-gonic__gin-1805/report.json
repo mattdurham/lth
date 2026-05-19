@@ -1,0 +1,43 @@
+{
+    "gin-gonic__gin-1805": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "TestMiddlewareCalledOnceByRouterStaticFSNotFound"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "TestCreateDefaultRouter",
+                    "TestRouterGroupBasic",
+                    "TestRouterGroupBasicHandle",
+                    "TestRouterGroupInvalidStatic",
+                    "TestRouterGroupInvalidStaticFile",
+                    "TestRouterGroupTooManyHandlers",
+                    "TestRouterGroupBadMethod",
+                    "TestRouterGroupPipeline",
+                    "TestRouterMethod",
+                    "TestRouterGroupRouteOK",
+                    "TestRouterNotFound",
+                    "TestRouterStaticFSNotFound"
+                ],
+                "failure": [
+                    "TestRouterStaticFSFileNotFound"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

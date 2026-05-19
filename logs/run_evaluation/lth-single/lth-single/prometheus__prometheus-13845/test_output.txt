@@ -1,0 +1,99 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout 25a8d576717f4a69290d6f6755b4a90cfaab08ff model/labels/labels_test.go promql/engine_test.go
+Updated 2 paths from e6949467f
++ git apply --verbose --reject -
+Checking patch model/labels/labels_test.go...
+Checking patch promql/engine_test.go...
+Applied patch model/labels/labels_test.go cleanly.
+Applied patch promql/engine_test.go cleanly.
++ : '>>>>> Start Test Output'
++ go test -v ./promql ./model/labels -run '^(TestRangeQuery|TestLabels)'
+=== RUN   TestRangeQuery
+=== RUN   TestRangeQuery/sum_over_time_with_all_values
+=== RUN   TestRangeQuery/sum_over_time_with_trailing_values
+=== RUN   TestRangeQuery/sum_over_time_with_all_values_long
+=== RUN   TestRangeQuery/sum_over_time_with_all_values_random
+=== RUN   TestRangeQuery/metric_query
+=== RUN   TestRangeQuery/metric_query_with_trailing_values
+=== RUN   TestRangeQuery/short-circuit
+=== RUN   TestRangeQuery/drop-metric-name
+--- PASS: TestRangeQuery (0.08s)
+    --- PASS: TestRangeQuery/sum_over_time_with_all_values (0.01s)
+    --- PASS: TestRangeQuery/sum_over_time_with_trailing_values (0.01s)
+    --- PASS: TestRangeQuery/sum_over_time_with_all_values_long (0.01s)
+    --- PASS: TestRangeQuery/sum_over_time_with_all_values_random (0.01s)
+    --- PASS: TestRangeQuery/metric_query (0.01s)
+    --- PASS: TestRangeQuery/metric_query_with_trailing_values (0.01s)
+    --- PASS: TestRangeQuery/short-circuit (0.01s)
+    --- PASS: TestRangeQuery/drop-metric-name (0.01s)
+PASS
+ok  	github.com/prometheus/prometheus/promql	0.084s
+=== RUN   TestLabels_String
+--- PASS: TestLabels_String (0.00s)
+=== RUN   TestLabels_MatchLabels
+--- PASS: TestLabels_MatchLabels (0.00s)
+=== RUN   TestLabels_HasDuplicateLabelNames
+--- PASS: TestLabels_HasDuplicateLabelNames (0.00s)
+=== RUN   TestLabels_WithoutEmpty
+=== RUN   TestLabels_WithoutEmpty/#00
+=== RUN   TestLabels_WithoutEmpty/#01
+=== RUN   TestLabels_WithoutEmpty/#02
+=== RUN   TestLabels_WithoutEmpty/#03
+=== RUN   TestLabels_WithoutEmpty/#04
+=== RUN   TestLabels_WithoutEmpty/#05
+--- PASS: TestLabels_WithoutEmpty (0.00s)
+    --- PASS: TestLabels_WithoutEmpty/#00 (0.00s)
+    --- PASS: TestLabels_WithoutEmpty/#01 (0.00s)
+    --- PASS: TestLabels_WithoutEmpty/#02 (0.00s)
+    --- PASS: TestLabels_WithoutEmpty/#03 (0.00s)
+    --- PASS: TestLabels_WithoutEmpty/#04 (0.00s)
+    --- PASS: TestLabels_WithoutEmpty/#05 (0.00s)
+=== RUN   TestLabels_IsValid
+=== RUN   TestLabels_IsValid/#00
+=== RUN   TestLabels_IsValid/#01
+=== RUN   TestLabels_IsValid/#02
+=== RUN   TestLabels_IsValid/#03
+=== RUN   TestLabels_IsValid/#04
+=== RUN   TestLabels_IsValid/#05
+=== RUN   TestLabels_IsValid/#06
+=== RUN   TestLabels_IsValid/#07
+=== RUN   TestLabels_IsValid/#08
+--- PASS: TestLabels_IsValid (0.00s)
+    --- PASS: TestLabels_IsValid/#00 (0.00s)
+    --- PASS: TestLabels_IsValid/#01 (0.00s)
+    --- PASS: TestLabels_IsValid/#02 (0.00s)
+    --- PASS: TestLabels_IsValid/#03 (0.00s)
+    --- PASS: TestLabels_IsValid/#04 (0.00s)
+    --- PASS: TestLabels_IsValid/#05 (0.00s)
+    --- PASS: TestLabels_IsValid/#06 (0.00s)
+    --- PASS: TestLabels_IsValid/#07 (0.00s)
+    --- PASS: TestLabels_IsValid/#08 (0.00s)
+=== RUN   TestLabels_Equal
+--- PASS: TestLabels_Equal (0.00s)
+=== RUN   TestLabels_FromStrings
+--- PASS: TestLabels_FromStrings (0.00s)
+=== RUN   TestLabels_Compare
+--- PASS: TestLabels_Compare (0.00s)
+=== RUN   TestLabels_Has
+--- PASS: TestLabels_Has (0.00s)
+=== RUN   TestLabels_Get
+--- PASS: TestLabels_Get (0.00s)
+=== RUN   TestLabels_DropMetricName
+--- PASS: TestLabels_DropMetricName (0.00s)
+=== RUN   TestLabels_Copy
+--- PASS: TestLabels_Copy (0.00s)
+=== RUN   TestLabels_Map
+--- PASS: TestLabels_Map (0.00s)
+=== RUN   TestLabels_BytesWithLabels
+--- PASS: TestLabels_BytesWithLabels (0.00s)
+=== RUN   TestLabels_BytesWithoutLabels
+--- PASS: TestLabels_BytesWithoutLabels (0.00s)
+=== RUN   TestLabels_Hash
+--- PASS: TestLabels_Hash (0.00s)
+PASS
+ok  	github.com/prometheus/prometheus/model/labels	0.002s
++ : '>>>>> End Test Output'
++ git checkout 25a8d576717f4a69290d6f6755b4a90cfaab08ff model/labels/labels_test.go promql/engine_test.go
+Updated 2 paths from e6949467f

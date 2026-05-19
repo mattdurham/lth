@@ -1,0 +1,180 @@
+2026-05-16 13:00:49,880 - INFO - Creating container for gin-gonic__gin-3820...
+2026-05-16 13:00:50,023 - INFO - Container for gin-gonic__gin-3820 created: de071b1e986aef045f00e0559d4e6e52d200fe30ca7b4c98c54da22b40acd41a
+2026-05-16 13:00:50,184 - INFO - Container for gin-gonic__gin-3820 started: de071b1e986aef045f00e0559d4e6e52d200fe30ca7b4c98c54da22b40acd41a
+2026-05-16 13:00:50,184 - INFO - Intermediate patch for gin-gonic__gin-3820 written to logs/run_evaluation/lth-work/lth-work/gin-gonic__gin-3820/patch.diff, now applying to container...
+2026-05-16 13:00:50,272 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-16 13:00:50,306 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-16 13:00:50,372 - INFO - >>>>> Applied Patch:
+patching file binding/multipart_form_mapping.go
+patching file binding/multipart_form_mapping_test.go
+Hunk #1 succeeded at 68 (offset -1 lines).
+patch unexpectedly ends in middle of line
+Hunk #2 succeeded at 117 with fuzz 2 (offset -1 lines).
+
+2026-05-16 13:00:50,424 - INFO - Git diff before:
+diff --git a/binding/multipart_form_mapping.go b/binding/multipart_form_mapping.go
+index 4ebe832..83a2879 100644
+--- a/binding/multipart_form_mapping.go
++++ b/binding/multipart_form_mapping.go
+@@ -29,6 +29,13 @@ func (r *multipartRequest) TrySet(value reflect.Value, field reflect.StructField
+ 		return setByMultipartFormFile(value, field, files)
+ 	}
+ 
++	// When the target type is multipart.FileHeader and no file was uploaded, leave the
++	// field unset rather than falling through to setByForm, which would attempt JSON
++	// parsing of an empty string and return "unexpected end of JSON input".
++	if _, ok := value.Interface().(multipart.FileHeader); ok {
++		return false, nil
++	}
++
+ 	return setByForm(value, field, r.MultipartForm.Value, key, opt)
+ }
+ 
+diff --git a/binding/multipart_form_mapping_test.go b/binding/multipart_form_mapping_test.go
+index 4e97c0f..f8c7a7c 100644
+--- a/binding/multipart_form_mapping_test.go
++++ b/binding/multipart_form_mapping_test.go
+@@ -68,6 +68,23 @@ func TestFormMultipartBindingBindTwoFiles(t *testing.T) {
+ 	}
+ }
+ 
++func TestFormMultipartBindingBindFileNotPresent(t *testing.T) {
++	var s struct {
++		Name    string                `form:"name" binding:"required"`
++		Email   string                `form:"email" binding:"required"`
++		FilePtr *multipart.FileHeader `form:"file"`
++	}
++
++	req := createRequestMultipartFilesAndFields(t,
++		map[string]string{"name": "foo", "email": "foo@example.com"},
++	)
++	err := FormMultipart.Bind(req, &s)
++	require.NoError(t, err)
++	assert.Equal(t, "foo", s.Name)
++	assert.Equal(t, "foo@example.com", s.Email)
++	assert.Nil(t, s.FilePtr)
++}
++
+ func TestFormMultipartBindingBindError(t *testing.T) {
+ 	files := []testFile{
+ 		{"file", "file1", []byte("hello")},
+@@ -100,6 +117,31 @@ type testFile struct {
+ 	Content   []byte
+ }
+ 
++func createRequestMultipartFilesAndFields(t *testing.T, fields map[string]string, files ...testFile) *http.Request {
++	var body bytes.Buffer
++
++	mw := multipart.NewWriter(&body)
++	for k, v := range fields {
++		require.NoError(t, mw.WriteField(k, v))
++	}
++	for _, file := range files {
++		fw, err := mw.CreateFormFile(file.Fieldname, file.Filename)
++		require.NoError(t, err)
++
++		n, err := fw.Write(file.Content)
++		require.NoError(t, err)
++		assert.Equal(t, len(file.Content), n)
++	}
++	err := mw.Close()
++	require.NoError(t, err)
++
++	req, err := http.NewRequest(http.MethodPost, "/", &body)
++	require.NoError(t, err)
++
++	req.Header.Set("Content-Type", MIMEMultipartPOSTForm+"; boundary="+mw.Boundary())
++	return req
++}
++
+ func createRequestMultipartFiles(t *testing.T, files ...testFile) *http.Request {
+ 	var body bytes.Buffer
+2026-05-16 13:00:50,424 - INFO - Eval script for gin-gonic__gin-3820 written to logs/run_evaluation/lth-work/lth-work/gin-gonic__gin-3820/eval.sh; copying to container...
+2026-05-16 13:00:56,988 - INFO - Test runtime: 6.53 seconds
+2026-05-16 13:00:56,988 - INFO - Test output for gin-gonic__gin-3820 written to logs/run_evaluation/lth-work/lth-work/gin-gonic__gin-3820/test_output.txt
+2026-05-16 13:00:57,024 - INFO - Git diff after:
+diff --git a/binding/multipart_form_mapping.go b/binding/multipart_form_mapping.go
+index 4ebe832..83a2879 100644
+--- a/binding/multipart_form_mapping.go
++++ b/binding/multipart_form_mapping.go
+@@ -29,6 +29,13 @@ func (r *multipartRequest) TrySet(value reflect.Value, field reflect.StructField
+ 		return setByMultipartFormFile(value, field, files)
+ 	}
+ 
++	// When the target type is multipart.FileHeader and no file was uploaded, leave the
++	// field unset rather than falling through to setByForm, which would attempt JSON
++	// parsing of an empty string and return "unexpected end of JSON input".
++	if _, ok := value.Interface().(multipart.FileHeader); ok {
++		return false, nil
++	}
++
+ 	return setByForm(value, field, r.MultipartForm.Value, key, opt)
+ }
+ 
+diff --git a/binding/multipart_form_mapping_test.go b/binding/multipart_form_mapping_test.go
+index 4e97c0f..f8c7a7c 100644
+--- a/binding/multipart_form_mapping_test.go
++++ b/binding/multipart_form_mapping_test.go
+@@ -68,6 +68,23 @@ func TestFormMultipartBindingBindTwoFiles(t *testing.T) {
+ 	}
+ }
+ 
++func TestFormMultipartBindingBindFileNotPresent(t *testing.T) {
++	var s struct {
++		Name    string                `form:"name" binding:"required"`
++		Email   string                `form:"email" binding:"required"`
++		FilePtr *multipart.FileHeader `form:"file"`
++	}
++
++	req := createRequestMultipartFilesAndFields(t,
++		map[string]string{"name": "foo", "email": "foo@example.com"},
++	)
++	err := FormMultipart.Bind(req, &s)
++	require.NoError(t, err)
++	assert.Equal(t, "foo", s.Name)
++	assert.Equal(t, "foo@example.com", s.Email)
++	assert.Nil(t, s.FilePtr)
++}
++
+ func TestFormMultipartBindingBindError(t *testing.T) {
+ 	files := []testFile{
+ 		{"file", "file1", []byte("hello")},
+@@ -100,6 +117,31 @@ type testFile struct {
+ 	Content   []byte
+ }
+ 
++func createRequestMultipartFilesAndFields(t *testing.T, fields map[string]string, files ...testFile) *http.Request {
++	var body bytes.Buffer
++
++	mw := multipart.NewWriter(&body)
++	for k, v := range fields {
++		require.NoError(t, mw.WriteField(k, v))
++	}
++	for _, file := range files {
++		fw, err := mw.CreateFormFile(file.Fieldname, file.Filename)
++		require.NoError(t, err)
++
++		n, err := fw.Write(file.Content)
++		require.NoError(t, err)
++		assert.Equal(t, len(file.Content), n)
++	}
++	err := mw.Close()
++	require.NoError(t, err)
++
++	req, err := http.NewRequest(http.MethodPost, "/", &body)
++	require.NoError(t, err)
++
++	req.Header.Set("Content-Type", MIMEMultipartPOSTForm+"; boundary="+mw.Boundary())
++	return req
++}
++
+ func createRequestMultipartFiles(t *testing.T, files ...testFile) *http.Request {
+ 	var body bytes.Buffer
+2026-05-16 13:00:57,025 - INFO - Grading answer for gin-gonic__gin-3820...
+2026-05-16 13:00:57,025 - INFO - report: {'gin-gonic__gin-3820': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['TestMappingBaseTypes']}, 'PASS_TO_PASS': {'success': [], 'failure': ['TestMappingDefault', 'TestMappingSkipField', 'TestMappingIgnoreField', 'TestMappingUnexportedField', 'TestMappingPrivateField', 'TestMappingUnknownFieldType', 'TestMappingURI', 'TestMappingForm', 'TestMappingTime', 'TestMappingTimeDuration', 'TestMappingSlice', 'TestMappingArray', 'TestMappingStructField', 'TestMappingPtrField', 'TestMappingMapField', 'TestMappingIgnoredCircularRef']}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gin-gonic__gin-3820: resolved: False
+2026-05-16 13:00:57,025 - INFO - Attempting to stop container sweb.eval.gin-gonic__gin-3820.lth-work...
+2026-05-16 13:01:12,206 - INFO - Attempting to remove container sweb.eval.gin-gonic__gin-3820.lth-work...
+2026-05-16 13:01:12,291 - INFO - Container sweb.eval.gin-gonic__gin-3820.lth-work removed.
+2026-05-16 13:01:12,291 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-3820:latest...
+2026-05-16 13:01:12,613 - INFO - Image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-3820:latest removed.

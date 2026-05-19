@@ -1,0 +1,50 @@
+2026-05-18 17:17:56,398 - INFO - Creating container for gin-gonic__gin-3741...
+2026-05-18 17:17:56,724 - INFO - Container for gin-gonic__gin-3741 created: baa4591d7fcec710797fc9b0508d840fcf8f0b21e86266c70951d3232f6f67b4
+2026-05-18 17:17:56,847 - INFO - Container for gin-gonic__gin-3741 started: baa4591d7fcec710797fc9b0508d840fcf8f0b21e86266c70951d3232f6f67b4
+2026-05-18 17:17:56,848 - INFO - Intermediate patch for gin-gonic__gin-3741 written to logs/run_evaluation/lth-single/lth-single/gin-gonic__gin-3741/patch.diff, now applying to container...
+2026-05-18 17:17:56,935 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-18 17:17:56,969 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-18 17:17:57,000 - INFO - >>>>> Applied Patch:
+patching file logger.go
+patch unexpectedly ends in middle of line
+Hunk #1 succeeded at 85 with fuzz 1 (offset 4 lines).
+
+2026-05-18 17:17:57,050 - INFO - Git diff before:
+diff --git a/logger.go b/logger.go
+index cd1e7fa..c1cb1d0 100644
+--- a/logger.go
++++ b/logger.go
+@@ -85,6 +85,8 @@ func (p *LogFormatterParams) StatusCodeColor() string {
+ 	switch {
+ 	case code >= http.StatusOK && code < http.StatusMultipleChoices:
+ 		return green
++	case code >= http.StatusContinue && code < http.StatusOK:
++		return white
+ 	case code >= http.StatusMultipleChoices && code < http.StatusBadRequest:
+ 		return white
+ 	case code >= http.StatusBadRequest && code < http.StatusInternalServerError:
+2026-05-18 17:17:57,051 - INFO - Eval script for gin-gonic__gin-3741 written to logs/run_evaluation/lth-single/lth-single/gin-gonic__gin-3741/eval.sh; copying to container...
+2026-05-18 17:18:01,796 - INFO - Test runtime: 4.70 seconds
+2026-05-18 17:18:01,796 - INFO - Test output for gin-gonic__gin-3741 written to logs/run_evaluation/lth-single/lth-single/gin-gonic__gin-3741/test_output.txt
+2026-05-18 17:18:01,836 - INFO - Git diff after:
+diff --git a/logger.go b/logger.go
+index cd1e7fa..c1cb1d0 100644
+--- a/logger.go
++++ b/logger.go
+@@ -85,6 +85,8 @@ func (p *LogFormatterParams) StatusCodeColor() string {
+ 	switch {
+ 	case code >= http.StatusOK && code < http.StatusMultipleChoices:
+ 		return green
++	case code >= http.StatusContinue && code < http.StatusOK:
++		return white
+ 	case code >= http.StatusMultipleChoices && code < http.StatusBadRequest:
+ 		return white
+ 	case code >= http.StatusBadRequest && code < http.StatusInternalServerError:
+2026-05-18 17:18:01,836 - INFO - Grading answer for gin-gonic__gin-3741...
+2026-05-18 17:18:01,836 - INFO - report: {'gin-gonic__gin-3741': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['TestColorForStatus'], 'failure': []}, 'PASS_TO_PASS': {'success': ['TestColorForMethod'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gin-gonic__gin-3741: resolved: True
+2026-05-18 17:18:01,836 - INFO - Attempting to stop container sweb.eval.gin-gonic__gin-3741.lth-single...
+2026-05-18 17:18:17,005 - INFO - Attempting to remove container sweb.eval.gin-gonic__gin-3741.lth-single...
+2026-05-18 17:18:17,070 - INFO - Container sweb.eval.gin-gonic__gin-3741.lth-single removed.
+2026-05-18 17:18:17,070 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-3741:latest...
+2026-05-18 17:18:17,362 - INFO - Image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-3741:latest removed.

@@ -1,0 +1,36 @@
+diff --git a/caddyconfig/caddyfile/lexer_test.go b/caddyconfig/caddyfile/lexer_test.go
+index 7389af79..de5735f5 100644
+--- a/caddyconfig/caddyfile/lexer_test.go
++++ b/caddyconfig/caddyfile/lexer_test.go
+@@ -375,6 +375,16 @@ EOF
+ 				{Line: 1, Text: `>>`},
+ 			},
+ 		},
++		{
++			// multiple spaces between << and >> must also tokenize as two separate tokens,
++			// not trigger heredoc parsing (regression test for templates `between << >>`)
++			input: []byte(`not-a-heredoc <<  >>`),
++			expected: []Token{
++				{Line: 1, Text: `not-a-heredoc`},
++				{Line: 1, Text: `<<`},
++				{Line: 1, Text: `>>`},
++			},
++		},
+ 		{
+ 			input: []byte(`not-a-heredoc <<HERE SAME LINE
+ 	content
+diff --git a/modules/caddyhttp/templates/caddyfile.go b/modules/caddyhttp/templates/caddyfile.go
+index d2349348..d99c6407 100644
+--- a/modules/caddyhttp/templates/caddyfile.go
++++ b/modules/caddyhttp/templates/caddyfile.go
+@@ -33,6 +33,10 @@ func init() {
+ //	    between <open_delim> <close_delim>
+ //	    root <path>
+ //	}
++//
++// Note: delimiters that begin with `<<` (e.g. `<<` and `>>`) must be separated
++// from each other by at least one space so the Caddyfile lexer does not interpret
++// them as a heredoc opener. Quoting them also works: between "<<" ">>".
+ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
+ 	h.Next() // consume directive name
+ 	t := new(Templates)

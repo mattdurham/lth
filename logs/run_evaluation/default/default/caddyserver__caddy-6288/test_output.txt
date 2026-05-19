@@ -1,0 +1,22 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout d129ae6aec6af2182217ee8a235f4df8cd2bbfde caddytest/integration/caddyfile_adapt/expression_quotes.caddyfiletest
+Updated 1 path from f64a6816
++ git apply --verbose --reject -
+Checking patch caddytest/integration/caddyfile_adapt/expression_quotes.caddyfiletest...
+Applied patch caddytest/integration/caddyfile_adapt/expression_quotes.caddyfiletest cleanly.
++ : '>>>>> Start Test Output'
++ go test -v ./caddytest/integration -run 'TestCaddyfileAdapt*'
+=== RUN   TestCaddyfileAdaptToJSON
+    caddytest.go:401: warning: heredoc.caddyfiletest:2: : Caddyfile input is not formatted; run 'caddy fmt --overwrite' to fix inconsistencies
+    caddytest.go:401: warning: map_and_vars_with_raw_types.caddyfiletest:3: : Caddyfile input is not formatted; run 'caddy fmt --overwrite' to fix inconsistencies
+{"level":"warn","ts":1778951597.435671,"msg":"The 'trusted_ca_cert_file' field is deprecated. Use the 'trust_pool' field instead."}
+{"level":"warn","ts":1778951597.4358337,"msg":"The 'trusted_ca_cert_file' field is deprecated. Use the 'trust_pool' field instead."}
+{"level":"warn","ts":1778951597.436079,"msg":"The 'trusted_ca_cert' field is deprecated. Use the 'trust_pool' field instead."}
+--- PASS: TestCaddyfileAdaptToJSON (0.02s)
+PASS
+ok  	github.com/caddyserver/caddy/v2/caddytest/integration	0.036s
++ : '>>>>> End Test Output'
++ git checkout d129ae6aec6af2182217ee8a235f4df8cd2bbfde caddytest/integration/caddyfile_adapt/expression_quotes.caddyfiletest
+Updated 1 path from f64a6816

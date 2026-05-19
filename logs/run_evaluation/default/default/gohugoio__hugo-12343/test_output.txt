@@ -1,0 +1,105 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ echo 'No test files to reset'
+No test files to reset
++ git apply --verbose --reject -
+Checking patch resources/page/path_integration_test.go...
+Applied patch resources/page/path_integration_test.go cleanly.
++ : '>>>>> Start Test Output'
++ go test -v ./resources/page/... -run '^Test.*Permalink'
+?   	github.com/gohugoio/hugo/resources/page/page_generate	[no test files]
+?   	github.com/gohugoio/hugo/resources/page/siteidentities	[no test files]
+=== RUN   TestPermalinkExpansion
+=== PAUSE TestPermalinkExpansion
+=== RUN   TestPermalinkExpansionMultiSection
+=== PAUSE TestPermalinkExpansionMultiSection
+=== RUN   TestPermalinkExpansionConcurrent
+=== PAUSE TestPermalinkExpansionConcurrent
+=== RUN   TestPermalinkExpansionSliceSyntax
+=== PAUSE TestPermalinkExpansionSliceSyntax
+=== RUN   TestPermalinkExpansionSectionsRepeated
+=== PAUSE TestPermalinkExpansionSectionsRepeated
+=== RUN   TestHashSignInPermalink
+=== PAUSE TestHashSignInPermalink
+=== RUN   TestPermalinks
+=== PAUSE TestPermalinks
+=== RUN   TestPermalinksOldSetup
+=== PAUSE TestPermalinksOldSetup
+=== RUN   TestPermalinksNestedSections
+=== PAUSE TestPermalinksNestedSections
+=== CONT  TestPermalinkExpansion
+=== CONT  TestHashSignInPermalink
+=== CONT  TestPermalinkExpansionSliceSyntax
+=== CONT  TestPermalinkExpansionSectionsRepeated
+=== CONT  TestPermalinks
+=== RUN   TestPermalinkExpansion/title
+=== CONT  TestPermalinkExpansionConcurrent
+=== CONT  TestPermalinkExpansionMultiSection
+=== CONT  TestPermalinksOldSetup
+=== CONT  TestPermalinksNestedSections
+=== RUN   TestPermalinkExpansionSliceSyntax/Basic
+=== RUN   TestPermalinkExpansion/year-month-title
+=== RUN   TestPermalinkExpansion/yearyeardaymonthmonthnamedayweekdayweekdayname
+--- PASS: TestPermalinkExpansionMultiSection (0.00s)
+=== RUN   TestPermalinkExpansion/section
+=== RUN   TestPermalinkExpansion/title#01
+=== RUN   TestPermalinkExpansionSliceSyntax/Out_of_bounds
+=== RUN   TestPermalinkExpansion/slug
+--- PASS: TestPermalinkExpansionSliceSyntax (0.00s)
+    --- PASS: TestPermalinkExpansionSliceSyntax/Basic (0.00s)
+    --- PASS: TestPermalinkExpansionSliceSyntax/Out_of_bounds (0.00s)
+=== RUN   TestPermalinkExpansion/slugorfilename
+=== RUN   TestPermalinkExpansion/filename
+=== RUN   TestPermalinkExpansion/06-1-2-Monday
+=== RUN   TestPermalinkExpansion/2006_01_02_15_04_05.000
+=== RUN   TestPermalinkExpansion/sections
+--- PASS: TestPermalinkExpansionConcurrent (0.00s)
+=== RUN   TestPermalinkExpansion/sectionslast
+=== RUN   TestPermalinkExpansion/sections0sectionslast
+--- PASS: TestPermalinkExpansion (0.00s)
+    --- PASS: TestPermalinkExpansion/title (0.00s)
+    --- PASS: TestPermalinkExpansion/year-month-title (0.00s)
+    --- PASS: TestPermalinkExpansion/yearyeardaymonthmonthnamedayweekdayweekdayname (0.00s)
+    --- PASS: TestPermalinkExpansion/section (0.00s)
+    --- PASS: TestPermalinkExpansion/title#01 (0.00s)
+    --- PASS: TestPermalinkExpansion/slug (0.00s)
+    --- PASS: TestPermalinkExpansion/slugorfilename (0.00s)
+    --- PASS: TestPermalinkExpansion/filename (0.00s)
+    --- PASS: TestPermalinkExpansion/06-1-2-Monday (0.00s)
+    --- PASS: TestPermalinkExpansion/2006_01_02_15_04_05.000 (0.00s)
+    --- PASS: TestPermalinkExpansion/sections (0.00s)
+    --- PASS: TestPermalinkExpansion/sectionslast (0.00s)
+    --- PASS: TestPermalinkExpansion/sections0sectionslast (0.00s)
+--- PASS: TestPermalinkExpansionSectionsRepeated (0.00s)
+=== NAME  TestPermalinksOldSetup
+    permalinks_integration_test.go:135: 
+--- PASS: TestPermalinksOldSetup (0.01s)
+=== NAME  TestPermalinksNestedSections
+    permalinks_integration_test.go:188: 
+--- PASS: TestPermalinksNestedSections (0.01s)
+=== NAME  TestHashSignInPermalink
+    integrationtest_builder.go:352: 
+        error:
+          got non-nil error
+        got:
+          e"open /public/s1/p#1/index.html: file does not exist"
+        stack:
+          /testbed/hugolib/integrationtest_builder.go:352
+            s.Assert(err, checker)
+          /testbed/resources/page/path_integration_test.go:50
+            b.AssertFileExists("public/s1/p#1/index.html", true)
+        
+--- FAIL: TestHashSignInPermalink (0.01s)
+=== NAME  TestPermalinks
+    permalinks_integration_test.go:84: 
+--- PASS: TestPermalinks (0.01s)
+FAIL
+FAIL	github.com/gohugoio/hugo/resources/page	0.018s
+testing: warning: no tests to run
+PASS
+ok  	github.com/gohugoio/hugo/resources/page/pagemeta	0.011s [no tests to run]
+FAIL
++ : '>>>>> End Test Output'
++ echo 'No test files to reset'
+No test files to reset

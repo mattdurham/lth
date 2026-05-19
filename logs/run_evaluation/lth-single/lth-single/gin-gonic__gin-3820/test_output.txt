@@ -1,0 +1,27 @@
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git checkout 9f598a31aafb92d675f38f1c8371e4ac76f858bf binding/form_mapping_test.go
+Updated 0 paths from c9eb9ea
++ git apply --verbose --reject -
+Checking patch binding/form_mapping_test.go...
+Applied patch binding/form_mapping_test.go cleanly.
++ : '>>>>> Start Test Output'
++ go test -v ./binding -run '^TestMapping'
+# github.com/gin-gonic/gin/binding [github.com/gin-gonic/gin/binding.test]
+binding/multipart_form_mapping_test.go:112:2: undefined: require
+binding/multipart_form_mapping_test.go:132:2: undefined: require
+binding/multipart_form_mapping_test.go:150:2: undefined: require
+binding/multipart_form_mapping_test.go:156:2: undefined: require
+binding/multipart_form_mapping_test.go:157:2: undefined: require
+binding/multipart_form_mapping_test.go:160:2: undefined: require
+binding/multipart_form_mapping_test.go:164:2: undefined: require
+binding/multipart_form_mapping_test.go:180:3: undefined: require
+binding/multipart_form_mapping_test.go:182:2: undefined: require
+binding/multipart_form_mapping_test.go:184:2: undefined: require
+binding/multipart_form_mapping_test.go:184:2: too many errors
+FAIL	github.com/gin-gonic/gin/binding [build failed]
+FAIL
++ : '>>>>> End Test Output'
++ git checkout 9f598a31aafb92d675f38f1c8371e4ac76f858bf binding/form_mapping_test.go
+Updated 1 path from c9eb9ea

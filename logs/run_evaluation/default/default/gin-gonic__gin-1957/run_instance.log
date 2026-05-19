@@ -1,0 +1,106 @@
+2026-05-16 13:15:06,301 - INFO - Creating container for gin-gonic__gin-1957...
+2026-05-16 13:15:06,574 - INFO - Container for gin-gonic__gin-1957 created: 2066142cfc408019f5c3f9e44cfcacf2f46bbce880af2f26417d2b5a6692eaa4
+2026-05-16 13:15:06,732 - INFO - Container for gin-gonic__gin-1957 started: 2066142cfc408019f5c3f9e44cfcacf2f46bbce880af2f26417d2b5a6692eaa4
+2026-05-16 13:15:06,732 - INFO - Intermediate patch for gin-gonic__gin-1957 written to logs/run_evaluation/default/default/gin-gonic__gin-1957/patch.diff, now applying to container...
+2026-05-16 13:15:06,825 - INFO - Failed to apply patch to container: git apply --verbose
+2026-05-16 13:15:06,851 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-05-16 13:15:06,922 - INFO - >>>>> Applied Patch:
+patching file binding/binding.go
+patching file binding/header.go
+patching file context.go
+patch unexpectedly ends in middle of line
+Hunk #2 succeeded at 642 with fuzz 1.
+
+2026-05-16 13:15:06,972 - INFO - Git diff before:
+diff --git a/binding/binding.go b/binding/binding.go
+index 520c510..6d58c3c 100644
+--- a/binding/binding.go
++++ b/binding/binding.go
+@@ -78,6 +78,7 @@ var (
+ 	MsgPack       = msgpackBinding{}
+ 	YAML          = yamlBinding{}
+ 	Uri           = uriBinding{}
++	Header        = headerBinding{}
+ )
+ 
+ // Default returns the appropriate Binding instance based on the HTTP method
+diff --git a/context.go b/context.go
+index 77cdc18..d9fcc28 100644
+--- a/context.go
++++ b/context.go
+@@ -583,6 +583,11 @@ func (c *Context) BindYAML(obj interface{}) error {
+ 	return c.MustBindWith(obj, binding.YAML)
+ }
+ 
++// BindHeader is a shortcut for c.MustBindWith(obj, binding.Header).
++func (c *Context) BindHeader(obj interface{}) error {
++	return c.MustBindWith(obj, binding.Header)
++}
++
+ // BindUri binds the passed struct pointer using binding.Uri.
+ // It will abort the request with HTTP 400 if any error occurs.
+ func (c *Context) BindUri(obj interface{}) error {
+@@ -637,6 +642,11 @@ func (c *Context) ShouldBindYAML(obj interface{}) error {
+ 	return c.ShouldBindWith(obj, binding.YAML)
+ }
+ 
++// ShouldBindHeader is a shortcut for c.ShouldBindWith(obj, binding.Header).
++func (c *Context) ShouldBindHeader(obj interface{}) error {
++	return c.ShouldBindWith(obj, binding.Header)
++}
++
+ // ShouldBindUri binds the passed struct pointer using the specified binding engine.
+ func (c *Context) ShouldBindUri(obj interface{}) error {
+ 	m := make(map[string][]string)
+2026-05-16 13:15:06,972 - INFO - Eval script for gin-gonic__gin-1957 written to logs/run_evaluation/default/default/gin-gonic__gin-1957/eval.sh; copying to container...
+2026-05-16 13:15:13,507 - INFO - Test runtime: 6.49 seconds
+2026-05-16 13:15:13,507 - INFO - Test output for gin-gonic__gin-1957 written to logs/run_evaluation/default/default/gin-gonic__gin-1957/test_output.txt
+2026-05-16 13:15:13,545 - INFO - Git diff after:
+diff --git a/binding/binding.go b/binding/binding.go
+index 520c510..6d58c3c 100644
+--- a/binding/binding.go
++++ b/binding/binding.go
+@@ -78,6 +78,7 @@ var (
+ 	MsgPack       = msgpackBinding{}
+ 	YAML          = yamlBinding{}
+ 	Uri           = uriBinding{}
++	Header        = headerBinding{}
+ )
+ 
+ // Default returns the appropriate Binding instance based on the HTTP method
+diff --git a/context.go b/context.go
+index 77cdc18..d9fcc28 100644
+--- a/context.go
++++ b/context.go
+@@ -583,6 +583,11 @@ func (c *Context) BindYAML(obj interface{}) error {
+ 	return c.MustBindWith(obj, binding.YAML)
+ }
+ 
++// BindHeader is a shortcut for c.MustBindWith(obj, binding.Header).
++func (c *Context) BindHeader(obj interface{}) error {
++	return c.MustBindWith(obj, binding.Header)
++}
++
+ // BindUri binds the passed struct pointer using binding.Uri.
+ // It will abort the request with HTTP 400 if any error occurs.
+ func (c *Context) BindUri(obj interface{}) error {
+@@ -637,6 +642,11 @@ func (c *Context) ShouldBindYAML(obj interface{}) error {
+ 	return c.ShouldBindWith(obj, binding.YAML)
+ }
+ 
++// ShouldBindHeader is a shortcut for c.ShouldBindWith(obj, binding.Header).
++func (c *Context) ShouldBindHeader(obj interface{}) error {
++	return c.ShouldBindWith(obj, binding.Header)
++}
++
+ // ShouldBindUri binds the passed struct pointer using the specified binding engine.
+ func (c *Context) ShouldBindUri(obj interface{}) error {
+ 	m := make(map[string][]string)
+2026-05-16 13:15:13,545 - INFO - Grading answer for gin-gonic__gin-1957...
+2026-05-16 13:15:13,545 - INFO - report: {'gin-gonic__gin-1957': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['TestContextBindHeader', 'TestContextShouldBindHeader'], 'failure': []}, 'PASS_TO_PASS': {'success': ['TestContextAutoBindJSON', 'TestContextBindWithJSON', 'TestContextBindWithXML', 'TestContextBindWithQuery', 'TestContextBindWithYAML', 'TestContextBadAutoBind', 'TestContextAutoShouldBindJSON', 'TestContextShouldBindWithJSON', 'TestContextShouldBindWithXML', 'TestContextShouldBindWithQuery', 'TestContextShouldBindWithYAML', 'TestContextBadAutoShouldBind', 'TestContextShouldBindBodyWith'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for gin-gonic__gin-1957: resolved: True
+2026-05-16 13:15:13,545 - INFO - Attempting to stop container sweb.eval.gin-gonic__gin-1957.default...
+2026-05-16 13:15:28,747 - INFO - Attempting to remove container sweb.eval.gin-gonic__gin-1957.default...
+2026-05-16 13:15:28,833 - INFO - Container sweb.eval.gin-gonic__gin-1957.default removed.
+2026-05-16 13:15:28,833 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-1957:latest...
+2026-05-16 13:15:29,148 - INFO - Image swebench/sweb.eval.x86_64.gin-gonic_1776_gin-1957:latest removed.

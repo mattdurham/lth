@@ -1,0 +1,68 @@
+diff --git a/context.go b/context.go
+index 478e8c0..f317744 100644
+--- a/context.go
++++ b/context.go
+@@ -105,8 +105,9 @@ func (c *Context) Handler() HandlerFunc {
+ // See example in GitHub.
+ func (c *Context) Next() {
+ 	c.index++
+-	for s := int8(len(c.handlers)); c.index < s; c.index++ {
++	for c.index < int8(len(c.handlers)) {
+ 		c.handlers[c.index](c)
++		c.index++
+ 	}
+ }
+ 
+diff --git a/routergroup.go b/routergroup.go
+index 5615a50..a4df55b 100644
+--- a/routergroup.go
++++ b/routergroup.go
+@@ -190,13 +190,15 @@ func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileS
+ 		file := c.Param("filepath")
+ 
+ 		// Check if file exists and/or if we have permission to access it
+-		if _, err := fs.Open(file); err != nil {
++		f, err := fs.Open(file)
++		if err != nil {
+ 			c.Writer.WriteHeader(http.StatusNotFound)
+-			c.handlers = group.engine.allNoRoute
++			c.handlers = group.engine.noRoute
+ 			// Reset index
+ 			c.index = -1
+ 			return
+ 		}
++		f.Close()
+ 
+ 		fileServer.ServeHTTP(c.Writer, c.Request)
+ 	}
+diff --git a/routes_test.go b/routes_test.go
+index c4d5972..2adf194 100644
+--- a/routes_test.go
++++ b/routes_test.go
+@@ -426,6 +426,26 @@ func TestRouterStaticFSNotFound(t *testing.T) {
+ 	assert.Equal(t, "non existent", w.Body.String())
+ }
+ 
++func TestMiddlewareCalledOnceByRouterStaticFSNotFound(t *testing.T) {
++	router := New()
++
++	// Middleware must be called just only once per request.
++	middlewareCalledNum := 0
++	router.Use(func(c *Context) {
++		middlewareCalledNum++
++	})
++
++	router.StaticFS("/", http.FileSystem(http.Dir("/thisreallydoesntexist/")))
++
++	// First access
++	performRequest(router, "GET", "/nonexistent")
++	assert.Equal(t, 1, middlewareCalledNum)
++
++	// Second access
++	performRequest(router, "HEAD", "/nonexistent")
++	assert.Equal(t, 2, middlewareCalledNum)
++}
++
+ func TestRouteRawPath(t *testing.T) {
+ 	route := New()
+ 	route.UseRawPath = true

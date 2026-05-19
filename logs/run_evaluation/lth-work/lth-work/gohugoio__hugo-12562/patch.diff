@@ -1,0 +1,22 @@
+diff --git a/hugolib/content_map.go b/hugolib/content_map.go
+index fe7f2f5f..d800be18 100644
+--- a/hugolib/content_map.go
++++ b/hugolib/content_map.go
+@@ -442,6 +442,9 @@ func (m *pageMap) addPagesFromGoTmplFi(fi hugofs.FileMetaInfo, buildConfig *Buil
+ 		return
+ 	}
+ 	handleBuildInfo(s, bi)
++	// Reset the reverse index so pages added by this adapter are included in
++	// subsequent unqualified GetPage lookups.
++	s.pageMap.pageReverseIndex.Reset()
+ 
+ 	if !rebuild && (bi.EnableAllLanguages || bi.EnableAllDimensions) {
+ 		// Clone and insert the adapter for the other sites.
+@@ -469,6 +472,7 @@ func (m *pageMap) addPagesFromGoTmplFi(fi hugofs.FileMetaInfo, buildConfig *Buil
+ 				return
+ 			}
+ 			handleBuildInfo(ss, bi)
++			ss.pageMap.pageReverseIndex.Reset()
+ 
+ 			// Insert into the correct language tree so it get rebuilt on changes.
+ 			ss.pageMap.treePagesFromTemplateAdapters.Insert(pi.Base(), clone)
