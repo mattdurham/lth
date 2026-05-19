@@ -142,3 +142,53 @@ func TestGetAttributesBatch_MissingID(t *testing.T) {
 		t.Errorf("does-not-exist attrs should be empty, got %v", missing)
 	}
 }
+
+func TestGetMemIDsByAttr(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	for _, id := range []string{"mem-ta", "mem-tb", "mem-tc"} {
+		row := &MemoryRow{
+			ID:          id,
+			Layer:       3,
+			Content:     "content " + id,
+			ContentHash: "hash-" + id,
+			Importance:  5.0,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		if err := d.InsertMemory(ctx, row); err != nil {
+			t.Fatalf("InsertMemory(%s): %v", id, err)
+		}
+	}
+
+	// mem-ta and mem-tb have trace_id=abc123; mem-tc has a different trace_id.
+	if err := d.SetAttributes(ctx, "mem-ta", map[string]string{"trace_id": "abc123"}); err != nil {
+		t.Fatalf("SetAttributes(mem-ta): %v", err)
+	}
+	if err := d.SetAttributes(ctx, "mem-tb", map[string]string{"trace_id": "abc123"}); err != nil {
+		t.Fatalf("SetAttributes(mem-tb): %v", err)
+	}
+	if err := d.SetAttributes(ctx, "mem-tc", map[string]string{"trace_id": "xyz999"}); err != nil {
+		t.Fatalf("SetAttributes(mem-tc): %v", err)
+	}
+
+	ids, err := d.GetMemIDsByAttr(ctx, "trace_id", "abc123")
+	if err != nil {
+		t.Fatalf("GetMemIDsByAttr: %v", err)
+	}
+	if len(ids) != 2 {
+		t.Fatalf("GetMemIDsByAttr returned %d ids, want 2: %v", len(ids), ids)
+	}
+	got := map[string]bool{}
+	for _, id := range ids {
+		got[id] = true
+	}
+	if !got["mem-ta"] {
+		t.Error("expected mem-ta in results")
+	}
+	if !got["mem-tb"] {
+		t.Error("expected mem-tb in results")
+	}
+}

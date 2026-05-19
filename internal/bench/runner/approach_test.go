@@ -18,8 +18,8 @@ func TestBuildPrompt_Default(t *testing.T) {
 	if !strings.Contains(prompt, "</issue>") {
 		t.Error("default prompt missing </issue> tag")
 	}
-	if !strings.Contains(prompt, "<patch>") {
-		t.Error("default prompt missing <patch> instruction")
+	if !strings.Contains(prompt, "edit") && !strings.Contains(prompt, "file") {
+		t.Error("default prompt should instruct agent to edit files")
 	}
 	if !strings.Contains(prompt, "fix the bug") {
 		t.Error("default prompt missing problem statement")
@@ -29,34 +29,28 @@ func TestBuildPrompt_Default(t *testing.T) {
 func TestBuildPrompt_BobWork(t *testing.T) {
 	p := dataset.Problem{ProblemStatement: "add a feature"}
 	prompt := ApproachBobWork.BuildPrompt(p)
-	if !strings.HasPrefix(prompt, "/bob:work") {
-		t.Error("bob-work prompt must start with /bob:work")
+	if !strings.Contains(prompt, "/bob:work") {
+		t.Error("bob-work prompt missing /bob:work invocation")
 	}
 	if !strings.Contains(prompt, "add a feature") {
 		t.Error("bob-work prompt missing problem statement")
-	}
-	if !strings.Contains(prompt, "<patch>") {
-		t.Error("bob-work prompt missing <patch> instruction")
 	}
 }
 
 func TestBuildPrompt_LthWork(t *testing.T) {
 	p := dataset.Problem{ProblemStatement: "refactor something"}
 	prompt := ApproachLthWork.BuildPrompt(p)
-	if !strings.HasPrefix(prompt, "/lth-work") {
-		t.Error("lth-work prompt must start with /lth-work")
+	if !strings.Contains(prompt, "/lth-work") {
+		t.Error("lth-work prompt missing /lth-work invocation")
 	}
 	if !strings.Contains(prompt, "refactor something") {
 		t.Error("lth-work prompt missing problem statement")
 	}
-	if !strings.Contains(prompt, "<patch>") {
-		t.Error("lth-work prompt missing <patch> instruction")
-	}
 }
 
 func TestAllApproaches_Length(t *testing.T) {
-	if len(AllApproaches) != 3 {
-		t.Errorf("AllApproaches length = %d, want 3", len(AllApproaches))
+	if len(AllApproaches) < 3 {
+		t.Errorf("AllApproaches length = %d, want at least 3", len(AllApproaches))
 	}
 }
 

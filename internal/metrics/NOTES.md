@@ -32,6 +32,18 @@ way at the construction site in `cmd/lth/watch.go`.
 
 ---
 
+## 4. Conditional /v1/traces route registration
+
+*Added: 2026-05-19*
+
+**Decision:** Register the `/v1/traces` route in `buildMux()` only when `s.receiver != nil`, using a direct `if` check rather than a `withReceiver` guard wrapper.
+
+**Rationale:** The traces receiver is optional — the metrics server should be usable without an OTLP ingest path. A nil guard in buildMux keeps the route absent entirely (404) when no receiver is configured, which is cleaner than registering a handler that always returns 503.
+
+**Consequence:** `SetReceiver` must be called before `Start` or `TestHandler` to activate the endpoint. Late registration after Start is not supported.
+
+---
+
 ## 3. TestHandler for HTTP testing
 
 *Added: 2026-05-14*

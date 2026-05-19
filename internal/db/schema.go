@@ -121,6 +121,10 @@ func (d *DB) migrateSchema() error {
 			sql:  `ALTER TABLE memories ADD COLUMN valence_scored BOOLEAN NOT NULL DEFAULT 0`,
 			name: "valence_scored column",
 		},
+		{
+			sql:  `CREATE INDEX IF NOT EXISTS idx_attrs_key_value ON memory_attributes(key, value)`,
+			name: "idx_attrs_key_value index",
+		},
 	}
 	for _, m := range migrations {
 		if _, err := d.db.ExecContext(ctx, m.sql); err != nil {
