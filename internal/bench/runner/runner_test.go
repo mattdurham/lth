@@ -25,6 +25,9 @@ func setupFakeClaude(t *testing.T, patch string) string {
 }
 
 func TestRunOneReturnsPatch(t *testing.T) {
+	if os.Getenv("BENCH_INTEGRATION") != "1" {
+		t.Skip("requires BENCH_INTEGRATION=1 (needs git clone network access)")
+	}
 	expectedPatch := "diff --git a/foo.go b/foo.go"
 	fakeDir := setupFakeClaude(t, expectedPatch)
 	t.Setenv("PATH", fakeDir+":"+os.Getenv("PATH"))
@@ -58,6 +61,9 @@ func TestRunOneReturnsPatch(t *testing.T) {
 }
 
 func TestRunOneNoPatch(t *testing.T) {
+	if os.Getenv("BENCH_INTEGRATION") != "1" {
+		t.Skip("requires BENCH_INTEGRATION=1 (needs git clone network access)")
+	}
 	fakeDir := t.TempDir()
 	script := "#!/bin/sh\ncat /dev/stdin > /dev/null\necho 'I could not find a fix'\n"
 	if err := os.WriteFile(filepath.Join(fakeDir, "claude"), []byte(script), 0755); err != nil {
@@ -78,6 +84,9 @@ func TestRunOneNoPatch(t *testing.T) {
 }
 
 func TestRunOneClaudeTimeout(t *testing.T) {
+	if os.Getenv("BENCH_INTEGRATION") != "1" {
+		t.Skip("requires BENCH_INTEGRATION=1 (needs git clone network access)")
+	}
 	fakeDir := t.TempDir()
 	script := "#!/bin/sh\nsleep 300\n"
 	if err := os.WriteFile(filepath.Join(fakeDir, "claude"), []byte(script), 0755); err != nil {

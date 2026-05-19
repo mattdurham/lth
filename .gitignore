@@ -1,3 +1,12 @@
 .bob/
 /lth
 *.test
+bin/
+logs/
+results.jsonl
+predictions-*.jsonl
+*.bob-work.json
+*.lth-work.json
+*.lth-single.json
+*.default.json
+bug-investigation.md

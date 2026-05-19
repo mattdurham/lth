@@ -18,6 +18,7 @@ import (
 	"github.com/mattdurham/lth/internal/llm"
 	"github.com/mattdurham/lth/internal/memory"
 	"github.com/mattdurham/lth/internal/metrics"
+	"github.com/mattdurham/lth/internal/traces"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/watcher"
 	"github.com/prometheus/client_golang/prometheus"
@@ -150,6 +151,11 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	// Start metrics refresh loop (updates memory layer gauges every 30s).
 	go metrics.RefreshLoop(ctx, daemon.store, m, 30*time.Second)
 
+	// Start OTLP traces receiver.
+	recv := traces.NewReceiver(daemon.store, daemon.g, daemon.d, slog.Default())
+	metricsSrv.SetReceiver(recv)
+	go recv.Start(ctx)
+
 	errCh := make(chan error, 2)
 	go func() { errCh <- w.Start(ctx) }()
 	go func() { errCh <- daemon.compactor.Run(ctx, interval) }()
@@ -176,6 +182,7 @@ type daemonComponents struct {
 	ms        *memory.MemoryStore // concrete handle for Close (waits for async goroutines)
 	compactor *compactor.Compactor
 	d         *db.DB
+	g         *graph.Graph
 	llm       llm.LLM
 	emb       vector.Embedder
 }
@@ -218,6 +225,7 @@ func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 		ms:        ms,
 		compactor: c,
 		d:         d,
+		g:         g,
 		llm:       l,
 		emb:       emb,
 	}, nil

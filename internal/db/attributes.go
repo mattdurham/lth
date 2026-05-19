@@ -39,6 +39,25 @@ func (d *DB) MergeAttribute(ctx context.Context, memID, key, value string) error
 	return nil
 }
 
+// GetMemIDsByAttr returns all memory IDs that have the given key=value attribute.
+func (d *DB) GetMemIDsByAttr(ctx context.Context, key, value string) ([]string, error) {
+	rows, err := d.db.QueryContext(ctx,
+		"SELECT DISTINCT mem_id FROM memory_attributes WHERE key = ? AND value = ?", key, value)
+	if err != nil {
+		return nil, fmt.Errorf("get mem ids by attr: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan mem id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // GetAttributes returns all attributes for the given memory ID as a map.
 func (d *DB) GetAttributes(ctx context.Context, memID string) (map[string]string, error) {
 	rows, err := d.db.QueryContext(ctx,

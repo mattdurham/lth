@@ -24,6 +24,7 @@ var (
 	flagApproaches string
 	flagTimeout    time.Duration
 	flagModel      string
+	flagCacheDir   string
 )
 
 var runCmd = &cobra.Command{
@@ -39,6 +40,7 @@ func init() {
 	runCmd.Flags().StringVar(&flagApproaches, "approaches", "", "comma-separated approaches (default: all)")
 	runCmd.Flags().DurationVar(&flagTimeout, "timeout", 10*time.Minute, "timeout per Claude invocation")
 	runCmd.Flags().StringVar(&flagModel, "model", "", "claude model name (default: claude's default)")
+	runCmd.Flags().StringVar(&flagCacheDir, "cache-dir", "", "repo cache directory (default: ~/.cache/swe-bench)")
 	rootCmd.AddCommand(runCmd)
 }
 
@@ -72,6 +74,7 @@ func runBench(cmd *cobra.Command, _ []string) error {
 	cfg := runner.Config{
 		ClaudeTimeout: flagTimeout,
 		Model:         flagModel,
+		CacheDir:      flagCacheDir,
 	}
 
 	// Open per-approach prediction writers (lazy, keyed by approach string).

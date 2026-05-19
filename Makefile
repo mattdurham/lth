@@ -21,7 +21,7 @@ benchmark: bench-build
 
 ## bench-eval: Score predictions using the official SWE-bench evaluation harness (requires Docker)
 bench-eval:
-	@for approach in bob-work lth-work default; do \
+	@for approach in bob-work lth-work lth-single default; do \
 		if [ -f predictions-$$approach.jsonl ]; then \
 			echo "=== Evaluating $$approach ==="; \
 			python3 -m swebench.harness.run_evaluation \
