@@ -33,11 +33,12 @@ var decayRates = map[int]float32{
 // NewMemoryStore creates and returns a MemoryStore. It calls graph.LoadAll on startup.
 func NewMemoryStore(d *db.DB, emb vector.Embedder, l llm.LLM, g *graph.Graph, cfg *config.Config) (*MemoryStore, error) {
 	s := &MemoryStore{
-		db:    d,
-		emb:   emb,
-		llm:   l,
-		graph: g,
-		cfg:   cfg,
+		db:        d,
+		emb:       emb,
+		llm:       l,
+		graph:     g,
+		cfg:       cfg,
+		enrichSem: make(chan struct{}, enrichConcurrency),
 	}
 
 	if err := g.LoadAll(context.Background()); err != nil {
@@ -120,6 +121,10 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 // Store returns before this runs; BackfillEmbeddings handles any missed embeddings.
 func (s *MemoryStore) enrichAsync(memID, content string) {
 	defer s.wg.Done()
+
+	// Acquire semaphore — blocks if enrichConcurrency goroutines are already running.
+	s.enrichSem <- struct{}{}
+	defer func() { <-s.enrichSem }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
