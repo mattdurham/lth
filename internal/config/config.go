@@ -10,13 +10,14 @@ type Config struct {
 	} `toml:"db"`
 
 	Embedding struct {
-		Provider    string `toml:"provider"`     // "huggingface", "ollama", "openai" — default: "huggingface"
-		AutoDocker  bool   `toml:"auto_docker"`  // default: true for huggingface provider
-		DockerImage string `toml:"docker_image"` // default: "ghcr.io/huggingface/text-embeddings-inference:cpu-1.5"
-		DockerPort  int    `toml:"docker_port"`  // default: 8080
-		BaseURL     string `toml:"base_url"`
-		Model       string `toml:"model"`
-		TimeoutS    int    `toml:"timeout_s"`
+		Provider        string `toml:"provider"`           // "huggingface", "ollama", "openai" — default: "huggingface"
+		AutoDocker      bool   `toml:"auto_docker"`        // default: true for huggingface provider
+		DockerImage     string `toml:"docker_image"`       // default: "ghcr.io/huggingface/text-embeddings-inference:cpu-latest"
+		DockerPort      int    `toml:"docker_port"`        // default: 8080
+		BaseURL         string `toml:"base_url"`
+		Model           string `toml:"model"`
+		TimeoutS        int    `toml:"timeout_s"`
+		TrustRemoteCode bool   `toml:"trust_remote_code"` // required for models with custom pooling (e.g. nomic-embed-text)
 	} `toml:"embedding"`
 
 	LLM struct {
