@@ -223,6 +223,43 @@ LIMIT ?`, limit)
 	return scanMemoryRows(rows)
 }
 
+// ListUnimportant returns up to limit memories where importance equals the default 5.0,
+// indicating the LLM has not yet scored them. Used by the BackfillImportance goroutine.
+func (d *DB) ListUnimportant(ctx context.Context, limit int) ([]*MemoryRow, error) {
+	rows, err := d.db.QueryContext(ctx, `
+SELECT id, layer, content, content_hash, embedding, importance, access_count,
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored
+FROM memories
+WHERE importance = 5.0 AND compacted_at IS NULL
+ORDER BY created_at ASC
+LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list unimportant: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+	return scanMemoryRows(rows)
+}
+
+// ListUntagged returns up to limit memories that have no 'tags' attribute,
+// indicating the LLM has not yet extracted tags. Used by the BackfillTags goroutine.
+func (d *DB) ListUntagged(ctx context.Context, limit int) ([]*MemoryRow, error) {
+	rows, err := d.db.QueryContext(ctx, `
+SELECT id, layer, content, content_hash, embedding, importance, access_count,
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored
+FROM memories
+WHERE compacted_at IS NULL
+  AND id NOT IN (SELECT mem_id FROM memory_attributes WHERE key = 'tags')
+ORDER BY created_at ASC
+LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list untagged: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+	return scanMemoryRows(rows)
+}
+
 // ListUnembedded returns up to limit memories where embedding is NULL or empty and compacted_at IS NULL.
 // Used by the BackfillEmbeddings goroutine in the daemon.
 func (d *DB) ListUnembedded(ctx context.Context, limit int) ([]*MemoryRow, error) {
