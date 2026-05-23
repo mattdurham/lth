@@ -125,6 +125,10 @@ func (d *DB) migrateSchema() error {
 			sql:  `CREATE INDEX IF NOT EXISTS idx_attrs_key_value ON memory_attributes(key, value)`,
 			name: "idx_attrs_key_value index",
 		},
+		{
+			sql:  `ALTER TABLE memories ADD COLUMN embedding_model TEXT NOT NULL DEFAULT ''`,
+			name: "embedding_model column",
+		},
 	}
 	for _, m := range migrations {
 		if _, err := d.db.ExecContext(ctx, m.sql); err != nil {

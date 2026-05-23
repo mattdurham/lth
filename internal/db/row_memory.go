@@ -23,4 +23,5 @@ type MemoryRow struct {
 	CompactedAt    *time.Time
 	Valence        float32 // outcome polarity: -1.0 (bad) to +1.0 (good), 0.0 neutral
 	ValenceScored  bool    // true once an LLM has set a real valence score
+	EmbeddingModel string  // model used to generate the embedding, e.g. "BAAI/bge-base-en-v1.5"
 }

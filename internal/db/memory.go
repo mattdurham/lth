@@ -23,12 +23,12 @@ func (d *DB) InsertMemory(ctx context.Context, m *MemoryRow) error {
 INSERT INTO memories
 	(id, layer, content, content_hash, embedding, importance, access_count,
 	 created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent,
-	 valence, valence_scored)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	 valence, valence_scored, embedding_model)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			m.ID, m.Layer, m.Content, m.ContentHash, m.Embedding, m.Importance, m.AccessCount,
 			m.CreatedAt.UTC(), m.UpdatedAt.UTC(), m.LastAccessedAt.UTC(),
 			m.DecayRate, m.Stability, m.Source, m.Agent,
-			m.Valence, m.ValenceScored,
+			m.Valence, m.ValenceScored, m.EmbeddingModel,
 		)
 		if err != nil {
 			return fmt.Errorf("insert memory: %w", err)
@@ -66,7 +66,7 @@ func (d *DB) GetMemory(ctx context.Context, id string) (*MemoryRow, error) {
 		row := d.db.QueryRowContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories WHERE id = ?`, id)
 		m, err := scanMemoryRow(row)
 		if err != nil {
@@ -82,7 +82,7 @@ FROM memories WHERE id = ?`, id)
 	rows, err := d.db.QueryContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories WHERE id LIKE ?`, id+"%")
 	if err != nil {
 		return nil, fmt.Errorf("get memory prefix: %w", err)
@@ -109,7 +109,7 @@ func (d *DB) GetByHash(ctx context.Context, hash string) (*MemoryRow, error) {
 	row := d.db.QueryRowContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories WHERE content_hash = ?`, hash)
 
 	m, err := scanMemoryRow(row)
@@ -149,7 +149,7 @@ func (d *DB) ListLayer(ctx context.Context, layer int, activeOnly bool) ([]*Memo
 	query := `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories WHERE layer = ?`
 	if activeOnly {
 		query += ` AND compacted_at IS NULL`
@@ -210,7 +210,7 @@ func (d *DB) ListUnscored(ctx context.Context, limit int) ([]*MemoryRow, error) 
 	rows, err := d.db.QueryContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories
 WHERE valence_scored = 0 AND compacted_at IS NULL
 ORDER BY created_at ASC
@@ -229,7 +229,7 @@ func (d *DB) ListUnimportant(ctx context.Context, limit int) ([]*MemoryRow, erro
 	rows, err := d.db.QueryContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories
 WHERE importance = 5.0 AND compacted_at IS NULL
 ORDER BY created_at ASC
@@ -247,7 +247,7 @@ func (d *DB) ListUntagged(ctx context.Context, limit int) ([]*MemoryRow, error) 
 	rows, err := d.db.QueryContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories
 WHERE compacted_at IS NULL
   AND id NOT IN (SELECT mem_id FROM memory_attributes WHERE key = 'tags')
@@ -266,7 +266,7 @@ func (d *DB) ListUnembedded(ctx context.Context, limit int) ([]*MemoryRow, error
 	rows, err := d.db.QueryContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories
 WHERE (embedding IS NULL OR length(embedding) = 0) AND compacted_at IS NULL
 ORDER BY created_at ASC
@@ -314,7 +314,7 @@ func scanMemoryRow(row *sql.Row) (*MemoryRow, error) {
 		&m.ID, &m.Layer, &m.Content, &m.ContentHash, &embBlob, &m.Importance, &m.AccessCount,
 		&m.CreatedAt, &m.UpdatedAt, &m.LastAccessedAt, &m.DecayRate, &m.Stability,
 		&m.Source, &m.Agent, &compactedAt,
-		&m.Valence, &m.ValenceScored,
+		&m.Valence, &m.ValenceScored, &m.EmbeddingModel,
 	)
 	if err != nil {
 		return nil, err
