@@ -74,14 +74,14 @@ func TestParseFilePaths(t *testing.T) {
 		wantSID   string
 	}{
 		{
-			name: "read tool_use",
-			line: `{"type":"assistant","sessionId":"s1","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{"file_path":"/src/foo.go"}}]}}`,
+			name:      "read tool_use",
+			line:      `{"type":"assistant","sessionId":"s1","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{"file_path":"/src/foo.go"}}]}}`,
 			wantPaths: []string{"/src/foo.go"},
 			wantSID:   "s1",
 		},
 		{
-			name: "write and edit tool_use",
-			line: `{"type":"assistant","sessionId":"s2","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"/src/a.go"}},{"type":"tool_use","name":"Edit","input":{"file_path":"/src/b.go"}}]}}`,
+			name:      "write and edit tool_use",
+			line:      `{"type":"assistant","sessionId":"s2","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"/src/a.go"}},{"type":"tool_use","name":"Edit","input":{"file_path":"/src/b.go"}}]}}`,
 			wantPaths: []string{"/src/a.go", "/src/b.go"},
 			wantSID:   "s2",
 		},

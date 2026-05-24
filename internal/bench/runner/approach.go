@@ -12,9 +12,9 @@ import (
 type Approach string
 
 const (
-	ApproachBobWork  Approach = "bob-work"
-	ApproachLthWork  Approach = "lth-work"
-	ApproachDefault  Approach = "default"
+	ApproachBobWork   Approach = "bob-work"
+	ApproachLthWork   Approach = "lth-work"
+	ApproachDefault   Approach = "default"
 	ApproachLthSingle Approach = "lth-single" // lth prompt context + single focused coder, no team
 )
 

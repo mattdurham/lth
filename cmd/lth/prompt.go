@@ -211,12 +211,12 @@ func formatPromptOutput(w io.Writer, principles, techniques, context []*lth.Sear
 	// Print a reference block so agents know how to explore further.
 	allIDs := collectIDs(principles, techniques, context, append(related, episodes...))
 	if len(allIDs) > 0 {
-		fmt.Fprintln(w, "\n## Memory IDs (for exploration)") //nolint:errcheck
-		fmt.Fprintln(w, "Use these IDs to explore further:")                                               //nolint:errcheck
-		fmt.Fprintln(w, "  lth get <id>                    — read full memory")                            //nolint:errcheck
-		fmt.Fprintln(w, "  lth graph show --from <id>      — traverse graph edges")                        //nolint:errcheck
-		fmt.Fprintln(w, "  lth graph ppr --seeds <id,...>  — personalized pagerank from seeds")            //nolint:errcheck
-		fmt.Fprintln(w, "") //nolint:errcheck
+		fmt.Fprintln(w, "\n## Memory IDs (for exploration)")                                    //nolint:errcheck
+		fmt.Fprintln(w, "Use these IDs to explore further:")                                    //nolint:errcheck
+		fmt.Fprintln(w, "  lth get <id>                    — read full memory")                 //nolint:errcheck
+		fmt.Fprintln(w, "  lth graph show --from <id>      — traverse graph edges")             //nolint:errcheck
+		fmt.Fprintln(w, "  lth graph ppr --seeds <id,...>  — personalized pagerank from seeds") //nolint:errcheck
+		fmt.Fprintln(w, "")                                                                     //nolint:errcheck
 		for _, id := range allIDs {
 			fmt.Fprintf(w, "  %s\n", id) //nolint:errcheck
 		}

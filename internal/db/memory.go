@@ -340,7 +340,7 @@ func scanMemoryRows(rows *sql.Rows) ([]*MemoryRow, error) {
 			&m.ID, &m.Layer, &m.Content, &m.ContentHash, &embBlob, &m.Importance, &m.AccessCount,
 			&m.CreatedAt, &m.UpdatedAt, &m.LastAccessedAt, &m.DecayRate, &m.Stability,
 			&m.Source, &m.Agent, &compactedAt,
-			&m.Valence, &m.ValenceScored,
+			&m.Valence, &m.ValenceScored, &m.EmbeddingModel,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory row: %w", err)

@@ -25,9 +25,9 @@ func testDB(t *testing.T) *db.DB {
 	return d
 }
 
-// makeEmb creates a deterministic 768-float32 embedding encoded as little-endian bytes.
+// makeEmb creates a deterministic 1024-float32 embedding encoded as little-endian bytes.
 func makeEmb(seed float32) []byte {
-	const dims = 768
+	const dims = 1024
 	b := make([]byte, dims*4)
 	for i := 0; i < dims; i++ {
 		val := seed * float32(i+1) / float32(dims)

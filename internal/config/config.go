@@ -10,10 +10,10 @@ type Config struct {
 	} `toml:"db"`
 
 	Embedding struct {
-		Provider        string `toml:"provider"`           // "huggingface", "ollama", "openai" — default: "huggingface"
-		AutoDocker      bool   `toml:"auto_docker"`        // default: true for huggingface provider
-		DockerImage     string `toml:"docker_image"`       // default: "ghcr.io/huggingface/text-embeddings-inference:cpu-latest"
-		DockerPort      int    `toml:"docker_port"`        // default: 8080
+		Provider        string `toml:"provider"`     // "huggingface", "ollama", "openai" — default: "huggingface"
+		AutoDocker      bool   `toml:"auto_docker"`  // default: true for huggingface provider
+		DockerImage     string `toml:"docker_image"` // default: "ghcr.io/huggingface/text-embeddings-inference:cpu-latest"
+		DockerPort      int    `toml:"docker_port"`  // default: 8080
 		BaseURL         string `toml:"base_url"`
 		Model           string `toml:"model"`
 		TimeoutS        int    `toml:"timeout_s"`

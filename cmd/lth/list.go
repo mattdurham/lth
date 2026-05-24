@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/config"
+	"github.com/mattdurham/lth/internal/db"
 	"github.com/spf13/cobra"
 )
 

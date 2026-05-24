@@ -8,11 +8,11 @@ import "time"
 type Outcome string
 
 const (
-	OutcomePatchGenerated  Outcome = "patch_generated"   // patch captured via git diff
-	OutcomeNoPatch         Outcome = "no_patch"           // no changes detected after claude ran
-	OutcomeClaudeFail      Outcome = "claude_fail"        // claude process error or timeout
-	OutcomeCloneFail       Outcome = "clone_fail"         // git clone or worktree setup failed
-	OutcomeTestPatchFail   Outcome = "test_patch_fail"    // applying test_patch failed
+	OutcomePatchGenerated Outcome = "patch_generated" // patch captured via git diff
+	OutcomeNoPatch        Outcome = "no_patch"        // no changes detected after claude ran
+	OutcomeClaudeFail     Outcome = "claude_fail"     // claude process error or timeout
+	OutcomeCloneFail      Outcome = "clone_fail"      // git clone or worktree setup failed
+	OutcomeTestPatchFail  Outcome = "test_patch_fail" // applying test_patch failed
 )
 
 // Result holds the outcome of one problem × approach run.

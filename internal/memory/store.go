@@ -18,12 +18,12 @@ const enrichConcurrency = 3
 
 // MemoryStore implements the Store interface using SQLite and the internal packages.
 type MemoryStore struct {
-	db       *db.DB
-	emb      vector.Embedder
-	llm      llm.LLM
-	graph    *graph.Graph
-	cfg      *config.Config
-	wg       sync.WaitGroup // tracks in-flight async goroutines
+	db        *db.DB
+	emb       vector.Embedder
+	llm       llm.LLM
+	graph     *graph.Graph
+	cfg       *config.Config
+	wg        sync.WaitGroup // tracks in-flight async goroutines
 	enrichSem chan struct{}  // semaphore limiting concurrent enrichAsync calls
 }
 

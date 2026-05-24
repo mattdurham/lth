@@ -96,8 +96,8 @@ func (c *HFClient) fetchPage(ctx context.Context, offset, length int) ([]Problem
 	}
 
 	var hfResp struct {
-		Rows        []hfRow `json:"rows"`
-		NumRowsTotal int    `json:"num_rows_total"`
+		Rows         []hfRow `json:"rows"`
+		NumRowsTotal int     `json:"num_rows_total"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&hfResp); err != nil {
 		return nil, 0, fmt.Errorf("decode response: %w", err)

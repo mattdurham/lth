@@ -18,52 +18,6 @@ import (
 
 const lthVersion = "dev"
 
-type exportMetadata struct {
-	LTHVersion  string         `json:"lth_version"`
-	ExportedAt  time.Time      `json:"exported_at"`
-	MemoryCount int            `json:"memory_count"`
-	EdgeCount   int            `json:"edge_count"`
-	ChunkSize   int            `json:"chunk_size"`
-	LayerCounts map[string]int `json:"layer_counts"`
-}
-
-type exportManifest struct {
-	ExportedAt  time.Time `json:"exported_at"`
-	ChunkSize   int       `json:"chunk_size"`
-	MemoryCount int       `json:"memory_count"`
-	EdgeCount   int       `json:"edge_count"`
-	Files       []string  `json:"files"`
-}
-
-type exportMemory struct {
-	ID             string            `json:"id"`
-	Layer          int               `json:"layer"`
-	Content        string            `json:"content"`
-	ContentHash    string            `json:"content_hash"`
-	Embedding      []float32         `json:"embedding,omitempty"`
-	Importance     float32           `json:"importance"`
-	AccessCount    int               `json:"access_count"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      time.Time         `json:"updated_at"`
-	LastAccessedAt time.Time         `json:"last_accessed_at"`
-	DecayRate      float32           `json:"decay_rate"`
-	Stability      float32           `json:"stability"`
-	Source         string            `json:"source,omitempty"`
-	Agent          string            `json:"agent,omitempty"`
-	Valence        float32           `json:"valence"`
-	ValenceScored  bool              `json:"valence_scored"`
-	Attrs          map[string]string `json:"attrs,omitempty"`
-}
-
-type exportEdge struct {
-	ID        string    `json:"id"`
-	FromID    string    `json:"from_id"`
-	ToID      string    `json:"to_id"`
-	EdgeType  string    `json:"edge_type"`
-	Weight    float32   `json:"weight"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 var (
 	exportOutput    string
 	exportChunkSize int

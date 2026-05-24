@@ -90,11 +90,11 @@ func (r *Receiver) Start(ctx context.Context) {
 func (r *Receiver) processSpan(ctx context.Context, job spanJob) {
 	s := job.span
 	attrs := map[string]string{
-		"trace_id":      s.TraceID,
-		"span_id":       s.SpanID,
+		"trace_id":       s.TraceID,
+		"span_id":        s.SpanID,
 		"parent_span_id": s.ParentSpanID,
-		"service_name":  s.ServiceName,
-		"source":        "otlp",
+		"service_name":   s.ServiceName,
+		"source":         "otlp",
 	}
 	m, err := r.store.Store(ctx, spanMemoryLayer, spanContent(s), attrs)
 	if err != nil {

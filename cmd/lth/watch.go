@@ -179,15 +179,8 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 }
 
 // daemonComponents holds the internal components needed by the daemon.
-type daemonComponents struct {
-	store     memory.Store
-	ms        *memory.MemoryStore // concrete handle for Close (waits for async goroutines)
-	compactor *compactor.Compactor
-	d         *db.DB
-	g         *graph.Graph
-	llm       llm.LLM
-	emb       vector.Embedder
-}
+
+// concrete handle for Close (waits for async goroutines)
 
 func (dc *daemonComponents) close() {
 	dc.ms.Close() // wait for all scoreImportanceAsync goroutines before closing DB
