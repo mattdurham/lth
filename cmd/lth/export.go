@@ -44,7 +44,7 @@ func runExport(cmd *cobra.Command, _ []string) error {
 		outputPath = fmt.Sprintf("lth-export-%s.zip", ts)
 	}
 
-	d, err := db.Open(globalCfg.DB.Path)
+	d, err := db.Open(globalCfg.DB.Path, 0)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}

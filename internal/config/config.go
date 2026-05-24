@@ -18,6 +18,7 @@ type Config struct {
 		Model           string `toml:"model"`
 		TimeoutS        int    `toml:"timeout_s"`
 		TrustRemoteCode bool   `toml:"trust_remote_code"` // required for models with custom pooling (e.g. nomic-embed-text)
+		Dim          int    `toml:"dim"`              // embedding output dimension (e.g. 768 for nomic, 1024 for mxbai)
 	} `toml:"embedding"`
 
 	LLM struct {

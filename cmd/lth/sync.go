@@ -141,7 +141,7 @@ func runSyncPush(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	d, err := db.Open(globalCfg.DB.Path)
+	d, err := db.Open(globalCfg.DB.Path, 0)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
@@ -210,7 +210,7 @@ func runSyncPull(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("pull failed: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
-	d, err := db.Open(globalCfg.DB.Path)
+	d, err := db.Open(globalCfg.DB.Path, 0)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
@@ -250,7 +250,7 @@ func runSyncStatus(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	d, err := db.Open(globalCfg.DB.Path)
+	d, err := db.Open(globalCfg.DB.Path, 0)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}

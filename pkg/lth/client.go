@@ -33,7 +33,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}
 
-	d, err := db.Open(cfg.DB.Path)
+	d, err := db.Open(cfg.DB.Path, cfg.Embedding.Dim)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}

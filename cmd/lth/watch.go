@@ -192,7 +192,7 @@ func (dc *daemonComponents) close() {
 // with instrumentation wrappers before being passed to the memory store.
 func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 	dbPath := globalCfg.DB.Path
-	d, err := db.Open(dbPath)
+	d, err := db.Open(dbPath, globalCfg.Embedding.Dim)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}

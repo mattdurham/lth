@@ -45,7 +45,7 @@ func runList(cmd *cobra.Command, _ []string) error {
 		cfg = config.Default()
 	}
 
-	d, err := db.Open(cfg.DB.Path)
+	d, err := db.Open(cfg.DB.Path, 0)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}

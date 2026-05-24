@@ -40,7 +40,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 	var d *db.DB
 	if !importDryRun {
 		var err error
-		d, err = db.Open(globalCfg.DB.Path)
+		d, err = db.Open(globalCfg.DB.Path, 0)
 		if err != nil {
 			return fmt.Errorf("open db: %w", err)
 		}
