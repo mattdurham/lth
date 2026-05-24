@@ -280,8 +280,10 @@ LIMIT ?`, limit)
 }
 
 // UpdateEmbedding sets the embedding field for a memory. Used by the BackfillEmbeddings goroutine.
-func (d *DB) UpdateEmbedding(ctx context.Context, id string, embedding []byte) error {
-	_, err := d.db.ExecContext(ctx, `UPDATE memories SET embedding = ? WHERE id = ?`, embedding, id)
+func (d *DB) UpdateEmbedding(ctx context.Context, id string, embedding []byte, model string) error {
+	_, err := d.db.ExecContext(ctx,
+		`UPDATE memories SET embedding = ?, embedding_model = ? WHERE id = ?`,
+		embedding, model, id)
 	return err
 }
 

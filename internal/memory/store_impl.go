@@ -133,7 +133,7 @@ func (s *MemoryStore) enrichAsync(memID, content string) {
 	if s.emb != nil {
 		if embF32, err := s.emb.Embed(ctx, content); err == nil && len(embF32) > 0 {
 			embBytes := vector.ToBytes(embF32)
-			if err := s.db.UpdateEmbedding(ctx, memID, embBytes); err == nil {
+			if err := s.db.UpdateEmbedding(ctx, memID, embBytes, s.cfg.Embedding.Model); err == nil {
 				_ = s.graph.AutoLink(ctx, memID, embF32)
 			}
 		}

@@ -162,7 +162,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 5, 10*time.Second)
 	go memory.BackfillImportance(ctx, daemon.d, daemon.llm, 5, 15*time.Second)
 	go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
-	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, 5, 10*time.Second)
+	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, globalCfg.Embedding.Model, 5, 10*time.Second)
 
 	slog.Info("daemon started", "pid", os.Getpid(), "metrics", metricsAddr)
 

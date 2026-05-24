@@ -66,7 +66,7 @@ func BackfillValence(ctx context.Context, d *db.DB, llmClient llm.LLM, batchSize
 // BackfillEmbeddings finds memories with null/empty embeddings and re-embeds them.
 // Runs as a background goroutine in the daemon so memories stored before the embedding
 // server was available become searchable without manual intervention.
-func BackfillEmbeddings(ctx context.Context, d *db.DB, emb vector.Embedder, batchSize int, interval time.Duration) {
+func BackfillEmbeddings(ctx context.Context, d *db.DB, emb vector.Embedder, model string, batchSize int, interval time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -100,7 +100,7 @@ func BackfillEmbeddings(ctx context.Context, d *db.DB, emb vector.Embedder, batc
 				continue
 			}
 			blob := vector.ToBytes(embedding)
-			if err := d.UpdateEmbedding(context.Background(), row.ID, blob); err != nil {
+			if err := d.UpdateEmbedding(context.Background(), row.ID, blob, model); err != nil {
 				slog.Warn("backfill embeddings: update error", "id", row.ID, "err", err)
 			}
 		}
