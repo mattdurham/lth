@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_memories_content_hash ON memories(content_hash);
 CREATE INDEX IF NOT EXISTS idx_memories_compacted_at ON memories(compacted_at);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(
-	embedding float[768]
+	embedding float[1024]
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
