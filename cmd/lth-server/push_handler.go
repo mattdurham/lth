@@ -108,14 +108,36 @@ func (h *PushHandler) processPush(ctx context.Context, account, org, user, team 
 	pushID := uuid.NewString()
 
 	for layer, recs := range byLayer {
+		// Dedup: check content_hash index, skip already-seen memories.
+		var fresh []parquet.MemoryRecord
+		for _, rec := range recs {
+			indexKey := fmt.Sprintf("%s/%s/index/%s/%s", account, org, rec.ContentHash[:2], rec.ContentHash)
+			exists, checkErr := h.store.Exists(ctx, indexKey)
+			if checkErr != nil || exists {
+				skipped++
+				accepted-- // was counted in parseMemoryFile, undo it
+				continue
+			}
+			fresh = append(fresh, rec)
+		}
+		if len(fresh) == 0 {
+			continue
+		}
+
 		scope := layerScope(layer, user, team)
 		key := fmt.Sprintf("%s/%s/%s/L%d/date=%s/%s.parquet", account, org, scope, layer, date, pushID)
 		var buf bytes.Buffer
-		if writeErr := h.writer.Write(ctx, &buf, recs); writeErr != nil {
+		if writeErr := h.writer.Write(ctx, &buf, fresh); writeErr != nil {
 			return 0, 0, fmt.Errorf("write parquet L%d: %w", layer, writeErr)
 		}
 		if putErr := h.store.Put(ctx, key, &buf); putErr != nil {
 			return 0, 0, fmt.Errorf("store parquet L%d: %w", layer, putErr)
+		}
+
+		// Write dedup index markers for accepted memories.
+		for _, rec := range fresh {
+			indexKey := fmt.Sprintf("%s/%s/index/%s/%s", account, org, rec.ContentHash[:2], rec.ContentHash)
+			_ = h.store.Put(ctx, indexKey, bytes.NewReader([]byte{}))
 		}
 	}
 
