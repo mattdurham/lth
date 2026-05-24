@@ -9,14 +9,6 @@ import (
 )
 
 // JSOMessage represents a single line from a Claude JSONL conversation file.
-type JSOMessage struct {
-	Type      string          `json:"type"`
-	Timestamp time.Time       `json:"timestamp"`
-	SessionID string          `json:"sessionId"`
-	UUID      string          `json:"uuid"`
-	CWD       string          `json:"cwd"`
-	Message   *JSOMessageBody `json:"message"`
-}
 
 // ParseLine parses a single JSONL line and returns the extracted content.
 // Returns skip=true for lines that should not be ingested.

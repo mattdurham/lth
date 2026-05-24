@@ -78,14 +78,6 @@ func init() {
 	rootCmd.AddCommand(syncCmd)
 }
 
-type syncCfg struct {
-	serverURL string
-	account   string
-	org       string
-	user      string
-	team      string
-}
-
 func effectiveSyncCfg() (syncCfg, error) {
 	if globalCfg == nil {
 		return syncCfg{}, fmt.Errorf("config not loaded")

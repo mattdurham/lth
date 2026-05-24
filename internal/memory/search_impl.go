@@ -116,14 +116,6 @@ func (s *MemoryStore) Search(ctx context.Context, req *SearchRequest) ([]*Scored
 	return scored, nil
 }
 
-type scoreBreakdown struct {
-	total        float32
-	timeScore    float32
-	importScore  float32
-	cosScore     float32
-	valenceScore float32
-}
-
 // scoreMemory computes the composite score for a single memory row.
 // The composite formula is: α·exp(-λ·Δt) + β·importance/10 + γ·cosine(q,m) + δ·(v×|v|)
 // where v×|v| is a sign-preserving square that amplifies extremes and suppresses near-zero noise.

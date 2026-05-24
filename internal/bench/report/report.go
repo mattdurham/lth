@@ -12,9 +12,6 @@ import (
 )
 
 // Writer appends Result records to a JSONL file.
-type Writer struct {
-	f *os.File
-}
 
 // NewWriter opens or creates path in append mode.
 func NewWriter(path string) (*Writer, error) {

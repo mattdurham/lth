@@ -12,23 +12,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mattdurham/lth/internal/blobstore"
 	"github.com/mattdurham/lth/internal/parquet"
 )
 
 // ObserveHandler handles POST /v1/observations (L5 write-only stream).
-type ObserveHandler struct {
-	store  blobstore.BlobStore
-	writer *parquet.Writer
-}
-
-type observationRecord struct {
-	Content   string            `json:"content"`
-	Agent     string            `json:"agent,omitempty"`
-	Attrs     map[string]string `json:"attrs,omitempty"`
-	Valence   float32           `json:"valence"`
-	CreatedAt time.Time         `json:"created_at,omitempty"`
-}
 
 func (h *ObserveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

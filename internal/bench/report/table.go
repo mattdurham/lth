@@ -9,13 +9,6 @@ import (
 	"github.com/mattdurham/lth/internal/bench/runner"
 )
 
-type approachStats struct {
-	problems int
-	patches  int
-	noPatch  int
-	failed   int
-}
-
 // PrintSummary writes a formatted summary table to w.
 // Groups results by approach. PatchRate = patches generated / problems attempted.
 func PrintSummary(results []runner.Result, w io.Writer) {

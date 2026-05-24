@@ -3,7 +3,3 @@
 package main
 
 // ParquetConfig holds parquet write configuration for lth-server.
-type ParquetConfig struct {
-	Enabled      bool `yaml:"enabled"`
-	RowGroupSize int  `yaml:"row_group_size"`
-}

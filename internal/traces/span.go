@@ -24,41 +24,6 @@ type Span struct {
 }
 
 // OTLP JSON types (unexported) — exactly what the OTLP HTTP/JSON spec sends.
-type otlpRequest struct {
-	ResourceSpans []otlpResourceSpan `json:"resourceSpans"`
-}
-type otlpResourceSpan struct {
-	Resource   otlpResource    `json:"resource"`
-	ScopeSpans []otlpScopeSpan `json:"scopeSpans"`
-}
-type otlpResource struct {
-	Attributes []otlpAttribute `json:"attributes"`
-}
-type otlpScopeSpan struct {
-	Spans []otlpSpan `json:"spans"`
-}
-type otlpSpan struct {
-	TraceID           string          `json:"traceId"`
-	SpanID            string          `json:"spanId"`
-	ParentSpanID      string          `json:"parentSpanId"`
-	Name              string          `json:"name"`
-	StartTimeUnixNano int64           `json:"startTimeUnixNano,string"`
-	EndTimeUnixNano   int64           `json:"endTimeUnixNano,string"`
-	Status            otlpStatus      `json:"status"`
-	Attributes        []otlpAttribute `json:"attributes"`
-}
-type otlpStatus struct {
-	Code int `json:"code"`
-}
-type otlpAttribute struct {
-	Key   string       `json:"key"`
-	Value otlpAnyValue `json:"value"`
-}
-type otlpAnyValue struct {
-	StringValue *string `json:"stringValue,omitempty"`
-	IntValue    *int64  `json:"intValue,string,omitempty"`
-	BoolValue   *bool   `json:"boolValue,omitempty"`
-}
 
 func parseOTLP(data []byte) ([]Span, error) {
 	if len(data) == 0 {

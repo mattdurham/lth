@@ -3,13 +3,7 @@
 package main
 
 // StorageConfig holds blob storage configuration for lth-server.
-type StorageConfig struct {
-	Provider        string `yaml:"provider"` // "local" or "s3"
-	LocalDir        string `yaml:"local_dir"`
-	Bucket          string `yaml:"bucket"`
-	Endpoint        string `yaml:"endpoint"`
-	Region          string `yaml:"region"`
-	AccessKeyID     string `yaml:"access_key_id"`
-	SecretAccessKey string `yaml:"secret_access_key"` //nolint:gosec
-	UseSSL          bool   `yaml:"use_ssl"`
-}
+
+// "local" or "s3"
+
+//nolint:gosec

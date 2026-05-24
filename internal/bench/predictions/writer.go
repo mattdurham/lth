@@ -9,11 +9,6 @@ import (
 )
 
 // Prediction is one entry in the SWE-bench predictions.jsonl output file.
-type Prediction struct {
-	InstanceID string `json:"instance_id"`
-	ModelPatch string `json:"model_patch"`
-	ModelName  string `json:"model_name_or_path"`
-}
 
 // Writer appends Prediction records to a JSONL file.
 type Writer struct {

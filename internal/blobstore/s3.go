@@ -13,10 +13,6 @@ import (
 )
 
 // S3Store implements BlobStore using an S3-compatible object store via minio-go.
-type S3Store struct {
-	client *minio.Client
-	bucket string
-}
 
 // NewS3Store creates an S3Store from the given config.
 // Returns an error if the bucket is not accessible.

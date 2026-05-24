@@ -22,11 +22,6 @@ const (
 	maxEdgesPerSpan = 50
 )
 
-type spanJob struct {
-	span       Span
-	receivedAt time.Time
-}
-
 // Receiver accepts OTLP HTTP trace data, buffers spans in a queue, and
 // processes them into lth memories with same_trace graph edges.
 type Receiver struct {

@@ -17,9 +17,6 @@ import (
 
 // LocalStore implements BlobStore using the local filesystem.
 // Keys are mapped to file paths under baseDir, with "/" treated as path separators.
-type LocalStore struct {
-	baseDir string
-}
 
 // NewLocalStore creates a LocalStore rooted at baseDir.
 // baseDir is created if it does not exist.

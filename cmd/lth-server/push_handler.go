@@ -15,23 +15,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mattdurham/lth/internal/blobstore"
 	"github.com/mattdurham/lth/internal/parquet"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/wire"
 )
 
 // PushHandler handles POST /v1/sync/push.
-type PushHandler struct {
-	store  blobstore.BlobStore
-	writer *parquet.Writer
-	cfg    ServerConfig
-}
-
-type pushResponse struct {
-	Accepted int `json:"accepted"`
-	Skipped  int `json:"skipped"`
-}
 
 func (h *PushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

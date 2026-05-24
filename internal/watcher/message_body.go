@@ -2,10 +2,4 @@
 
 package watcher
 
-import "encoding/json"
-
 // JSOMessageBody is the nested message object within a JSOMessage.
-type JSOMessageBody struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"`
-}

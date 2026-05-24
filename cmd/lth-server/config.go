@@ -10,11 +10,6 @@ import (
 )
 
 // ServerConfig holds all lth-server configuration loaded from lth-server.yaml.
-type ServerConfig struct {
-	Port    int           `yaml:"port"`
-	Storage StorageConfig `yaml:"storage"`
-	Parquet ParquetConfig `yaml:"parquet"`
-}
 
 func defaultServerConfig() ServerConfig {
 	return ServerConfig{

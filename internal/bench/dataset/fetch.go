@@ -14,10 +14,6 @@ import (
 const hfBaseURL = "https://datasets-server.huggingface.co/rows"
 
 // HFClient fetches rows from the HuggingFace datasets API.
-type HFClient struct {
-	httpClient *http.Client
-	baseURL    string
-}
 
 // NewHFClient returns a new HFClient with default HTTP client.
 func NewHFClient() *HFClient {
@@ -25,10 +21,6 @@ func NewHFClient() *HFClient {
 		httpClient: &http.Client{},
 		baseURL:    hfBaseURL,
 	}
-}
-
-type hfRow struct {
-	Row Problem `json:"row"`
 }
 
 const hfPageSize = 100 // HuggingFace API maximum rows per request

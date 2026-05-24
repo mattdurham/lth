@@ -15,17 +15,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattdurham/lth/internal/blobstore"
 	"github.com/mattdurham/lth/internal/parquet"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/wire"
 )
 
 // PullHandler handles GET /v1/sync/pull.
-type PullHandler struct {
-	store  blobstore.BlobStore
-	reader *parquet.Reader
-}
 
 func (h *PullHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

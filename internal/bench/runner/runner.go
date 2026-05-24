@@ -16,11 +16,10 @@ import (
 )
 
 // Config holds runtime settings for the Runner.
-type Config struct {
-	ClaudeTimeout time.Duration // timeout per claude invocation, default 10m
-	Model         string        // claude model name, e.g. "claude-sonnet-4-6" (empty = claude default)
-	CacheDir      string        // root of repo cache, default ~/.cache/swe-bench
-}
+
+// timeout per claude invocation, default 10m
+// claude model name, e.g. "claude-sonnet-4-6" (empty = claude default)
+// root of repo cache, default ~/.cache/swe-bench
 
 // Runner invokes claude for one problem × approach at a time.
 type Runner struct {
