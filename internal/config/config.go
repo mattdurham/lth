@@ -10,7 +10,7 @@ type Config struct {
 	} `toml:"db"`
 
 	Embedding struct {
-		Provider        string `toml:"provider"`     // "huggingface", "ollama", "openai" — default: "huggingface"
+		Provider        string `toml:"provider"`     // "huggingface", "ollama", "openai" -- default: "huggingface"
 		AutoDocker      bool   `toml:"auto_docker"`  // default: true for huggingface provider
 		DockerImage     string `toml:"docker_image"` // default: "ghcr.io/huggingface/text-embeddings-inference:cpu-latest"
 		DockerPort      int    `toml:"docker_port"`  // default: 8080
@@ -21,8 +21,8 @@ type Config struct {
 	} `toml:"embedding"`
 
 	LLM struct {
-		Provider string `toml:"provider"` // "anthropic", "ollama", "openai" — default: "anthropic"
-		APIKey   string `toml:"api_key"`  //nolint:gosec // G117: not a hardcoded secret — config field for user-supplied key
+		Provider string `toml:"provider"` // "anthropic", "ollama", "openai" -- default: "anthropic"
+		APIKey   string `toml:"api_key"`  //nolint:gosec // G117: not a hardcoded secret -- config field for user-supplied key
 		BaseURL  string `toml:"base_url"`
 		Model    string `toml:"model"`
 		TimeoutS int    `toml:"timeout_s"`
@@ -37,10 +37,10 @@ type Config struct {
 		L4ClusterSize        int     `toml:"l4_cluster_size"`
 		L3EpisodesMin        int     `toml:"l3_episodes_min"`
 		L3ImportanceMin      float32 `toml:"l3_importance_min"`
-		SeedMinL2            int     `toml:"seed_min_l2"`            // auto-seed L2 when count < this — default: 10
-		SeedMinL3            int     `toml:"seed_min_l3"`            // auto-seed L3 when count < this — default: 20
-		SeedSample           int     `toml:"seed_sample"`            // L5 memories to sample per seed run — default: 100
-		ValenceCompactionMin float32 `toml:"valence_compaction_min"` // L4 memories with |valence| < this are noise — default: 0.15
+		SeedMinL2            int     `toml:"seed_min_l2"`            // auto-seed L2 when count < this -- default: 10
+		SeedMinL3            int     `toml:"seed_min_l3"`            // auto-seed L3 when count < this -- default: 20
+		SeedSample           int     `toml:"seed_sample"`            // L5 memories to sample per seed run -- default: 100
+		ValenceCompactionMin float32 `toml:"valence_compaction_min"` // L4 memories with |valence| < this are noise -- default: 0.15
 	} `toml:"compaction"`
 
 	Search struct {
@@ -54,4 +54,12 @@ type Config struct {
 		Paths     []string `toml:"paths"`
 		StateFile string   `toml:"state_file"`
 	} `toml:"watcher"`
+
+	Sync struct {
+		ServerURL string `toml:"server_url"`
+		Account   string `toml:"account"`
+		Org       string `toml:"org"`
+		Team      string `toml:"team"`
+		User      string `toml:"user"`
+	} `toml:"sync"`
 }
