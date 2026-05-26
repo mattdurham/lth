@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_memories_content_hash ON memories(content_hash);
 CREATE INDEX IF NOT EXISTS idx_memories_compacted_at ON memories(compacted_at);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(
-	embedding float[768]
+	embedding float[%d]
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
@@ -92,8 +92,9 @@ CREATE TABLE IF NOT EXISTS db_metadata (
 );
 `
 
-func (d *DB) createSchema() error {
-	if _, err := d.db.Exec(schema); err != nil {
+func (d *DB) createSchema(embedDim int) error {
+	vecSchema := fmt.Sprintf(schema, embedDim)
+	if _, err := d.db.Exec(vecSchema); err != nil {
 		return fmt.Errorf("exec schema: %w", err)
 	}
 	// Record schema version in db_metadata.
@@ -120,6 +121,14 @@ func (d *DB) migrateSchema() error {
 		{
 			sql:  `ALTER TABLE memories ADD COLUMN valence_scored BOOLEAN NOT NULL DEFAULT 0`,
 			name: "valence_scored column",
+		},
+		{
+			sql:  `CREATE INDEX IF NOT EXISTS idx_attrs_key_value ON memory_attributes(key, value)`,
+			name: "idx_attrs_key_value index",
+		},
+		{
+			sql:  `ALTER TABLE memories ADD COLUMN embedding_model TEXT NOT NULL DEFAULT ''`,
+			name: "embedding_model column",
 		},
 	}
 	for _, m := range migrations {

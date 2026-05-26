@@ -2,14 +2,4 @@
 
 package db
 
-import "time"
-
 // EdgeRow is a flat struct matching the columns of the memory_edges table.
-type EdgeRow struct {
-	ID        string
-	FromID    string
-	ToID      string
-	EdgeType  string
-	Weight    float32
-	CreatedAt time.Time
-}

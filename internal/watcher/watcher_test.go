@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -204,5 +205,88 @@ func TestWatcherOffsetPersistence(t *testing.T) {
 	// w2 should have stored only 2 new messages (from saved offset).
 	if len(store2.calls) != 2 {
 		t.Errorf("w2: stored %d, want 2 (only new lines)", len(store2.calls))
+	}
+}
+
+func TestRepoForPath(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a fake git repo with go.mod.
+	gitDir := filepath.Join(dir, "myrepo")
+	if err := os.MkdirAll(filepath.Join(gitDir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gomod := "module github.com/example/myrepo\n\ngo 1.22\n"
+	if err := os.WriteFile(filepath.Join(gitDir, "go.mod"), []byte(gomod), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	subDir := filepath.Join(gitDir, "internal", "foo")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	filePath := filepath.Join(subDir, "bar.go")
+	got := RepoForPath(filePath)
+	if got != "github.com/example/myrepo" {
+		t.Errorf("RepoForPath = %q, want %q", got, "github.com/example/myrepo")
+	}
+}
+
+func TestRepoForPath_NoGitRoot(t *testing.T) {
+	// A path with no .git ancestor should return "".
+	dir := t.TempDir()
+	got := RepoForPath(filepath.Join(dir, "file.go"))
+	if got != "" {
+		t.Errorf("RepoForPath = %q, want empty", got)
+	}
+}
+
+func TestIngestFileStoresFilesTouched(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Default()
+	cfg.Watcher.StateFile = filepath.Join(dir, "state.json")
+	cfg.Watcher.Paths = []string{dir}
+
+	store := &mockStore{}
+	w, err := New(store, cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	// One user message + one assistant message with Read and Write tool_use blocks.
+	lines := []string{
+		`{"type":"user","message":{"role":"user","content":"do the thing"},"sessionId":"s1","cwd":"/"}`,
+		`{"type":"assistant","sessionId":"s1","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{"file_path":"/src/a.go"}},{"type":"tool_use","name":"Write","input":{"file_path":"/src/b.go"}}]}}`,
+	}
+	content := ""
+	for _, l := range lines {
+		content += l + "\n"
+	}
+	jsonlFile := filepath.Join(dir, "conv.jsonl")
+	if err := os.WriteFile(jsonlFile, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.ingestFile(context.Background(), jsonlFile); err != nil {
+		t.Fatalf("ingestFile: %v", err)
+	}
+
+	store.mu.Lock()
+	calls := append([]string(nil), store.calls...)
+	store.mu.Unlock()
+
+	// Expect: 1 content memory (user message) + 1 files-touched memory.
+	// The assistant message has no text content so ParseLine skips it;
+	// but ParseFilePaths extracts paths and storeFilesTouched fires.
+	var filesTouchedFound bool
+	for _, c := range calls {
+		if strings.Contains(c, "Files touched:") &&
+			strings.Contains(c, "/src/a.go") &&
+			strings.Contains(c, "/src/b.go") {
+			filesTouchedFound = true
+		}
+	}
+	if !filesTouchedFound {
+		t.Errorf("expected a 'Files touched' memory to be stored; got calls: %v", calls)
 	}
 }

@@ -9,17 +9,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync/atomic"
 	"time"
 )
 
 // OllamaEmbedder calls an OpenAI-compatible /v1/embeddings endpoint.
-type OllamaEmbedder struct {
-	baseURL string
-	model   string
-	client  *http.Client
-	dims    atomic.Int64
-}
 
 // NewOllamaEmbedder creates an OllamaEmbedder for the given endpoint and model.
 func NewOllamaEmbedder(baseURL, model string, timeoutS int) *OllamaEmbedder {

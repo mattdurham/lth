@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mattdurham/lth/pkg/lth"
@@ -41,6 +42,16 @@ func runStore(cmd *cobra.Command, args []string) error {
 	attrs := parseAttrs(storeAttrs)
 	if storeSource != "" {
 		attrs["source"] = storeSource
+	}
+
+	// Auto-capture working directory and repo name unless already set.
+	if _, ok := attrs["cwd"]; !ok {
+		if cwd, err := os.Getwd(); err == nil {
+			attrs["cwd"] = cwd
+			if _, ok := attrs["repo"]; !ok {
+				attrs["repo"] = filepath.Base(cwd)
+			}
+		}
 	}
 
 	client, err := lth.NewClient(globalCfg)

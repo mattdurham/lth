@@ -13,16 +13,8 @@ import (
 )
 
 // seedResponse is the LLM's structured output for the seed compaction path.
-type seedResponse struct {
-	Rules  []string    `json:"rules"`
-	Skills []seedSkill `json:"skills"`
-}
 
 // seedSkill holds a skill description and its tags.
-type seedSkill struct {
-	Content string `json:"content"`
-	Tags    string `json:"tags"`
-}
 
 // compactSeed auto-seeds L2/L3 from L5 history when those layers are sparse.
 // Runs before normal compaction in RunOnce. Uses semantic clustering (same as L5→L4)

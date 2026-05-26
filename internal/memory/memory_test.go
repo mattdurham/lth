@@ -67,7 +67,7 @@ func testMemoryStore(t *testing.T) *MemoryStore {
 	t.Cleanup(func() { _ = d.Close() })
 
 	g := graph.New(d)
-	emb := &mockEmbedder{dims: 768}
+	emb := &mockEmbedder{dims: 1024}
 	l := &mockLLM{response: "7"}
 	cfg := config.Default()
 
@@ -245,9 +245,9 @@ func TestSoftDeleteExcludes(t *testing.T) {
 	}
 }
 
-// makeTestEmbeddingBytes creates a 768-dim float32 embedding as little-endian bytes.
+// makeTestEmbeddingBytes creates a 1024-dim float32 embedding as little-endian bytes.
 func makeTestEmbeddingBytes(seed float32) []byte {
-	const dims = 768
+	const dims = 1024
 	b := make([]byte, dims*4)
 	for i := range dims {
 		v := seed * float32(i+1) / float32(dims)

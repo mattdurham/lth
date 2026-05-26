@@ -18,6 +18,7 @@ import (
 	"github.com/mattdurham/lth/internal/llm"
 	"github.com/mattdurham/lth/internal/memory"
 	"github.com/mattdurham/lth/internal/metrics"
+	"github.com/mattdurham/lth/internal/traces"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/watcher"
 	"github.com/prometheus/client_golang/prometheus"
@@ -140,7 +141,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	interval := time.Duration(globalCfg.Compaction.IntervalS) * time.Second
 
 	// Start metrics HTTP server.
-	metricsSrv := metrics.NewServer(metricsAddr, reg)
+	metricsSrv := metrics.NewServer(metricsAddr, reg, daemon.store)
 	go func() {
 		if srvErr := metricsSrv.Start(ctx); srvErr != nil && srvErr != http.ErrServerClosed {
 			slog.Error("metrics server error", "err", srvErr)
@@ -150,10 +151,21 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	// Start metrics refresh loop (updates memory layer gauges every 30s).
 	go metrics.RefreshLoop(ctx, daemon.store, m, 30*time.Second)
 
+	// Start OTLP traces receiver.
+	recv := traces.NewReceiver(daemon.store, daemon.g, daemon.d, slog.Default())
+	metricsSrv.SetReceiver(recv)
+	go recv.Start(ctx)
+
 	errCh := make(chan error, 2)
 	go func() { errCh <- w.Start(ctx) }()
 	go func() { errCh <- daemon.compactor.Run(ctx, interval) }()
-	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 50, 2*time.Second)
+	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 5, 10*time.Second)
+	go memory.BackfillImportance(ctx, daemon.d, daemon.llm, 5, 15*time.Second)
+	go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
+	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, globalCfg.Embedding.Model, 5, 10*time.Second)
+	if globalCfg.Sync.ServerURL != "" {
+		go autoSync(ctx, globalCfg)
+	}
 
 	slog.Info("daemon started", "pid", os.Getpid(), "metrics", metricsAddr)
 
@@ -170,13 +182,8 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 }
 
 // daemonComponents holds the internal components needed by the daemon.
-type daemonComponents struct {
-	store     memory.Store
-	ms        *memory.MemoryStore // concrete handle for Close (waits for async goroutines)
-	compactor *compactor.Compactor
-	d         *db.DB
-	llm       llm.LLM
-}
+
+// concrete handle for Close (waits for async goroutines)
 
 func (dc *daemonComponents) close() {
 	dc.ms.Close() // wait for all scoreImportanceAsync goroutines before closing DB
@@ -188,13 +195,13 @@ func (dc *daemonComponents) close() {
 // with instrumentation wrappers before being passed to the memory store.
 func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 	dbPath := globalCfg.DB.Path
-	d, err := db.Open(dbPath)
+	d, err := db.Open(dbPath, globalCfg.Embedding.Dim)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	var emb vector.Embedder = vector.NewEmbedder(globalCfg)
-	var l llm.LLM = llm.New(globalCfg)
+	emb := vector.NewEmbedder(globalCfg)
+	l := llm.New(globalCfg)
 
 	if m != nil {
 		emb = metrics.NewInstrumentedEmbedder(emb, globalCfg.Embedding.Provider, m)
@@ -216,6 +223,8 @@ func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 		ms:        ms,
 		compactor: c,
 		d:         d,
+		g:         g,
 		llm:       l,
+		emb:       emb,
 	}, nil
 }

@@ -12,12 +12,8 @@ import (
 )
 
 // adjacency represents a single directed edge in the adjacency cache.
-type adjacency struct {
-	neighborID string
-	edgeType   string
-	weight     float32
-	outgoing   bool // true = from→neighbor, false = neighbor→from
-}
+
+// true = from→neighbor, false = neighbor→from
 
 // Graph maintains an in-memory adjacency cache over the memory_edges SQLite table.
 type Graph struct {

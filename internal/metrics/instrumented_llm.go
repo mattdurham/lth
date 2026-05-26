@@ -10,11 +10,6 @@ import (
 )
 
 // InstrumentedLLM wraps an llm.LLM and records request metrics.
-type InstrumentedLLM struct {
-	inner    llm.LLM
-	provider string
-	m        *Metrics
-}
 
 // NewInstrumentedLLM wraps inner with Prometheus metrics recording.
 func NewInstrumentedLLM(inner llm.LLM, provider string, m *Metrics) llm.LLM {

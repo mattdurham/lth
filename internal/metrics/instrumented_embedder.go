@@ -10,11 +10,6 @@ import (
 )
 
 // InstrumentedEmbedder wraps a vector.Embedder and records request metrics.
-type InstrumentedEmbedder struct {
-	inner    vector.Embedder
-	provider string
-	m        *Metrics
-}
 
 // NewInstrumentedEmbedder wraps inner with Prometheus metrics recording.
 func NewInstrumentedEmbedder(inner vector.Embedder, provider string, m *Metrics) vector.Embedder {
