@@ -163,6 +163,9 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go memory.BackfillImportance(ctx, daemon.d, daemon.llm, 5, 15*time.Second)
 	go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
 	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, globalCfg.Embedding.Model, 5, 10*time.Second)
+	if globalCfg.Sync.ServerURL != "" {
+		go autoSync(ctx, globalCfg)
+	}
 
 	slog.Info("daemon started", "pid", os.Getpid(), "metrics", metricsAddr)
 

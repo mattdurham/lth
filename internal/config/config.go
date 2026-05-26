@@ -55,12 +55,12 @@ type Config struct {
 		Paths     []string `yaml:"paths"`
 		StateFile string   `yaml:"state_file"`
 	} `yaml:"watcher"`
-
 	Sync struct {
-		ServerURL string `yaml:"server_url"`
-		Account   string `yaml:"account"`
-		Org       string `yaml:"org"`
-		Team      string `yaml:"team"`
-		User      string `yaml:"user"`
+		ServerURL     string `yaml:"server_url"`
+		Account       string `yaml:"account"`
+		Org           string `yaml:"org"`
+		Team          string `yaml:"team"`
+		User          string `yaml:"user"`
+		AutoIntervalS int    `yaml:"auto_interval_s"`
 	} `yaml:"sync"`
 }

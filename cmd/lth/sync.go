@@ -10,12 +10,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/spf13/cobra"
@@ -569,4 +571,23 @@ func importMemoriesServerSource(ctx context.Context, d *db.DB, rc interface{ Rea
 		return imported, skipped, fmt.Errorf("scan lines: %w", err)
 	}
 	return imported, skipped, nil
+}
+func autoSync(ctx context.Context, cfg *config.Config) {
+	interval := time.Duration(cfg.Sync.AutoIntervalS) * time.Second
+	if interval <= 0 {
+		interval = 10 * time.Minute
+	}
+	slog.Info("auto-sync enabled", "server", cfg.Sync.ServerURL, "interval", interval)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case _ = <-ticker.C:
+			if err := runSyncBoth(nil, nil); err != nil {
+				slog.Warn("auto-sync failed", "err", err)
+			}
+		}
+	}
 }
