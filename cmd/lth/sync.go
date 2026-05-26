@@ -103,19 +103,27 @@ func effectiveSyncCfg() (syncCfg, error) {
 	}
 	return c, nil
 }
-
 func (s syncCfg) validate() error {
 	if s.serverURL == "" {
 		return fmt.Errorf("sync.server_url is not configured; set [sync] server_url in ~/.lth/config.toml")
 	}
 	if s.account == "" {
-		return fmt.Errorf("sync.account is not configured")
+		s.account = "default"
 	}
 	if s.org == "" {
-		return fmt.Errorf("sync.org is not configured")
+		s.org = "default"
 	}
 	if s.user == "" {
-		return fmt.Errorf("sync.user is not configured")
+		s.user = "default"
+	}
+	if globalCfg.Sync.Account == "default" {
+		return fmt.Errorf("sync.account: default is a reserved keyword")
+	}
+	if globalCfg.Sync.Org == "default" {
+		return fmt.Errorf("sync.org: default is a reserved keyword")
+	}
+	if globalCfg.Sync.User == "default" {
+		return fmt.Errorf("sync.user: default is a reserved keyword")
 	}
 	return nil
 }
