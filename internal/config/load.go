@@ -4,10 +4,9 @@ package config
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-
-	"github.com/BurntSushi/toml"
 )
 
 // Load reads a TOML configuration file from path and merges it over the defaults.
@@ -22,7 +21,7 @@ func Load(path string) (*Config, error) {
 	}
 	defer f.Close() //nolint:errcheck
 
-	if _, err := toml.NewDecoder(f).Decode(cfg); err != nil {
+	if err := yaml.NewDecoder(f).Decode(cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
@@ -79,7 +78,8 @@ func ConfigPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("get home dir: %w", err)
 	}
-	return filepath.Join(home, ".lth", "config.toml"), nil
+	return filepath.Join(home, ".lth", "config.yaml"), nil
+
 }
 
 // InitDefault writes the default configuration to path with explanatory comments.
