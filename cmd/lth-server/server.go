@@ -67,17 +67,19 @@ func expandHome(path string) string {
 	}
 	return filepath.Join(home, path[2:])
 }
-
 func (s *Server) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
-	mux.Handle("/v1/sync/push", &PushHandler{store: s.store, writer: s.writer, cfg: s.cfg})
-	mux.Handle("/v1/sync/pull", &PullHandler{store: s.store, reader: s.reader})
-	mux.Handle("/v1/observations", &ObserveHandler{store: s.store, writer: s.writer})
+	mux.Handle("/v1/sync/push", instrumentHandler("push", pushRequests, &PushHandler{store: s.store, writer: s.writer, cfg: s.cfg}))
+	mux.Handle("/v1/sync/pull", instrumentHandler("pull", pullRequests, &PullHandler{store: s.store, reader: s.reader}))
+	mux.Handle("/v1/observations", instrumentHandler("observe", obsRequests, &ObserveHandler{store:
+
+	// Start begins serving HTTP. Blocks until ctx is canceled.
+	s.store, writer: s.writer}))
+	mux.Handle("/metrics", metricsHandler())
 	return mux
 }
 
-// Start begins serving HTTP. Blocks until ctx is canceled.
 func (s *Server) Start(ctx context.Context) error {
 	s.srv = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.cfg.Port),
