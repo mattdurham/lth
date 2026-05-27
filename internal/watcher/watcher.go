@@ -301,8 +301,8 @@ func (w *Watcher) saveOffsets() error {
 	tmpName := tmp.Name()
 
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()           //nolint:errcheck
-		os.Remove(tmpName)    //nolint:errcheck
+		tmp.Close()        //nolint:errcheck
+		os.Remove(tmpName) //nolint:errcheck
 		return fmt.Errorf("write tmp offsets: %w", err)
 	}
 	if err := tmp.Close(); err != nil {

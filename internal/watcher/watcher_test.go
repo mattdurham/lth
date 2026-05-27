@@ -308,13 +308,19 @@ func (m *mockStoreWithAttrs) Store(_ context.Context, _ int, content string, att
 	m.mu.Unlock()
 	return &memory.Memory{Content: content}, nil
 }
-func (m *mockStoreWithAttrs) Get(_ context.Context, _ string) (*memory.Memory, error) { return nil, nil }
+func (m *mockStoreWithAttrs) Get(_ context.Context, _ string) (*memory.Memory, error) {
+	return nil, nil
+}
 func (m *mockStoreWithAttrs) Search(_ context.Context, _ *memory.SearchRequest) ([]*memory.ScoredMemory, error) {
 	return nil, nil
 }
-func (m *mockStoreWithAttrs) Stats(_ context.Context) (*memory.Stats, error)               { return &memory.Stats{}, nil }
-func (m *mockStoreWithAttrs) ListLayer(_ context.Context, _ int) ([]*memory.Memory, error) { return nil, nil }
-func (m *mockStoreWithAttrs) SoftDelete(_ context.Context, _ []string, _ string) error     { return nil }
+func (m *mockStoreWithAttrs) Stats(_ context.Context) (*memory.Stats, error) {
+	return &memory.Stats{}, nil
+}
+func (m *mockStoreWithAttrs) ListLayer(_ context.Context, _ int) ([]*memory.Memory, error) {
+	return nil, nil
+}
+func (m *mockStoreWithAttrs) SoftDelete(_ context.Context, _ []string, _ string) error { return nil }
 
 func TestWatcherIngestsWllrFile(t *testing.T) {
 	dir := t.TempDir()
