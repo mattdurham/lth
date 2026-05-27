@@ -1,4 +1,4 @@
-.PHONY: build test lint ci clean install install-cli install-skills uninstall bench-build benchmark bench-eval bench-all
+.PHONY: build test lint ci clean install install-cli install-skills install-server uninstall bench-build benchmark bench-eval bench-all
 
 build:
 	go build ./...
@@ -75,8 +75,34 @@ install-skills:
 		echo "✓ $$name installed to $(SKILLS_DIR)/$$name/SKILL.md"; \
 	done
 
-## uninstall: Remove lth CLI and skills
+## install-server: Build lth-server, install to ~/bin, install systemd user service, and (re)start it
+install-server:
+	@mkdir -p $(GOBIN)
+	go build -o $(GOBIN)/lth-server ./cmd/lth-server
+	@echo "✓ lth-server installed to $(GOBIN)/lth-server"
+	@mkdir -p $(HOME)/.config/lth-server
+	@if [ ! -f $(HOME)/.config/lth-server/config.yaml ]; then \
+		cp lth-server.service.example $(HOME)/.config/lth-server/config.yaml 2>/dev/null || \
+		printf 'port: 8090\nstorage:\n  provider: local\n  local_dir: ~/.lth-server\n' > $(HOME)/.config/lth-server/config.yaml; \
+		echo "✓ default config written to ~/.config/lth-server/config.yaml (edit as needed)"; \
+	else \
+		echo "  config already exists at ~/.config/lth-server/config.yaml"; \
+	fi
+	@mkdir -p $(HOME)/.config/systemd/user
+	cp lth-server.service $(HOME)/.config/systemd/user/lth-server.service
+	@echo "✓ systemd unit installed"
+	systemctl --user daemon-reload
+	systemctl --user enable lth-server
+	systemctl --user restart lth-server
+	@echo ""
+	@echo "lth-server running. Check status: systemctl --user status lth-server"
+	@echo "Logs: journalctl --user -u lth-server -f"
+
+## uninstall: Remove lth CLI, skills, and server service
 uninstall:
-	rm -f $(GOBIN)/lth
+	rm -f $(GOBIN)/lth $(GOBIN)/lth-server
 	rm -rf $(SKILLS_DIR)/lth-amnesia $(SKILLS_DIR)/lth-warmup $(SKILLS_DIR)/lth-brief $(SKILLS_DIR)/lth-reflect
+	-systemctl --user stop lth-server 2>/dev/null || true
+	-systemctl --user disable lth-server 2>/dev/null || true
+	rm -f $(HOME)/.config/systemd/user/lth-server.service
 	@echo "✓ lth uninstalled"
