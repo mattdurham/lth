@@ -56,3 +56,21 @@ existing TOML config file avoids a second config file on the client side.
 
 **Consequence:** Existing config files without a `[sync]` section load successfully (all fields zero/empty).
 The `lth sync` commands validate non-empty values at runtime.
+
+## 6. Default Watcher Paths Include Both ~/.claude/projects and ~/.wllr/sessions
+
+*Added: 2026-05-29*
+
+**Decision:** `Default()` now sets `Watcher.Paths` to `[~/.claude/projects, ~/.wllr/sessions]` instead
+of just `[~/.claude/projects]`.
+
+**Rationale:** lth now supports ingesting conversation history from both Claude CLI (`.claude/projects/`)
+and the wllr agent shell (`.wllr/sessions/`). The watcher detects the format of each file at ingest time
+via `detectFormat(path)` — paths containing `/.wllr/` use the wllr JSONL format; all others use the
+Claude format. Including both directories in the default config means new users automatically get full
+coverage without manual configuration.
+
+**Consequence:** Users who previously relied on `Default()` returning a single-element slice for
+`Watcher.Paths` must update any test assertions that check the exact length or contents of that slice.
+Existing config files with an explicit `watcher.paths` list are unaffected — `applyDefaults` only fills
+in the default when the loaded slice is empty.

@@ -12,3 +12,6 @@
 9. The `[sync]` section is optional. If `server_url` is empty, `lth sync` commands return an error
    without contacting any server. `account`, `org`, and `user` are required for sync commands; `team` is optional.
    Existing config files without a `[sync]` section load successfully with all sync fields empty.
+10. `Default()` returns `Watcher.Paths` containing both `~/.claude/projects` and `~/.wllr/sessions`
+    (in that order). Both paths are included so lth watches conversation history from both Claude CLI
+    and the wllr agent shell by default.

@@ -112,27 +112,59 @@ func (w *Watcher) ingestFile(ctx context.Context, path string) error {
 		return fmt.Errorf("seek to offset %d: %w", offset, err)
 	}
 
+	format := detectFormat(path)
+
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB line buffer
 
 	// sessionPaths accumulates touched file paths per session for this ingest batch.
+	// Only used for Claude-format files.
 	sessionPaths := make(map[string]map[string]struct{})
+
+	// carriedCWD holds the cwd from the wllr session header line and is applied
+	// to all subsequent message lines in the same file.
+	var carriedCWD string
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
 
-		// Collect file paths from tool_use blocks — independent of text content.
-		if filePaths, sid := ParseFilePaths(line); len(filePaths) > 0 {
-			if sessionPaths[sid] == nil {
-				sessionPaths[sid] = make(map[string]struct{})
+		var content, sessionID, cwd string
+		var skip bool
+
+		if format == FormatWllr {
+			// ParseWllrLine returns the session cwd in the cwd return value only for
+			// session-type lines (skip=true). For message lines, cwd is empty and the
+			// caller should use carriedCWD.
+			var sessionCWD string
+			content, sessionID, sessionCWD, _, skip, err = ParseWllrLine(line, carriedCWD)
+			if err != nil {
+				continue
 			}
-			for _, fp := range filePaths {
-				sessionPaths[sid][fp] = struct{}{}
+			if sessionCWD != "" {
+				carriedCWD = sessionCWD
+			}
+			// For message lines, ParseWllrLine already embedded carriedCWD into the
+			// returned content record's cwd via the carriedCWD argument; the returned
+			// cwd field from ParseWllrLine for message lines is empty (session cwd only).
+			// We use carriedCWD directly for the attrs.
+			cwd = carriedCWD
+		} else {
+			// Claude format: collect file paths from tool_use blocks independently.
+			if filePaths, sid := ParseFilePaths(line); len(filePaths) > 0 {
+				if sessionPaths[sid] == nil {
+					sessionPaths[sid] = make(map[string]struct{})
+				}
+				for _, fp := range filePaths {
+					sessionPaths[sid][fp] = struct{}{}
+				}
+			}
+			content, sessionID, cwd, _, skip, err = ParseLine(line)
+			if err != nil {
+				continue
 			}
 		}
 
-		content, sessionID, cwd, _, skip, err := ParseLine(line)
-		if err != nil || skip || content == "" {
+		if skip || content == "" {
 			continue
 		}
 
@@ -147,7 +179,7 @@ func (w *Watcher) ingestFile(ctx context.Context, path string) error {
 		}
 	}
 
-	// Store one compact "files touched" memory per session seen in this batch.
+	// Store one compact "files touched" memory per session seen in this batch (Claude only).
 	for sid, paths := range sessionPaths {
 		w.storeFilesTouched(ctx, sid, paths)
 	}
