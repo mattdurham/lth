@@ -72,7 +72,10 @@ func Default() *Config {
 	cfg.Search.Alpha = 0.333
 	cfg.Search.Beta = 0.333
 	cfg.Search.Gamma = 0.333
-	cfg.Watcher.Paths = []string{filepath.Join(home, ".claude", "projects")}
+	cfg.Watcher.Paths = []string{
+		filepath.Join(home, ".claude", "projects"),
+		filepath.Join(home, ".wllr", "sessions"),
+	}
 	cfg.Watcher.StateFile = filepath.Join(lthDir, "watcher-state.json")
 
 	return cfg
@@ -149,6 +152,7 @@ search:
 # watcher:
 #   paths:
 #     - "~/.claude/projects"
+#     - "~/.wllr/sessions"
 
 # sync:
 #   server_url: ""

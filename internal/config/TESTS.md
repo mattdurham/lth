@@ -37,3 +37,6 @@
 - `Compaction.L5Threshold` == 50
 - `Search.DefaultTopK` == 10
 - `Search.Alpha` > 0
+- `Watcher.Paths` has length 2
+- `Watcher.Paths[0]` ends with `.claude/projects`
+- `Watcher.Paths[1]` ends with `.wllr/sessions`

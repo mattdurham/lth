@@ -38,3 +38,61 @@
 **Setup:** Write 5 lines; ingest; write 5 more; create new watcher from saved state; ingest.
 
 **Assertions:** Only the 5 new lines are ingested in the second pass.
+
+## TestDetectFormat
+
+**Scenario:** Table-driven tests for format detection by file path.
+
+**Cases:**
+- Path containing `/.wllr/` → `FormatWllr`
+- Path containing `/.claude/` → `FormatClaude`
+- Other path → `FormatClaude`
+- Empty path → `FormatClaude`
+
+## TestParseWllrLine
+
+**Scenario:** Table-driven tests for wllr JSONL line parsing.
+
+**Setup:** Various wllr JSONL line strings with different types and roles.
+
+**Cases:**
+- Session line with cwd → `skip=true`, cwd returned from JSON
+- Session line with empty cwd → `skip=true`, empty cwd returned
+- User message with string content → `skip=false`, content returned, cwd empty (caller uses carriedCWD)
+- Assistant message with string content → `skip=false`, content returned
+- System role message → `skip=true`
+- Unknown role message → `skip=true`
+- Empty content message → `skip=true`
+- `tool_call` type → `skip=true`
+- Unknown type → `skip=true`
+- Invalid JSON → `skip=true`, err non-nil
+- Message with text block array content → `skip=false`, text extracted
+- Message with `cwd` field on the line → field ignored; caller's `carriedCWD` is used
+
+**Assertions:** `skip`, `content`, `cwd`, `sessionID` match expected values per case.
+
+## TestParseWllrLineCarriedCWD
+
+**Scenario:** Simulate real caller pattern — parse session line to get cwd, pass as carriedCWD to message line.
+
+**Setup:** Session line with `cwd="/home/user/myproject"`, followed by a user message line.
+
+**Assertions:**
+- Session line: `skip=true`, returned `cwd == "/home/user/myproject"`
+- Message line (with session cwd as carriedCWD): `skip=false`, `content == "what does lth do?"`
+- `ParseWllrLine` returns empty cwd for message lines — caller uses `carriedCWD` directly for attrs
+
+## TestWatcherIngestsWllrFile
+
+**Scenario:** Integration test — ingest a wllr JSONL file; verify correct memories stored with cwd from session header.
+
+**Setup:**
+- Temp dir path containing `/.wllr/` so `detectFormat` returns `FormatWllr`
+- JSONL file with: session line (`cwd="/home/user/project"`), user message, assistant message, tool_call line
+
+**Assertions:**
+- `store.Store` called exactly 2 times (user + assistant messages only)
+- Session line not stored as a memory
+- `tool_call` line not stored as a memory
+- Both stored memories have `attrs["cwd"] == "/home/user/project"` (carried from session header)
+- Content matches the user and assistant message text
