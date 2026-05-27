@@ -3,7 +3,7 @@
 // Package config provides configuration loading and defaults for lth.
 package config
 
-// Config holds all lth configuration loaded from ~/.lth/config.toml.
+// Config holds all lth configuration loaded from ~/.lth/config.yaml.
 type Config struct {
 	DB struct {
 		Path string `yaml:"path"`
