@@ -79,25 +79,23 @@ func (s *Server) buildMux() *http.ServeMux {
 	))
 	return mux
 }
-
 func (s *Server) Start(ctx context.Context) error {
-	s.srv = &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.cfg.Port),
-		Handler:      http.MaxBytesHandler(s.buildMux(), 100*1024*1024),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 120 * time.Second,
-	}
+	s.srv = &http.Server{Addr: fmt.Sprintf("%s:%d", s.cfg.BindAddr, s.cfg.Port), Handler: http.MaxBytesHandler(s.buildMux(), 100*1024*1024), ReadTimeout: 30 * time.Second, WriteTimeout: 120 * time.Second}
 	errCh := make(chan error, 1)
-	go func() { errCh <- s.srv.ListenAndServe() }()
+	go func() {
+		errCh <- s.srv.ListenAndServe()
+	}()
 	select {
 	case <-ctx.Done():
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return s.srv.Shutdown(shutCtx) //nolint:contextcheck
+		return s.srv.Shutdown(shutCtx)
 	case err := <-errCh:
 		return err
 	}
 }
+
+//nolint:contextcheck
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
