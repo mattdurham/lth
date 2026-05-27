@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -73,4 +74,29 @@ func instrumentHandler(name string, counter *prometheus.CounterVec, h http.Handl
 		defer timer.ObserveDuration()
 		h.ServeHTTP(w, r)
 	})
+}
+
+func (rc *responseCapture) Write(b []byte) (int, error) {
+	rc.body = append(rc.body, b...)
+	return rc.ResponseWriter.Write(b)
+}
+
+func pushMetricsHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rc := &responseCapture{ResponseWriter: w}
+		pushRequests.WithLabelValues("ok").Inc()
+		timer := prometheus.NewTimer(requestDuration.WithLabelValues("push"))
+		defer timer.ObserveDuration()
+		h.ServeHTTP(rc, r)
+		resp := pushResponse{}
+		if json.Unmarshal(rc.body, &resp) == nil {
+			memoriesAccepted.Add(float64(resp.Accepted))
+			memoriesSkipped.Add(float64(resp.Skipped))
+		}
+	})
+}
+
+type responseCapture struct {
+	http.ResponseWriter
+	body []byte
 }

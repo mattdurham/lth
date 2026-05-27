@@ -70,13 +70,13 @@ func expandHome(path string) string {
 func (s *Server) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
-	mux.Handle("/v1/sync/push", instrumentHandler("push", pushRequests, &PushHandler{store: s.store, writer: s.writer, cfg: s.cfg}))
+	mux.Handle("/v1/sync/push", pushMetricsHandler(&PushHandler{store: s.store, writer: s.writer, cfg: s.cfg}))
 	mux.Handle("/v1/sync/pull", instrumentHandler("pull", pullRequests, &PullHandler{store: s.store, reader: s.reader}))
-	mux.Handle("/v1/observations", instrumentHandler("observe", obsRequests, &ObserveHandler{store:
+	mux.Handle("/v1/observations", instrumentHandler("observe", obsRequests, &ObserveHandler{store: s.store, writer: s.writer}))
+	mux.Handle("/metrics", metricsHandler(
 
 	// Start begins serving HTTP. Blocks until ctx is canceled.
-	s.store, writer: s.writer}))
-	mux.Handle("/metrics", metricsHandler())
+	))
 	return mux
 }
 
