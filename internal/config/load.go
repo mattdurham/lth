@@ -46,10 +46,11 @@ func Default() *Config {
 	cfg.DB.Path = filepath.Join(lthDir, "memory.db")
 	cfg.Embedding.Provider = "huggingface"
 	cfg.Embedding.AutoDocker = true
-	cfg.Embedding.DockerImage = "ghcr.io/huggingface/text-embeddings-inference:cpu-latest"
+	cfg.Embedding.DockerImage = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
 	cfg.Embedding.DockerPort = 8080
 	cfg.Embedding.BaseURL = "http://localhost:8080"
-	cfg.Embedding.Model = "BAAI/bge-base-en-v1.5"
+	cfg.Embedding.Model = "nomic-ai/nomic-embed-text-v1.5"
+	cfg.Embedding.Dim = 768
 	cfg.Embedding.TimeoutS = 30
 	cfg.LLM.Provider = "anthropic"
 	cfg.LLM.BaseURL = "http://localhost:11434"
@@ -110,10 +111,11 @@ embedding:
   # HuggingFace TEI embedding server (auto-started via Docker on first use).
   provider: huggingface
   base_url: "http://localhost:8080"
-  model: "BAAI/bge-base-en-v1.5"
+  model: "nomic-ai/nomic-embed-text-v1.5"
+  dim: 768
   timeout_s: 30
   auto_docker: true
-  docker_image: "ghcr.io/huggingface/text-embeddings-inference:cpu-latest"
+  docker_image: "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
   docker_port: 8080
 
 llm:
@@ -200,11 +202,10 @@ func applyEmbeddingDefaults(cfg, def *Config) {
 		}
 	}
 	if cfg.Embedding.Model == "" {
-		if cfg.Embedding.Provider == "huggingface" {
-			cfg.Embedding.Model = "BAAI/bge-base-en-v1.5"
-		} else {
-			cfg.Embedding.Model = def.Embedding.Model
-		}
+		cfg.Embedding.Model = def.Embedding.Model
+	}
+	if cfg.Embedding.Dim == 0 {
+		cfg.Embedding.Dim = def.Embedding.Dim
 	}
 	if cfg.Embedding.TimeoutS == 0 {
 		cfg.Embedding.TimeoutS = def.Embedding.TimeoutS
