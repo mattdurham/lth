@@ -74,7 +74,7 @@ func isDaemonExempt(cmd *cobra.Command) bool {
 	path := cmd.CommandPath()
 	words := strings.Fields(path)
 	for _, w := range words {
-		if w == "watch" || w == "config" || w == "compact" {
+		if w == "watch" || w == "config" || w == "compact" || w == "export" || w == "import" {
 			return true
 		}
 	}

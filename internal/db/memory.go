@@ -23,12 +23,12 @@ func (d *DB) InsertMemory(ctx context.Context, m *MemoryRow) error {
 INSERT INTO memories
 	(id, layer, content, content_hash, embedding, importance, access_count,
 	 created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent,
-	 valence, valence_scored)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	 valence, valence_scored, embedding_model)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			m.ID, m.Layer, m.Content, m.ContentHash, m.Embedding, m.Importance, m.AccessCount,
 			m.CreatedAt.UTC(), m.UpdatedAt.UTC(), m.LastAccessedAt.UTC(),
 			m.DecayRate, m.Stability, m.Source, m.Agent,
-			m.Valence, m.ValenceScored,
+			m.Valence, m.ValenceScored, m.EmbeddingModel,
 		)
 		if err != nil {
 			return fmt.Errorf("insert memory: %w", err)
@@ -66,7 +66,7 @@ func (d *DB) GetMemory(ctx context.Context, id string) (*MemoryRow, error) {
 		row := d.db.QueryRowContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories WHERE id = ?`, id)
 		m, err := scanMemoryRow(row)
 		if err != nil {
@@ -82,8 +82,8 @@ FROM memories WHERE id = ?`, id)
 	rows, err := d.db.QueryContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
-FROM memories WHERE id LIKE ? AND compacted_at IS NULL`, id+"%")
+       valence, valence_scored, embedding_model
+FROM memories WHERE id LIKE ?`, id+"%")
 	if err != nil {
 		return nil, fmt.Errorf("get memory prefix: %w", err)
 	}
@@ -109,7 +109,7 @@ func (d *DB) GetByHash(ctx context.Context, hash string) (*MemoryRow, error) {
 	row := d.db.QueryRowContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories WHERE content_hash = ?`, hash)
 
 	m, err := scanMemoryRow(row)
@@ -149,7 +149,7 @@ func (d *DB) ListLayer(ctx context.Context, layer int, activeOnly bool) ([]*Memo
 	query := `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories WHERE layer = ?`
 	if activeOnly {
 		query += ` AND compacted_at IS NULL`
@@ -210,7 +210,7 @@ func (d *DB) ListUnscored(ctx context.Context, limit int) ([]*MemoryRow, error) 
 	rows, err := d.db.QueryContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
-       valence, valence_scored
+       valence, valence_scored, embedding_model
 FROM memories
 WHERE valence_scored = 0 AND compacted_at IS NULL
 ORDER BY created_at ASC
@@ -221,6 +221,70 @@ LIMIT ?`, limit)
 	defer rows.Close() //nolint:errcheck
 
 	return scanMemoryRows(rows)
+}
+
+// ListUnimportant returns up to limit memories where importance equals the default 5.0,
+// indicating the LLM has not yet scored them. Used by the BackfillImportance goroutine.
+func (d *DB) ListUnimportant(ctx context.Context, limit int) ([]*MemoryRow, error) {
+	rows, err := d.db.QueryContext(ctx, `
+SELECT id, layer, content, content_hash, embedding, importance, access_count,
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored, embedding_model
+FROM memories
+WHERE importance = 5.0 AND compacted_at IS NULL
+ORDER BY created_at ASC
+LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list unimportant: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+	return scanMemoryRows(rows)
+}
+
+// ListUntagged returns up to limit memories that have no 'tags' attribute,
+// indicating the LLM has not yet extracted tags. Used by the BackfillTags goroutine.
+func (d *DB) ListUntagged(ctx context.Context, limit int) ([]*MemoryRow, error) {
+	rows, err := d.db.QueryContext(ctx, `
+SELECT id, layer, content, content_hash, embedding, importance, access_count,
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored, embedding_model
+FROM memories
+WHERE compacted_at IS NULL
+  AND id NOT IN (SELECT mem_id FROM memory_attributes WHERE key = 'tags')
+ORDER BY created_at ASC
+LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list untagged: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+	return scanMemoryRows(rows)
+}
+
+// ListUnembedded returns up to limit memories where embedding is NULL or empty and compacted_at IS NULL.
+// Used by the BackfillEmbeddings goroutine in the daemon.
+func (d *DB) ListUnembedded(ctx context.Context, limit int) ([]*MemoryRow, error) {
+	rows, err := d.db.QueryContext(ctx, `
+SELECT id, layer, content, content_hash, embedding, importance, access_count,
+       created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
+       valence, valence_scored, embedding_model
+FROM memories
+WHERE (embedding IS NULL OR length(embedding) = 0) AND compacted_at IS NULL
+ORDER BY created_at ASC
+LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list unembedded: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+
+	return scanMemoryRows(rows)
+}
+
+// UpdateEmbedding sets the embedding field for a memory. Used by the BackfillEmbeddings goroutine.
+func (d *DB) UpdateEmbedding(ctx context.Context, id string, embedding []byte, model string) error {
+	_, err := d.db.ExecContext(ctx,
+		`UPDATE memories SET embedding = ?, embedding_model = ? WHERE id = ?`,
+		embedding, model, id)
+	return err
 }
 
 // UpdateImportance sets the importance field for a memory. Used by the async importance goroutine.
@@ -252,7 +316,7 @@ func scanMemoryRow(row *sql.Row) (*MemoryRow, error) {
 		&m.ID, &m.Layer, &m.Content, &m.ContentHash, &embBlob, &m.Importance, &m.AccessCount,
 		&m.CreatedAt, &m.UpdatedAt, &m.LastAccessedAt, &m.DecayRate, &m.Stability,
 		&m.Source, &m.Agent, &compactedAt,
-		&m.Valence, &m.ValenceScored,
+		&m.Valence, &m.ValenceScored, &m.EmbeddingModel,
 	)
 	if err != nil {
 		return nil, err
@@ -278,7 +342,7 @@ func scanMemoryRows(rows *sql.Rows) ([]*MemoryRow, error) {
 			&m.ID, &m.Layer, &m.Content, &m.ContentHash, &embBlob, &m.Importance, &m.AccessCount,
 			&m.CreatedAt, &m.UpdatedAt, &m.LastAccessedAt, &m.DecayRate, &m.Stability,
 			&m.Source, &m.Agent, &compactedAt,
-			&m.Valence, &m.ValenceScored,
+			&m.Valence, &m.ValenceScored, &m.EmbeddingModel,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory row: %w", err)

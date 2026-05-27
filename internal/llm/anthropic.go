@@ -18,12 +18,8 @@ const anthropicVersion = "2023-06-01"
 const anthropicMaxTokens = 1024
 
 // AnthropicLLM calls the Anthropic Messages API.
-type AnthropicLLM struct {
-	apiKey  string
-	model   string
-	client  *http.Client
-	baseURL string // configurable for testing; defaults to anthropicAPIURL
-}
+
+// configurable for testing; defaults to anthropicAPIURL
 
 // Compile-time interface check.
 var _ LLM = (*AnthropicLLM)(nil)
@@ -37,24 +33,6 @@ func NewAnthropicLLM(apiKey, model string, timeoutS int) *AnthropicLLM {
 		client:  &http.Client{Timeout: time.Duration(timeoutS) * time.Second},
 		baseURL: anthropicAPIURL,
 	}
-}
-
-type anthropicRequest struct {
-	Model     string             `json:"model"`
-	MaxTokens int                `json:"max_tokens"`
-	Messages  []anthropicMessage `json:"messages"`
-}
-
-type anthropicMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type anthropicResponse struct {
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
 }
 
 // Complete sends a user prompt to the Anthropic Messages API and returns the text response.

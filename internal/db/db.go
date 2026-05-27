@@ -19,7 +19,7 @@ type DB struct {
 
 // Open opens (or creates) the SQLite database at path with WAL mode, foreign keys,
 // and busy timeout enabled. It creates the schema if it does not exist.
-func Open(path string) (*DB, error) {
+func Open(path string, embedDim int) (*DB, error) {
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)", path)
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -40,9 +40,17 @@ func Open(path string) (*DB, error) {
 	}
 
 	d := &DB{db: sqlDB}
-	if err := d.createSchema(); err != nil {
+	if err := d.createSchema(embedDim); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("create schema: %w", err)
+	}
+
+	// When embedDim > 0, check if vec table dimension matches config; recreate if not.
+	if embedDim > 0 {
+		if err := d.ensureVecDim(embedDim); err != nil {
+			_ = sqlDB.Close()
+			return nil, fmt.Errorf("ensure vec dim: %w", err)
+		}
 	}
 
 	return d, nil

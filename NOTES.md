@@ -67,3 +67,42 @@ as default; callers can override for different retrieval behaviors.
 
 **Consequence:** L1 memories (decay_rate=0) are permanent; their time component stays at
 `exp(0) = 1.0`. L5 memories decay quickly (decay_rate=0.5).
+
+## 6. Web UI and Search API on the Daemon HTTP Server
+
+*Added: 2026-05-14*
+
+**Decision:** Extend the existing daemon HTTP server (`:10010`) with a JSON search API
+(`POST /api/search`, `GET /api/stats`) and a self-contained single-page web UI at `/ui`.
+The `metrics.Server` struct receives a `memory.Store` reference at construction; a `withStore`
+guard returns 503 when no store is attached (e.g. tests).
+
+**Rationale:** The daemon already owns an HTTP server for Prometheus metrics. Adding the search
+API to the same server avoids a second listener, a second port, and a second process lifecycle.
+The web UI fires parallel per-layer fetch calls (one "agent" per layer L1–L5), mirroring the
+multi-agent fan-out pattern used in orchestration workflows, making the parallel search structure
+visually explicit in the UI.
+
+**Consequence:** Callers of `metrics.NewServer` must pass a `memory.Store` (or `nil`). All API
+endpoints degrade gracefully to 503 when the store is nil, so tests that only exercise metrics
+endpoints are unaffected.
+
+## 7. Auto-Context Generation via `lth prompt` and Skills
+
+*Added: 2026-05-15*
+
+**Decision:** Added `lth prompt <query>` command, three skills (lth-warmup, lth-brief, lth-reflect), and a hook (lth-inject.sh) to automatically inject memory context into agent workflows.
+
+**Rationale:** Agents bootstrapping from lth were repeating the same 3-search pattern independently. `lth prompt` centralizes this into one command that outputs a ready-to-embed structured block. Skills and hooks wire this into workflows without requiring each agent to know the search pattern.
+
+**Consequence:** Skills calling `lth prompt` depend on the daemon. The UserPromptSubmit hook is opt-in and only fires for workflow commands (/bob:work, /bob:explore, /lth:brief).
+
+## 8. Export/Import for Full DB Reconstruction
+
+*Added: 2026-05-15*
+
+**Decision:** Export and import bypass pkg/lth client and open internal/db directly (same pattern as compact.go) to preserve original embeddings, timestamps, importance, and valence exactly.
+
+**Rationale:** client.Store() re-embeds every memory (requires running embedding server) and resets importance/valence to defaults. Direct DB insertion gives exact reconstruction.
+
+**Consequence:** Export/import are daemon-exempt. The zip format (chunked JSONL + manifest.json) allows partial imports and is human-inspectable with any zip tool.

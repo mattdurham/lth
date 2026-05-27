@@ -14,7 +14,7 @@ import (
 	"github.com/mattdurham/lth/internal/db"
 )
 
-const testDims = 768
+const testDims = 1024
 
 // makeEmbedding creates a deterministic float32 embedding encoded as little-endian bytes.
 func makeEmbedding(seed float32) []byte {

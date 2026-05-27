@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const testEmbeddingDims = 768
+const testEmbeddingDims = 1024
 
 // makeTestEmbedding creates a deterministic 768-float32 embedding as little-endian bytes.
 // The seed controls the direction of the vector.

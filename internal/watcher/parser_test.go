@@ -66,6 +66,68 @@ func TestParseLine(t *testing.T) {
 	}
 }
 
+func TestParseFilePaths(t *testing.T) {
+	tests := []struct {
+		name      string
+		line      string
+		wantPaths []string
+		wantSID   string
+	}{
+		{
+			name:      "read tool_use",
+			line:      `{"type":"assistant","sessionId":"s1","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{"file_path":"/src/foo.go"}}]}}`,
+			wantPaths: []string{"/src/foo.go"},
+			wantSID:   "s1",
+		},
+		{
+			name:      "write and edit tool_use",
+			line:      `{"type":"assistant","sessionId":"s2","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"/src/a.go"}},{"type":"tool_use","name":"Edit","input":{"file_path":"/src/b.go"}}]}}`,
+			wantPaths: []string{"/src/a.go", "/src/b.go"},
+			wantSID:   "s2",
+		},
+		{
+			name:      "bash tool_use ignored",
+			line:      `{"type":"assistant","sessionId":"s3","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","input":{"command":"go build"}}]}}`,
+			wantPaths: nil,
+			wantSID:   "",
+		},
+		{
+			name:      "user message ignored",
+			line:      `{"type":"user","sessionId":"s4","message":{"role":"user","content":[{"type":"tool_use","name":"Read","input":{"file_path":"/src/foo.go"}}]}}`,
+			wantPaths: nil,
+			wantSID:   "",
+		},
+		{
+			name:      "text block only",
+			line:      `{"type":"assistant","sessionId":"s5","message":{"role":"assistant","content":[{"type":"text","text":"hello"}]}}`,
+			wantPaths: nil,
+			wantSID:   "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			paths, sid := ParseFilePaths([]byte(tc.line))
+			if tc.wantPaths == nil && len(paths) != 0 {
+				t.Errorf("paths = %v, want nil", paths)
+			}
+			if tc.wantSID != sid {
+				t.Errorf("sessionID = %q, want %q", sid, tc.wantSID)
+			}
+			if len(tc.wantPaths) > 0 {
+				if len(paths) != len(tc.wantPaths) {
+					t.Fatalf("len(paths) = %d, want %d: %v", len(paths), len(tc.wantPaths), paths)
+				}
+				for i, p := range tc.wantPaths {
+					if paths[i] != p {
+						t.Errorf("paths[%d] = %q, want %q", i, paths[i], p)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestExtractContent(t *testing.T) {
 	tests := []struct {
 		name string

@@ -11,7 +11,7 @@ import (
 
 func TestLoadDefaults(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
+	path := filepath.Join(dir, "config.yaml")
 	if err := os.WriteFile(path, []byte(""), 0o600); err != nil {
 		t.Fatalf("write empty config: %v", err)
 	}
@@ -51,9 +51,9 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadOverrides(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-	content := `[db]
-path = "/custom/memory.db"
+	path := filepath.Join(dir, "config.yaml")
+	content := `db:
+  path: "/custom/memory.db"
 `
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -76,22 +76,22 @@ path = "/custom/memory.db"
 
 func TestLoadInvalid(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-	if err := os.WriteFile(path, []byte("key = [invalid"), 0o600); err != nil {
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("key: [invalid"), 0o600); err != nil {
 		t.Fatalf("write invalid config: %v", err)
 	}
 
 	cfg, err := Load(path)
 	if err == nil {
-		t.Error("Load(invalid TOML): expected error, got nil")
+		t.Error("Load(invalid YAML): expected error, got nil")
 	}
 	if cfg != nil {
-		t.Errorf("Load(invalid TOML): expected nil cfg, got %+v", cfg)
+		t.Errorf("Load(invalid YAML): expected nil cfg, got %+v", cfg)
 	}
 }
 
 func TestLoadMissing(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "nonexistent.toml")
+	path := filepath.Join(t.TempDir(), "nonexistent.yaml")
 
 	cfg, err := Load(path)
 	if err == nil {
@@ -110,8 +110,8 @@ func TestConfigPath(t *testing.T) {
 	if !strings.Contains(path, ".lth") {
 		t.Errorf("ConfigPath = %q, want path containing .lth", path)
 	}
-	if !strings.Contains(path, "config.toml") {
-		t.Errorf("ConfigPath = %q, want path containing config.toml", path)
+	if !strings.Contains(path, "config.yaml") {
+		t.Errorf("ConfigPath = %q, want path containing config.yaml", path)
 	}
 }
 
@@ -127,8 +127,8 @@ func TestDefault(t *testing.T) {
 	if cfg.Embedding.BaseURL != "http://localhost:8080" {
 		t.Errorf("Embedding.BaseURL = %q, want http://localhost:8080", cfg.Embedding.BaseURL)
 	}
-	if cfg.Embedding.Model != "BAAI/bge-base-en-v1.5" {
-		t.Errorf("Embedding.Model = %q, want BAAI/bge-base-en-v1.5", cfg.Embedding.Model)
+	if cfg.Embedding.Model != "nomic-ai/nomic-embed-text-v1.5" {
+		t.Errorf("Embedding.Model = %q, want nomic-ai/nomic-embed-text-v1.5", cfg.Embedding.Model)
 	}
 	if cfg.Embedding.TimeoutS != 30 {
 		t.Errorf("Embedding.TimeoutS = %d, want 30", cfg.Embedding.TimeoutS)
@@ -156,7 +156,7 @@ func TestDefault(t *testing.T) {
 func TestInitDefault(t *testing.T) {
 	t.Run("creates new file", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.toml")
+		path := filepath.Join(dir, "config.yaml")
 		if err := InitDefault(path, false); err != nil {
 			t.Fatalf("InitDefault: %v", err)
 		}
@@ -175,7 +175,7 @@ func TestInitDefault(t *testing.T) {
 
 	t.Run("returns error if file exists without force", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.toml")
+		path := filepath.Join(dir, "config.yaml")
 		if err := InitDefault(path, false); err != nil {
 			t.Fatalf("first InitDefault: %v", err)
 		}
@@ -187,7 +187,7 @@ func TestInitDefault(t *testing.T) {
 
 	t.Run("force overwrites existing file", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.toml")
+		path := filepath.Join(dir, "config.yaml")
 		if err := InitDefault(path, false); err != nil {
 			t.Fatalf("first InitDefault: %v", err)
 		}
@@ -201,7 +201,7 @@ func TestInitDefault(t *testing.T) {
 
 	t.Run("creates intermediate directories", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "nested", "subdir", "config.toml")
+		path := filepath.Join(dir, "nested", "subdir", "config.yaml")
 		if err := InitDefault(path, false); err != nil {
 			t.Fatalf("InitDefault with nested path: %v", err)
 		}

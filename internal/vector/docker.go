@@ -85,14 +85,20 @@ func runNewContainer(cfg *config.Config) error {
 	port := fmt.Sprintf("%d:80", cfg.Embedding.DockerPort)
 
 	//nolint:gosec // G204: docker command uses config values, not user input
-	cmd := exec.Command("docker", "run", "-d",
+	args := []string{
+		"run", "-d",
 		"--name", containerName,
 		"-p", port,
-		"-v", cacheDir+":/data",
+		"-v", cacheDir + ":/data",
 		cfg.Embedding.DockerImage,
 		"--model-id", cfg.Embedding.Model,
 		"--port", "80",
-	)
+	}
+	if cfg.Embedding.TrustRemoteCode {
+		args = append(args, "--trust-remote-code")
+	}
+	//nolint:gosec // G204: docker command uses config values, not user input
+	cmd := exec.Command("docker", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("start embedding container: %w\n%s", err, out)
 	}

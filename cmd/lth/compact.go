@@ -31,7 +31,7 @@ func init() {
 }
 
 func runCompact(cmd *cobra.Command, _ []string) error {
-	d, err := db.Open(globalCfg.DB.Path)
+	d, err := db.Open(globalCfg.DB.Path, 0)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}

@@ -13,11 +13,6 @@ import (
 )
 
 // OllamaLLM implements the LLM interface via the OpenAI-compatible /v1/chat/completions endpoint.
-type OllamaLLM struct {
-	baseURL string
-	model   string
-	client  *http.Client
-}
 
 // NewOllamaLLM creates a new OllamaLLM with the given base URL, model, and timeout.
 func NewOllamaLLM(baseURL, model string, timeoutS int) *OllamaLLM {
@@ -31,24 +26,6 @@ func NewOllamaLLM(baseURL, model string, timeoutS int) *OllamaLLM {
 			Timeout: time.Duration(timeoutS) * time.Second,
 		},
 	}
-}
-
-type chatRequest struct {
-	Model    string        `json:"model"`
-	Messages []chatMessage `json:"messages"`
-}
-
-type chatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type chatResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
 }
 
 // Complete sends a user prompt to the LLM and returns the text response.

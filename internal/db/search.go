@@ -81,7 +81,7 @@ func (d *DB) FTSSearch(ctx context.Context, query string, layers []int, limit in
 	sqlQuery := fmt.Sprintf(`
 SELECT m.id, m.layer, m.content, m.content_hash, m.embedding, m.importance, m.access_count,
        m.created_at, m.updated_at, m.last_accessed_at, m.decay_rate, m.stability,
-       m.source, m.agent, m.compacted_at, m.valence, m.valence_scored
+       m.source, m.agent, m.compacted_at, m.valence, m.valence_scored, m.embedding_model
 FROM memories m
 JOIN memories_fts fts ON fts.rowid = m.rowid
 WHERE fts.content MATCH ? AND m.compacted_at IS NULL

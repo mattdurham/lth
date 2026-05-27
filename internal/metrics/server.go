@@ -8,20 +8,31 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/mattdurham/lth/internal/memory"
+	"github.com/mattdurham/lth/internal/traces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Server serves Prometheus metrics and a simple HTML status dashboard.
+// Server serves Prometheus metrics, a search API, and the web UI.
 type Server struct {
-	addr string
-	reg  *prometheus.Registry
-	srv  *http.Server
+	addr     string
+	reg      *prometheus.Registry
+	store    memory.Store
+	srv      *http.Server
+	receiver *traces.Receiver // optional /v1/traces handler; nil = endpoint disabled
 }
 
 // NewServer creates a metrics HTTP server bound to addr (e.g. "localhost:10010").
-func NewServer(addr string, reg *prometheus.Registry) *Server {
-	return &Server{addr: addr, reg: reg}
+// store may be nil, in which case /api/* endpoints return 503.
+func NewServer(addr string, reg *prometheus.Registry, store memory.Store) *Server {
+	return &Server{addr: addr, reg: reg, store: store}
+}
+
+// SetReceiver registers an optional traces.Receiver to handle POST /v1/traces.
+// Must be called before Start.
+func (s *Server) SetReceiver(r *traces.Receiver) {
+	s.receiver = r
 }
 
 // buildMux constructs the HTTP mux used by both Start and TestHandler.
@@ -32,8 +43,25 @@ func (s *Server) buildMux() *http.ServeMux {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "ok") //nolint:errcheck
 	})
+	mux.HandleFunc("/api/search", s.withStore(s.handleSearch))
+	mux.HandleFunc("/api/stats", s.withStore(s.handleStats))
+	mux.HandleFunc("/ui", handleUI)
 	mux.HandleFunc("/", handleDashboard)
+	if s.receiver != nil {
+		mux.Handle("/v1/traces", s.receiver)
+	}
 	return mux
+}
+
+// withStore wraps a handler, returning 503 if the store is nil.
+func (s *Server) withStore(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.store == nil {
+			http.Error(w, "store not available", http.StatusServiceUnavailable)
+			return
+		}
+		h(w, r)
+	}
 }
 
 // TestHandler returns the HTTP handler for use in tests (e.g. httptest.NewServer).
@@ -77,7 +105,7 @@ th{background:#f5f5f5}
 </style></head>
 <body>
 <h1>lth memory store</h1>
-<p><a href="/metrics">Prometheus metrics</a> | <a href="/health">Health</a></p>
+<p><a href="/ui">Search UI</a> | <a href="/metrics">Prometheus metrics</a> | <a href="/health">Health</a></p>
 <h2>Memory Layers</h2>
 <table>
 <tr><th>Layer</th><th>Description</th></tr>

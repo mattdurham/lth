@@ -1,0 +1,11 @@
+[Unit]
+Description=lth memory sync server
+After=network.target
+
+[Service]
+ExecStart=%h/bin/lth-server --config %h/.config/lth-server/config.yaml
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

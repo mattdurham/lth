@@ -4,8 +4,11 @@ package memory
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,11 +36,32 @@ func (s *MemoryStore) Search(ctx context.Context, req *SearchRequest) ([]*Scored
 		}
 	}
 
-	// Run vector and FTS searches in parallel.
-	vecResults, ftsResults := s.runParallelSearches(ctx, req, queryEmb)
+	// Expand query via LLM if requested — generates additional related queries
+	// whose candidates are merged before scoring.
+	candidateQueries := []string{req.Query}
+	if req.Expand && req.Query != "" {
+		candidateQueries = s.expandQuery(ctx, req.Query, 3)
+	}
+
+	var allVec []*db.VectorResult
+	var allFTS []*db.MemoryRow
+	for i, q := range candidateQueries {
+		var emb []float32
+		if i == 0 {
+			emb = queryEmb // already computed
+		} else if s.emb != nil {
+			emb, _ = s.emb.Embed(ctx, q)
+		}
+		origQuery := req.Query
+		req.Query = q
+		vecs, fts := s.runParallelSearches(ctx, req, emb)
+		req.Query = origQuery
+		allVec = append(allVec, vecs...)
+		allFTS = append(allFTS, fts...)
+	}
 
 	// Merge results by ID.
-	candidates := mergeCandidates(vecResults, ftsResults)
+	candidates := mergeCandidates(allVec, allFTS)
 
 	now := time.Now().UTC()
 	scored := make([]*ScoredMemory, 0, len(candidates))
@@ -90,14 +114,6 @@ func (s *MemoryStore) Search(ctx context.Context, req *SearchRequest) ([]*Scored
 	}
 
 	return scored, nil
-}
-
-type scoreBreakdown struct {
-	total        float32
-	timeScore    float32
-	importScore  float32
-	cosScore     float32
-	valenceScore float32
 }
 
 // scoreMemory computes the composite score for a single memory row.
@@ -180,6 +196,40 @@ func mergeCandidates(vecResults []*db.VectorResult, ftsResults []*db.MemoryRow) 
 		if !seen[m.ID] {
 			seen[m.ID] = true
 			result = append(result, m)
+		}
+	}
+	return result
+}
+
+// expandQuery uses the LLM to generate n alternative search queries related to the input.
+// Returns the original query as the first element plus any expansions. Falls back to
+// []string{query} on any error so it never blocks Search.
+func (s *MemoryStore) expandQuery(ctx context.Context, query string, n int) []string {
+	if s.llm == nil {
+		return []string{query}
+	}
+	prompt := fmt.Sprintf(
+		"Search query: %q\n\nGenerate %d alternative search queries that would find related but differently-worded technical content in a code/engineering memory store.\nReturn ONLY a JSON array of strings. No explanation. Example: [\"query one\",\"query two\"]",
+		query, n,
+	)
+	resp, err := s.llm.Complete(ctx, prompt)
+	if err != nil {
+		return []string{query}
+	}
+	resp = strings.TrimSpace(resp)
+	resp = strings.TrimPrefix(resp, "```json")
+	resp = strings.TrimPrefix(resp, "```")
+	resp = strings.TrimSuffix(resp, "```")
+	resp = strings.TrimSpace(resp)
+
+	var extras []string
+	if err := json.Unmarshal([]byte(resp), &extras); err != nil {
+		return []string{query}
+	}
+	result := []string{query}
+	for _, e := range extras {
+		if e = strings.TrimSpace(e); e != "" && e != query {
+			result = append(result, e)
 		}
 	}
 	return result

@@ -33,11 +33,12 @@ var decayRates = map[int]float32{
 // NewMemoryStore creates and returns a MemoryStore. It calls graph.LoadAll on startup.
 func NewMemoryStore(d *db.DB, emb vector.Embedder, l llm.LLM, g *graph.Graph, cfg *config.Config) (*MemoryStore, error) {
 	s := &MemoryStore{
-		db:    d,
-		emb:   emb,
-		llm:   l,
-		graph: g,
-		cfg:   cfg,
+		db:        d,
+		emb:       emb,
+		llm:       l,
+		graph:     g,
+		cfg:       cfg,
+		enrichSem: make(chan struct{}, enrichConcurrency),
 	}
 
 	if err := g.LoadAll(context.Background()); err != nil {
@@ -74,17 +75,6 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 		return rowToMemory(existing, attrs), nil
 	}
 
-	// Generate embedding (optional — null if embedder fails).
-	var embBytes []byte
-	var embF32 []float32
-	if s.emb != nil {
-		embF32, err = s.emb.Embed(ctx, content)
-		if err == nil && len(embF32) > 0 {
-			embBytes = vector.ToBytes(embF32)
-		}
-		// On error: store without embedding (degrades to FTS5-only search).
-	}
-
 	now := time.Now().UTC()
 	memID := uuid.New().String()
 	baseDecay := decayRates[layer]
@@ -94,7 +84,6 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 		Layer:          layer,
 		Content:        content,
 		ContentHash:    hash,
-		Embedding:      embBytes,
 		Importance:     5.0, // default until async LLM scores it
 		AccessCount:    0,
 		CreatedAt:      now,
@@ -117,30 +106,38 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 		}
 	}
 
-	// Auto-link via Zettelkasten (synchronous, uses vec0 KNN).
-	if len(embF32) > 0 {
-		if err := s.graph.AutoLink(ctx, memID, embF32); err != nil {
-			// Non-fatal: auto-link failure doesn't prevent store.
-			_ = err
-		}
-	}
-
-	// Async importance scoring and tag extraction.
+	// Async: embedding, auto-linking, importance scoring, tags, valence.
+	// Store returns immediately; BackfillEmbeddings picks up any missed embeddings.
 	s.wg.Add(1)
-	go s.scoreAndTagAsync(memID, content)
+	go s.enrichAsync(memID, content)
 
 	m := rowToMemory(row, attrs)
-	m.Embedding = embF32
 	return m, nil
 }
 
 // scoreAndTagAsync calls the LLM to score importance, extract tags, and score valence for a memory.
-// It updates the DB with the results. Non-fatal on any error.
-func (s *MemoryStore) scoreAndTagAsync(memID, content string) {
+// enrichAsync generates the embedding, auto-links the memory, scores importance,
+// extracts tags, and scores valence — all in the background.
+// Store returns before this runs; BackfillEmbeddings handles any missed embeddings.
+func (s *MemoryStore) enrichAsync(memID, content string) {
 	defer s.wg.Done()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Acquire semaphore — blocks if enrichConcurrency goroutines are already running.
+	s.enrichSem <- struct{}{}
+	defer func() { <-s.enrichSem }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	// Embed and auto-link.
+	if s.emb != nil {
+		if embF32, err := s.emb.Embed(ctx, content); err == nil && len(embF32) > 0 {
+			embBytes := vector.ToBytes(embF32)
+			if err := s.db.UpdateEmbedding(ctx, memID, embBytes, s.cfg.Embedding.Model); err == nil {
+				_ = s.graph.AutoLink(ctx, memID, embF32)
+			}
+		}
+	}
 
 	// Score importance.
 	importancePromptStr := fmt.Sprintf(
@@ -159,7 +156,7 @@ func (s *MemoryStore) scoreAndTagAsync(memID, content string) {
 	tagResp, err := s.llm.Complete(ctx, tagPrompt(content))
 	if err == nil {
 		if tags := parseTags(tagResp); tags != "" {
-			_ = s.db.SetAttributes(context.Background(), memID, map[string]string{"tags": tags})
+			_ = s.db.MergeAttribute(context.Background(), memID, "tags", tags)
 		}
 	}
 
