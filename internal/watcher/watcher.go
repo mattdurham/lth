@@ -122,7 +122,8 @@ func (w *Watcher) ingestFile(ctx context.Context, path string) error {
 	sessionPaths := make(map[string]map[string]struct{})
 
 	// carriedCWD holds the cwd from the wllr session header line and is applied
-	// to all subsequent message lines in the same file.
+	// to all subsequent message lines in the same file. A second session header
+	// mid-file updates carriedCWD for all subsequent messages.
 	var carriedCWD string
 
 	for scanner.Scan() {
@@ -132,21 +133,20 @@ func (w *Watcher) ingestFile(ctx context.Context, path string) error {
 		var skip bool
 
 		if format == FormatWllr {
-			// ParseWllrLine returns the session cwd in the cwd return value only for
-			// session-type lines (skip=true). For message lines, cwd is empty and the
-			// caller should use carriedCWD.
+			// ParseWllrLine returns the session cwd only for session-type lines (skip=true).
+			// For message lines it returns empty cwd and skip=false; we use carriedCWD directly.
+			var parseErr error
 			var sessionCWD string
-			content, sessionID, sessionCWD, _, skip, err = ParseWllrLine(line, carriedCWD)
-			if err != nil {
+			content, sessionID, sessionCWD, _, skip, parseErr = ParseWllrLine(line, carriedCWD)
+			if parseErr != nil {
+				w.logger.Warn("wllr parse error", "file", path, "err", parseErr)
 				continue
 			}
 			if sessionCWD != "" {
 				carriedCWD = sessionCWD
 			}
-			// For message lines, ParseWllrLine already embedded carriedCWD into the
-			// returned content record's cwd via the carriedCWD argument; the returned
-			// cwd field from ParseWllrLine for message lines is empty (session cwd only).
-			// We use carriedCWD directly for the attrs.
+			// Use carriedCWD for the memory attrs; ParseWllrLine returns empty cwd for
+			// message lines — the cwd lives on the session header and is carried forward here.
 			cwd = carriedCWD
 		} else {
 			// Claude format: collect file paths from tool_use blocks independently.
@@ -158,8 +158,9 @@ func (w *Watcher) ingestFile(ctx context.Context, path string) error {
 					sessionPaths[sid][fp] = struct{}{}
 				}
 			}
-			content, sessionID, cwd, _, skip, err = ParseLine(line)
-			if err != nil {
+			var parseErr error
+			content, sessionID, cwd, _, skip, parseErr = ParseLine(line)
+			if parseErr != nil {
 				continue
 			}
 		}
@@ -274,10 +275,11 @@ func (w *Watcher) loadOffsets() error {
 	return nil
 }
 
-// saveOffsets writes the watcher state file atomically.
+// saveOffsets writes the watcher state file atomically using a unique temp file.
 func (w *Watcher) saveOffsets() error {
 	path := expandHome(w.cfg.Watcher.StateFile)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create state dir: %w", err)
 	}
 
@@ -292,11 +294,26 @@ func (w *Watcher) saveOffsets() error {
 		return fmt.Errorf("marshal offsets: %w", err)
 	}
 
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	tmp, err := os.CreateTemp(dir, "watcher-state-*.json")
+	if err != nil {
+		return fmt.Errorf("create temp offsets file: %w", err)
+	}
+	tmpName := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()           //nolint:errcheck
+		os.Remove(tmpName)    //nolint:errcheck
 		return fmt.Errorf("write tmp offsets: %w", err)
 	}
-	return os.Rename(tmp, path)
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName) //nolint:errcheck
+		return fmt.Errorf("close tmp offsets: %w", err)
+	}
+	if err := os.Chmod(tmpName, 0o600); err != nil {
+		os.Remove(tmpName) //nolint:errcheck
+		return fmt.Errorf("chmod tmp offsets: %w", err)
+	}
+	return os.Rename(tmpName, path)
 }
 
 // addPathRecursive adds a directory tree to the fsnotify watcher.
