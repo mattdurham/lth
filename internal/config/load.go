@@ -72,6 +72,8 @@ func Default() *Config {
 	cfg.Search.Alpha = 0.333
 	cfg.Search.Beta = 0.333
 	cfg.Search.Gamma = 0.333
+	cfg.Markdown.Layer = 3
+	cfg.Markdown.IntervalS = 300
 	cfg.Watcher.Paths = []string{
 		filepath.Join(home, ".claude", "projects"),
 		filepath.Join(home, ".wllr", "sessions"),
@@ -185,6 +187,12 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Watcher.StateFile == "" {
 		cfg.Watcher.StateFile = def.Watcher.StateFile
+	}
+	if cfg.Markdown.Layer == 0 {
+		cfg.Markdown.Layer = def.Markdown.Layer
+	}
+	if cfg.Markdown.IntervalS == 0 {
+		cfg.Markdown.IntervalS = def.Markdown.IntervalS
 	}
 }
 

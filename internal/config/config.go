@@ -55,6 +55,12 @@ type Config struct {
 		Paths     []string `yaml:"paths"`
 		StateFile string   `yaml:"state_file"`
 	} `yaml:"watcher"`
+	Markdown struct {
+		Dirs      []string `yaml:"dirs"`
+		Layer     int      `yaml:"layer"`      // default 3
+		IntervalS int      `yaml:"interval_s"` // default 300
+	} `yaml:"markdown"`
+
 	Sync struct {
 		ServerURL     string `yaml:"server_url"`
 		Account       string `yaml:"account"`

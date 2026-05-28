@@ -15,7 +15,7 @@ import (
 
 const anthropicAPIURL = "https://api.anthropic.com"
 const anthropicVersion = "2023-06-01"
-const anthropicMaxTokens = 1024
+const anthropicMaxTokens = 8192
 
 // AnthropicLLM calls the Anthropic Messages API.
 

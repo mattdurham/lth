@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mattdurham/lth/internal/compactor"
+	"github.com/mattdurham/lth/internal/mdwatcher"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/llm"
@@ -172,6 +173,10 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, globalCfg.Embedding.Model, 5, 10*time.Second)
 	if globalCfg.Sync.ServerURL != "" {
 		go autoSync(ctx, globalCfg)
+	}
+	if len(globalCfg.Markdown.Dirs) > 0 {
+		mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg)
+		go mw.Run(ctx)
 	}
 	if !flagNoUI {
 		go startUIServer(ctx, daemon.ms, flagUIPort)
