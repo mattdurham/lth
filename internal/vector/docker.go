@@ -91,7 +91,7 @@ func runNewContainer(cfg *config.Config) error {
 		"-p", port,
 		"-v", cacheDir + ":/data",
 		cfg.Embedding.DockerImage,
-		"--model-id", cfg.Embedding.Model,
+		"--model-id", config.EmbeddingModel,
 		"--port", "80",
 	}
 	if cfg.Embedding.TrustRemoteCode {

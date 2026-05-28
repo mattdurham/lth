@@ -13,10 +13,11 @@ import (
 	"time"
 
 	"github.com/mattdurham/lth/internal/compactor"
-	"github.com/mattdurham/lth/internal/mdwatcher"
+	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/llm"
+	"github.com/mattdurham/lth/internal/mdwatcher"
 	"github.com/mattdurham/lth/internal/memory"
 	"github.com/mattdurham/lth/internal/metrics"
 	"github.com/mattdurham/lth/internal/traces"
@@ -52,8 +53,8 @@ var watchDaemonCmd = &cobra.Command{
 }
 
 var (
-	flagUIPort  int
-	flagNoUI    bool
+	flagUIPort int
+	flagNoUI   bool
 )
 
 func init() {
@@ -175,7 +176,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 5, 10*time.Second)
 	go memory.BackfillImportance(ctx, daemon.d, daemon.llm, 5, 15*time.Second)
 	go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
-	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, globalCfg.Embedding.Model, 5, 10*time.Second)
+	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, config.EmbeddingModel, 5, 10*time.Second)
 	if globalCfg.Sync.ServerURL != "" {
 		go autoSync(ctx, globalCfg, m)
 	}
@@ -216,7 +217,7 @@ func (dc *daemonComponents) close() {
 // with instrumentation wrappers before being passed to the memory store.
 func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 	dbPath := globalCfg.DB.Path
-	d, err := db.Open(dbPath, globalCfg.Embedding.Dim)
+	d, err := db.Open(dbPath, config.EmbeddingDim)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}

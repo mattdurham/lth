@@ -10,5 +10,5 @@ import "github.com/mattdurham/lth/internal/config"
 // HuggingFace TEI and Ollama both expose an OpenAI-compatible /v1/embeddings endpoint,
 // so OllamaEmbedder handles both — they differ only in base URL and model name.
 func NewEmbedder(cfg *config.Config) Embedder {
-	return NewOllamaEmbedder(cfg.Embedding.BaseURL, cfg.Embedding.Model, cfg.Embedding.TimeoutS)
+	return NewOllamaEmbedder(cfg.Embedding.BaseURL, config.EmbeddingModel, cfg.Embedding.TimeoutS)
 }

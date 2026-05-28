@@ -3,6 +3,14 @@
 // Package config provides configuration loading and defaults for lth.
 package config
 
+// EmbeddingModel and EmbeddingDim are hard-coded to nomic-embed-text-v1.5.
+// Config fields for model/dim are ignored; change these constants to switch models.
+const (
+	EmbeddingModel  = "nomic-ai/nomic-embed-text-v1.5"
+	EmbeddingDim    = 768
+	EmbeddingImage  = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
+)
+
 // Config holds all lth configuration loaded from ~/.lth/config.yaml.
 type Config struct {
 	DB struct {

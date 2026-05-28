@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/mattdurham/lth/internal/compactor"
+	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/llm"
@@ -37,7 +38,7 @@ func runCompact(cmd *cobra.Command, _ []string) error {
 	}
 	defer d.Close() //nolint:errcheck
 
-	emb := vector.NewOllamaEmbedder(globalCfg.Embedding.BaseURL, globalCfg.Embedding.Model, globalCfg.Embedding.TimeoutS)
+	emb := vector.NewOllamaEmbedder(globalCfg.Embedding.BaseURL, config.EmbeddingModel, globalCfg.Embedding.TimeoutS)
 	l := llm.NewOllamaLLM(globalCfg.LLM.BaseURL, globalCfg.LLM.Model, globalCfg.LLM.TimeoutS)
 	g := graph.New(d)
 

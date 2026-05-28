@@ -46,11 +46,11 @@ func Default() *Config {
 	cfg.DB.Path = filepath.Join(lthDir, "memory.db")
 	cfg.Embedding.Provider = "huggingface"
 	cfg.Embedding.AutoDocker = true
-	cfg.Embedding.DockerImage = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
+	cfg.Embedding.DockerImage = EmbeddingImage
 	cfg.Embedding.DockerPort = 8080
 	cfg.Embedding.BaseURL = "http://localhost:8080"
-	cfg.Embedding.Model = "nomic-ai/nomic-embed-text-v1.5"
-	cfg.Embedding.Dim = 768
+	cfg.Embedding.Model = EmbeddingModel
+	cfg.Embedding.Dim = EmbeddingDim
 	cfg.Embedding.TimeoutS = 30
 	cfg.LLM.Provider = "anthropic"
 	cfg.LLM.BaseURL = "http://localhost:11434"
@@ -213,12 +213,10 @@ func applyEmbeddingDefaults(cfg, def *Config) {
 			cfg.Embedding.BaseURL = "http://localhost:11434"
 		}
 	}
-	if cfg.Embedding.Model == "" {
-		cfg.Embedding.Model = def.Embedding.Model
-	}
-	if cfg.Embedding.Dim == 0 {
-		cfg.Embedding.Dim = def.Embedding.Dim
-	}
+	// Always enforce hard-coded model and dim — config values are ignored.
+	cfg.Embedding.Model = EmbeddingModel
+	cfg.Embedding.Dim = EmbeddingDim
+	cfg.Embedding.DockerImage = EmbeddingImage
 	if cfg.Embedding.TimeoutS == 0 {
 		cfg.Embedding.TimeoutS = def.Embedding.TimeoutS
 	}
