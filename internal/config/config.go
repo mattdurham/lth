@@ -18,15 +18,11 @@ type Config struct {
 	} `yaml:"db"`
 
 	Embedding struct {
-		Provider        string `yaml:"provider"`     // "huggingface", "ollama", "openai" -- default: "huggingface"
-		AutoDocker      bool   `yaml:"auto_docker"`  // default: true for huggingface provider
-		DockerImage     string `yaml:"docker_image"` // default: "ghcr.io/huggingface/text-embeddings-inference:cpu-latest"
-		DockerPort      int    `yaml:"docker_port"`  // default: 8080
-		BaseURL         string `yaml:"base_url"`
-		Model           string `yaml:"model"`
-		TimeoutS        int    `yaml:"timeout_s"`
-		TrustRemoteCode bool   `yaml:"trust_remote_code"` // required for models with custom pooling (e.g. nomic-embed-text)
-		Dim             int    `yaml:"dim"`               // embedding output dimension (e.g. 768 for nomic, 1024 for mxbai)
+		Provider   string `yaml:"provider"`    // "huggingface" (default) or "ollama"
+		AutoDocker bool   `yaml:"auto_docker"` // auto-start TEI via Docker (default: true)
+		DockerPort int    `yaml:"docker_port"` // default: 8080
+		BaseURL    string `yaml:"base_url"`
+		TimeoutS   int    `yaml:"timeout_s"`
 	} `yaml:"embedding"`
 
 	LLM struct {

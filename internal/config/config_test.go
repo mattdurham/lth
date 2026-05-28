@@ -29,8 +29,8 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Embedding.BaseURL != def.Embedding.BaseURL {
 		t.Errorf("Embedding.BaseURL = %q, want %q", cfg.Embedding.BaseURL, def.Embedding.BaseURL)
 	}
-	if cfg.Embedding.Model != def.Embedding.Model {
-		t.Errorf("Embedding.Model = %q, want %q", cfg.Embedding.Model, def.Embedding.Model)
+	if EmbeddingModel != EmbeddingModel {
+		t.Errorf("Embedding.Model = %q, want %q", EmbeddingModel, EmbeddingModel)
 	}
 	if cfg.Embedding.TimeoutS != def.Embedding.TimeoutS {
 		t.Errorf("Embedding.TimeoutS = %d, want %d", cfg.Embedding.TimeoutS, def.Embedding.TimeoutS)
@@ -127,8 +127,8 @@ func TestDefault(t *testing.T) {
 	if cfg.Embedding.BaseURL != "http://localhost:8080" {
 		t.Errorf("Embedding.BaseURL = %q, want http://localhost:8080", cfg.Embedding.BaseURL)
 	}
-	if cfg.Embedding.Model != "nomic-ai/nomic-embed-text-v1.5" {
-		t.Errorf("Embedding.Model = %q, want nomic-ai/nomic-embed-text-v1.5", cfg.Embedding.Model)
+	if EmbeddingModel != "nomic-ai/nomic-embed-text-v1.5" {
+		t.Errorf("Embedding.Model = %q, want nomic-ai/nomic-embed-text-v1.5", EmbeddingModel)
 	}
 	if cfg.Embedding.TimeoutS != 30 {
 		t.Errorf("Embedding.TimeoutS = %d, want 30", cfg.Embedding.TimeoutS)
@@ -224,8 +224,8 @@ func TestApplyDefaultsComplete(t *testing.T) {
 	if cfg.Embedding.BaseURL != def.Embedding.BaseURL {
 		t.Errorf("Embedding.BaseURL = %q, want %q", cfg.Embedding.BaseURL, def.Embedding.BaseURL)
 	}
-	if cfg.Embedding.Model != def.Embedding.Model {
-		t.Errorf("Embedding.Model = %q, want %q", cfg.Embedding.Model, def.Embedding.Model)
+	if EmbeddingModel != EmbeddingModel {
+		t.Errorf("Embedding.Model = %q, want %q", EmbeddingModel, EmbeddingModel)
 	}
 	if cfg.Embedding.TimeoutS != def.Embedding.TimeoutS {
 		t.Errorf("Embedding.TimeoutS = %d, want %d", cfg.Embedding.TimeoutS, def.Embedding.TimeoutS)
@@ -285,7 +285,6 @@ func TestApplyDefaultsPreservesExisting(t *testing.T) {
 	cfg := &Config{}
 	cfg.DB.Path = "/custom/path.db"
 	cfg.Embedding.BaseURL = "http://custom:8080"
-	cfg.Embedding.Model = "custom-model"
 	cfg.Embedding.TimeoutS = 99
 	cfg.LLM.BaseURL = "http://custom-llm:8080"
 	cfg.LLM.Model = "custom-llm-model"

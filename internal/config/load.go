@@ -46,11 +46,8 @@ func Default() *Config {
 	cfg.DB.Path = filepath.Join(lthDir, "memory.db")
 	cfg.Embedding.Provider = "huggingface"
 	cfg.Embedding.AutoDocker = true
-	cfg.Embedding.DockerImage = EmbeddingImage
 	cfg.Embedding.DockerPort = 8080
 	cfg.Embedding.BaseURL = "http://localhost:8080"
-	cfg.Embedding.Model = EmbeddingModel
-	cfg.Embedding.Dim = EmbeddingDim
 	cfg.Embedding.TimeoutS = 30
 	cfg.LLM.Provider = "anthropic"
 	cfg.LLM.BaseURL = "http://localhost:11434"
@@ -114,13 +111,11 @@ func InitDefault(path string, force bool) error {
 
 embedding:
   # HuggingFace TEI embedding server (auto-started via Docker on first use).
+  # Model is fixed to nomic-embed-text-v1.5 (change EmbeddingModel constant to switch).
   provider: huggingface
   base_url: "http://localhost:8080"
-  model: "nomic-ai/nomic-embed-text-v1.5"
-  dim: 768
   timeout_s: 30
   auto_docker: true
-  docker_image: "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
   docker_port: 8080
 
 llm:
@@ -200,9 +195,6 @@ func applyEmbeddingDefaults(cfg, def *Config) {
 	if cfg.Embedding.Provider == "" {
 		cfg.Embedding.Provider = def.Embedding.Provider
 	}
-	if cfg.Embedding.DockerImage == "" {
-		cfg.Embedding.DockerImage = def.Embedding.DockerImage
-	}
 	if cfg.Embedding.DockerPort == 0 {
 		cfg.Embedding.DockerPort = def.Embedding.DockerPort
 	}
@@ -213,10 +205,6 @@ func applyEmbeddingDefaults(cfg, def *Config) {
 			cfg.Embedding.BaseURL = "http://localhost:11434"
 		}
 	}
-	// Always enforce hard-coded model and dim — config values are ignored.
-	cfg.Embedding.Model = EmbeddingModel
-	cfg.Embedding.Dim = EmbeddingDim
-	cfg.Embedding.DockerImage = EmbeddingImage
 	if cfg.Embedding.TimeoutS == 0 {
 		cfg.Embedding.TimeoutS = def.Embedding.TimeoutS
 	}

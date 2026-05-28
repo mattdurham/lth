@@ -12,7 +12,6 @@ func TestNewEmbedder_returnsOllamaEmbedder(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Embedding.Provider = "huggingface"
 	cfg.Embedding.BaseURL = "http://localhost:8080"
-	cfg.Embedding.Model = "nomic-ai/nomic-embed-text-v1.5"
 	cfg.Embedding.TimeoutS = 30
 
 	emb := NewEmbedder(cfg)
@@ -25,7 +24,6 @@ func TestNewEmbedder_ollamaProvider(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Embedding.Provider = "ollama"
 	cfg.Embedding.BaseURL = "http://localhost:11434"
-	cfg.Embedding.Model = "nomic-embed-text"
 	cfg.Embedding.TimeoutS = 30
 
 	emb := NewEmbedder(cfg)

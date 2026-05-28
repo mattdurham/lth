@@ -90,12 +90,10 @@ func runNewContainer(cfg *config.Config) error {
 		"--name", containerName,
 		"-p", port,
 		"-v", cacheDir + ":/data",
-		cfg.Embedding.DockerImage,
+		config.EmbeddingImage,
 		"--model-id", config.EmbeddingModel,
 		"--port", "80",
-	}
-	if cfg.Embedding.TrustRemoteCode {
-		args = append(args, "--trust-remote-code")
+		"--trust-remote-code", // required for nomic-embed-text-v1.5
 	}
 	//nolint:gosec // G204: docker command uses config values, not user input
 	cmd := exec.Command("docker", args...)
