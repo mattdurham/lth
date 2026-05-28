@@ -14,7 +14,8 @@ import (
 
 // DB wraps a SQLite connection pool.
 type DB struct {
-	db *sql.DB
+	db       *sql.DB
+	embedDim int // expected embedding dimension; 0 means unknown
 }
 
 // Open opens (or creates) the SQLite database at path with WAL mode, foreign keys,
@@ -41,7 +42,7 @@ func Open(path string, embedDim int) (*DB, error) {
 		return nil, fmt.Errorf("WAL mode not applied, got %q", journalMode)
 	}
 
-	d := &DB{db: sqlDB}
+	d := &DB{db: sqlDB, embedDim: embedDim}
 	if err := d.createSchema(embedDim); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("create schema: %w", err)

@@ -592,7 +592,7 @@ func importMemoriesServerSource(ctx context.Context, d *db.DB, rc interface{ Rea
 			Layer:          em.Layer,
 			Content:        em.Content,
 			ContentHash:    em.ContentHash,
-			Embedding:      vector.ToBytes(em.Embedding),
+			Embedding:      nil, // stripped on import; BackfillEmbeddings re-embeds locally
 			Importance:     em.Importance,
 			AccessCount:    em.AccessCount,
 			CreatedAt:      em.CreatedAt,

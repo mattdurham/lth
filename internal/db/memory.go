@@ -45,8 +45,10 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			return fmt.Errorf("last insert id: %w", err)
 		}
 
-		// Only insert into vec table if embedding is provided.
-		if len(m.Embedding) > 0 {
+		// Only insert into vec table if embedding is provided and dimension matches.
+		// If dim mismatches (e.g. imported from another machine), skip vec insert —
+		// BackfillEmbeddings will re-embed with the correct model.
+		if len(m.Embedding) > 0 && (d.embedDim == 0 || len(m.Embedding)/4 == d.embedDim) {
 			embJSON, err := embeddingBytesToJSON(m.Embedding)
 			if err != nil {
 				return fmt.Errorf("encode embedding for vec: %w", err)
