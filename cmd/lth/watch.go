@@ -50,10 +50,14 @@ var watchDaemonCmd = &cobra.Command{
 	RunE:   runWatchDaemon,
 }
 
-var flagUIPort int
+var (
+	flagUIPort  int
+	flagNoUI    bool
+)
 
 func init() {
-	watchDaemonCmd.Flags().IntVar(&flagUIPort, "ui-port", 8765, "port for web UI (0 to disable)")
+	watchDaemonCmd.Flags().IntVar(&flagUIPort, "ui-port", 8765, "port for web UI")
+	watchDaemonCmd.Flags().BoolVar(&flagNoUI, "no-ui", false, "disable the web UI")
 	watchCmd.AddCommand(watchStartCmd, watchStopCmd, watchDaemonCmd)
 	rootCmd.AddCommand(watchCmd)
 }
@@ -169,7 +173,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	if globalCfg.Sync.ServerURL != "" {
 		go autoSync(ctx, globalCfg)
 	}
-	if flagUIPort > 0 {
+	if !flagNoUI {
 		go startUIServer(ctx, daemon.ms, flagUIPort)
 		slog.Info("web UI running", "addr", fmt.Sprintf("http://localhost:%d", flagUIPort))
 	}
