@@ -133,6 +133,11 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	}
 	metricsAddr := fmt.Sprintf("localhost:%d", metricsPort)
 
+	// Ensure embedding server (Docker) is running before creating components.
+	if err := vector.EnsureEmbeddingServer(globalCfg); err != nil {
+		slog.Warn("could not start embedding server", "err", err)
+	}
+
 	// Create daemon components, wrapping LLM and embedder with instrumentation.
 	daemon, err := newDaemonComponents(m)
 	if err != nil {
@@ -172,7 +177,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
 	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, globalCfg.Embedding.Model, 5, 10*time.Second)
 	if globalCfg.Sync.ServerURL != "" {
-		go autoSync(ctx, globalCfg)
+		go autoSync(ctx, globalCfg, m)
 	}
 	if len(globalCfg.Markdown.Dirs) > 0 {
 		mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg)

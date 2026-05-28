@@ -18,6 +18,9 @@ type Metrics struct {
 	SearchDuration       prometheus.Histogram
 	WatcherMessagesTotal prometheus.Counter
 	WatcherFilesWatched  prometheus.Gauge
+	SyncPushedTotal      *prometheus.CounterVec
+	SyncPulledTotal      *prometheus.CounterVec
+	SyncDurationSeconds  *prometheus.HistogramVec
 }
 
 // New creates and registers all lth metrics with the given registry.
@@ -80,6 +83,22 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "lth_watcher_files_watched_total",
 			Help: "Number of files currently being watched.",
 		}),
+
+		SyncPushedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "lth_sync_pushed_total",
+			Help: "Number of memories pushed to the sync server.",
+		}, []string{"status"}),
+
+		SyncPulledTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "lth_sync_pulled_total",
+			Help: "Number of memories pulled from the sync server.",
+		}, []string{"status"}),
+
+		SyncDurationSeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "lth_sync_duration_seconds",
+			Help:    "Duration of sync push/pull operations in seconds.",
+			Buckets: []float64{1, 5, 10, 30, 60, 120, 300},
+		}, []string{"operation"}),
 	}
 
 	reg.MustRegister(
@@ -94,6 +113,9 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.SearchDuration,
 		m.WatcherMessagesTotal,
 		m.WatcherFilesWatched,
+		m.SyncPushedTotal,
+		m.SyncPulledTotal,
+		m.SyncDurationSeconds,
 	)
 	return m
 }

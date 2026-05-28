@@ -18,6 +18,12 @@ import (
 // The embedding is stored as a BLOB in memories and as a JSON vector in memories_vec.
 // Both inserts happen in the same transaction.
 func (d *DB) InsertMemory(ctx context.Context, m *MemoryRow) error {
+	if len(m.Embedding) > 0 {
+		dim := len(m.Embedding) / 4
+		if _, err := d.db.ExecContext(ctx, fmt.Sprintf(schemaVec, dim)); err != nil {
+			return fmt.Errorf("ensure vec table: %w", err)
+		}
+	}
 	return d.WithTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `
 INSERT INTO memories
@@ -55,6 +61,77 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 
 		return nil
 	})
+}
+
+// InsertMemoryBatch inserts a slice of memories in a single transaction.
+// Rows that violate the content_hash UNIQUE constraint are counted as skipped.
+// attrs maps memory ID to its key/value attributes; may be nil.
+func (d *DB) InsertMemoryBatch(ctx context.Context, rows []*MemoryRow, attrs map[string]map[string]string) (inserted, skipped int, err error) {
+	// Ensure memories_vec exists before opening the transaction — DDL cannot run
+	// on d.db while the single connection is held by the transaction.
+	for _, m := range rows {
+		if len(m.Embedding) > 0 {
+			dim := len(m.Embedding) / 4
+			if _, err := d.db.ExecContext(ctx, fmt.Sprintf(schemaVec, dim)); err != nil {
+				return 0, 0, fmt.Errorf("ensure vec table: %w", err)
+			}
+			break
+		}
+	}
+
+	err = d.WithTx(ctx, func(tx *sql.Tx) error {
+		for _, m := range rows {
+			res, err := tx.ExecContext(ctx, `
+INSERT OR IGNORE INTO memories
+	(id, layer, content, content_hash, embedding, importance, access_count,
+	 created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent,
+	 valence, valence_scored, embedding_model)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				m.ID, m.Layer, m.Content, m.ContentHash, m.Embedding, m.Importance, m.AccessCount,
+				m.CreatedAt.UTC(), m.UpdatedAt.UTC(), m.LastAccessedAt.UTC(),
+				m.DecayRate, m.Stability, m.Source, m.Agent,
+				m.Valence, m.ValenceScored, m.EmbeddingModel,
+			)
+			if err != nil {
+				return fmt.Errorf("insert memory %q: %w", m.ID, err)
+			}
+			n, err := res.RowsAffected()
+			if err != nil {
+				return fmt.Errorf("rows affected %q: %w", m.ID, err)
+			}
+			if n == 0 {
+				skipped++
+				continue
+			}
+			rowID, err := res.LastInsertId()
+			if err != nil {
+				return fmt.Errorf("last insert id %q: %w", m.ID, err)
+			}
+			if len(m.Embedding) > 0 {
+				embJSON, err := embeddingBytesToJSON(m.Embedding)
+				if err != nil {
+					return fmt.Errorf("encode embedding %q: %w", m.ID, err)
+				}
+				if _, err := tx.ExecContext(ctx,
+					`INSERT OR IGNORE INTO memories_vec(rowid, embedding) VALUES (?, ?)`,
+					rowID, embJSON,
+				); err != nil {
+					return fmt.Errorf("insert vec %q: %w", m.ID, err)
+				}
+			}
+			for k, v := range attrs[m.ID] {
+				if _, err := tx.ExecContext(ctx,
+					`INSERT INTO memory_attributes(mem_id, key, value) VALUES (?, ?, ?)`,
+					m.ID, k, v,
+				); err != nil {
+					return fmt.Errorf("insert attr %q %q: %w", m.ID, k, err)
+				}
+			}
+			inserted++
+		}
+		return nil
+	})
+	return inserted, skipped, err
 }
 
 // GetMemory retrieves a memory row by its UUID ID or a unique prefix.

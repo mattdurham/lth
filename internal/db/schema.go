@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const schema = `
+const schemaBase = `
 CREATE TABLE IF NOT EXISTS memories (
 	id               TEXT PRIMARY KEY,
 	layer            INTEGER NOT NULL,
@@ -32,10 +32,6 @@ CREATE TABLE IF NOT EXISTS memories (
 CREATE INDEX IF NOT EXISTS idx_memories_layer       ON memories(layer);
 CREATE INDEX IF NOT EXISTS idx_memories_content_hash ON memories(content_hash);
 CREATE INDEX IF NOT EXISTS idx_memories_compacted_at ON memories(compacted_at);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(
-	embedding float[%d]
-);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
 	content,
@@ -92,10 +88,20 @@ CREATE TABLE IF NOT EXISTS db_metadata (
 );
 `
 
+const schemaVec = `
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(
+	embedding float[%d]
+);
+`
+
 func (d *DB) createSchema(embedDim int) error {
-	vecSchema := fmt.Sprintf(schema, embedDim)
-	if _, err := d.db.Exec(vecSchema); err != nil {
+	if _, err := d.db.Exec(schemaBase); err != nil {
 		return fmt.Errorf("exec schema: %w", err)
+	}
+	if embedDim > 0 {
+		if _, err := d.db.Exec(fmt.Sprintf(schemaVec, embedDim)); err != nil {
+			return fmt.Errorf("exec vec schema: %w", err)
+		}
 	}
 	// Record schema version in db_metadata.
 	if _, err := d.db.Exec(

@@ -19,6 +19,7 @@ import (
 
 	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/db"
+	"github.com/mattdurham/lth/internal/metrics"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/spf13/cobra"
 )
@@ -143,6 +144,10 @@ func (s syncCfg) headers() map[string]string {
 }
 
 func runSyncPush(cmd *cobra.Command, _ []string) error {
+	return syncPush(cmd.Context(), nil)
+}
+
+func syncPush(ctx context.Context, m *metrics.Metrics) error {
 	cfg, err := effectiveSyncCfg()
 	if err != nil {
 		return err
@@ -157,7 +162,6 @@ func runSyncPush(cmd *cobra.Command, _ []string) error {
 	}
 	defer d.Close() //nolint:errcheck
 
-	ctx := cmd.Context()
 	payload, count, err := exportDBFiltered(ctx, d, "server", syncPushChunkSize)
 	if err != nil {
 		return fmt.Errorf("export: %w", err)
@@ -183,10 +187,17 @@ func runSyncPush(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("decode response: %w", err)
 	}
 	fmt.Printf("Pushed %d memories (accepted=%d skipped=%d)\n", count, result.Accepted, result.Skipped)
+	if m != nil {
+		m.SyncPushedTotal.WithLabelValues("ok").Add(float64(result.Accepted))
+	}
 	return nil
 }
 
 func runSyncPull(cmd *cobra.Command, _ []string) error {
+	return syncPull(cmd.Context(), nil)
+}
+
+func syncPull(ctx context.Context, m *metrics.Metrics) error {
 	cfg, err := effectiveSyncCfg()
 	if err != nil {
 		return err
@@ -209,7 +220,7 @@ func runSyncPull(cmd *cobra.Command, _ []string) error {
 	}
 	_ = layers
 
-	resp, err := doSyncRequest(cmd.Context(), http.MethodGet, url, cfg.headers(), nil, "")
+	resp, err := doSyncRequest(ctx, http.MethodGet, url, cfg.headers(), nil, "")
 	if err != nil {
 		return err
 	}
@@ -220,25 +231,53 @@ func runSyncPull(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("pull failed: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
+	// Download to a temp file first so the HTTP connection is released before we hold the DB lock.
+	tmp, err := os.CreateTemp("", "lth-pull-*.zip")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name()) //nolint:errcheck
+	if _, err := io.Copy(tmp, resp.Body); err != nil {
+		tmp.Close() //nolint:errcheck
+		return fmt.Errorf("download pull: %w", err)
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		tmp.Close() //nolint:errcheck
+		return fmt.Errorf("seek temp file: %w", err)
+	}
+	resp.Body.Close() //nolint:errcheck
+
 	d, err := db.Open(globalCfg.DB.Path, 0)
 	if err != nil {
+		tmp.Close() //nolint:errcheck
 		return fmt.Errorf("open db: %w", err)
 	}
 	defer d.Close() //nolint:errcheck
 
-	imported, skipped, err := importFromZIPReader(cmd.Context(), d, resp.Body)
+	start := time.Now()
+	imported, skipped, err := importFromZIPReader(ctx, d, tmp)
+	tmp.Close() //nolint:errcheck
+	elapsed := time.Since(start)
 	if err != nil {
 		return fmt.Errorf("import: %w", err)
 	}
-	fmt.Printf("Pulled %d memories (%d skipped)\n", imported, skipped)
+	fmt.Printf("Pulled %d memories (%d skipped) in %s\n", imported, skipped, elapsed.Round(time.Millisecond))
+	if m != nil {
+		m.SyncPulledTotal.WithLabelValues("ok").Add(float64(imported))
+		m.SyncDurationSeconds.WithLabelValues("pull").Observe(elapsed.Seconds())
+	}
 	return nil
 }
 
 func runSyncBoth(cmd *cobra.Command, _ []string) error {
-	if err := runSyncPush(cmd, nil); err != nil {
+	return syncBoth(cmd.Context(), nil)
+}
+
+func syncBoth(ctx context.Context, m *metrics.Metrics) error {
+	if err := syncPush(ctx, m); err != nil {
 		return fmt.Errorf("push: %w", err)
 	}
-	return runSyncPull(cmd, nil)
+	return syncPull(ctx, m)
 }
 
 func runSyncStatus(cmd *cobra.Command, _ []string) error {
@@ -266,14 +305,9 @@ func runSyncStatus(cmd *cobra.Command, _ []string) error {
 	}
 	defer d.Close() //nolint:errcheck
 
-	stats, err := d.Stats(cmd.Context())
-	if err != nil {
-		return fmt.Errorf("db stats: %w", err)
-	}
-
-	pending := 0
-	for _, count := range stats.ByLayer {
-		pending += count
+	var pending int
+	if err := d.CountPendingPush(cmd.Context(), &pending); err != nil {
+		return fmt.Errorf("count pending push: %w", err)
 	}
 	fmt.Printf("Local memories (pending push): ~%d\n", pending)
 	return nil
@@ -521,10 +555,29 @@ func importFromZIPReader(ctx context.Context, d *db.DB, r io.Reader) (imported, 
 	return imported, skipped, nil
 }
 
+const importBatchSize = 500
+
 // importMemoriesServerSource imports memories, forcing source="server" on all records.
 func importMemoriesServerSource(ctx context.Context, d *db.DB, rc interface{ Read([]byte) (int, error) }) (imported, skipped int, err error) {
 	scanner := bufio.NewScanner(rc)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+
+	batch := make([]*db.MemoryRow, 0, importBatchSize)
+	batchAttrs := make(map[string]map[string]string)
+
+	flush := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		n, s, err := d.InsertMemoryBatch(ctx, batch, batchAttrs)
+		imported += n
+		skipped += s
+		batch = batch[:0]
+		batchAttrs = make(map[string]map[string]string)
+		fmt.Printf("  importing... %d written, %d skipped\n", imported, skipped)
+		return err
+	}
+
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -552,27 +605,25 @@ func importMemoriesServerSource(ctx context.Context, d *db.DB, rc interface{ Rea
 			Valence:        em.Valence,
 			ValenceScored:  em.ValenceScored,
 		}
-		insertErr := d.InsertMemory(ctx, row)
-		if insertErr != nil {
-			if strings.Contains(insertErr.Error(), "UNIQUE constraint failed") {
-				skipped++
-				continue
-			}
-			return imported, skipped, fmt.Errorf("insert memory %q: %w", em.ID, insertErr)
-		}
+		batch = append(batch, row)
 		if len(em.Attrs) > 0 {
-			if err := d.SetAttributes(ctx, em.ID, em.Attrs); err != nil {
-				return imported, skipped, fmt.Errorf("set attributes %q: %w", em.ID, err)
+			batchAttrs[em.ID] = em.Attrs
+		}
+		if len(batch) >= importBatchSize {
+			if err := flush(); err != nil {
+				return imported, skipped, fmt.Errorf("flush batch: %w", err)
 			}
 		}
-		imported++
 	}
 	if err := scanner.Err(); err != nil {
 		return imported, skipped, fmt.Errorf("scan lines: %w", err)
 	}
+	if err := flush(); err != nil {
+		return imported, skipped, fmt.Errorf("flush final batch: %w", err)
+	}
 	return imported, skipped, nil
 }
-func autoSync(ctx context.Context, cfg *config.Config) {
+func autoSync(ctx context.Context, cfg *config.Config, m *metrics.Metrics) {
 	interval := time.Duration(cfg.Sync.AutoIntervalS) * time.Second
 	if interval <= 0 {
 		interval = 10 * time.Minute
@@ -585,8 +636,12 @@ func autoSync(ctx context.Context, cfg *config.Config) {
 		case <-ctx.Done():
 			return
 		case _ = <-ticker.C:
-			if err := runSyncBoth(nil, nil); err != nil {
+			start := time.Now()
+			if err := syncBoth(ctx, m); err != nil {
 				slog.Warn("auto-sync failed", "err", err)
+			}
+			if m != nil {
+				m.SyncDurationSeconds.WithLabelValues("auto").Observe(time.Since(start).Seconds())
 			}
 		}
 	}

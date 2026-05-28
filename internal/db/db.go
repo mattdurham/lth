@@ -26,7 +26,9 @@ func Open(path string, embedDim int) (*DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
-	sqlDB.SetMaxOpenConns(1)
+	// WAL mode allows concurrent readers; cap at 1 writer + a small read pool.
+	sqlDB.SetMaxOpenConns(4)
+	sqlDB.SetMaxIdleConns(2)
 
 	// Verify WAL mode was actually applied; some filesystems silently ignore it.
 	var journalMode string

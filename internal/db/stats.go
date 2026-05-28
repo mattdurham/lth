@@ -48,3 +48,11 @@ func (d *DB) Stats(ctx context.Context) (*StatsRow, error) {
 
 	return stats, nil
 }
+
+// CountPendingPush returns the number of active memories that would be sent on next push
+// (i.e. all non-compacted memories excluding those with source="server").
+func (d *DB) CountPendingPush(ctx context.Context, out *int) error {
+	return d.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM memories WHERE compacted_at IS NULL AND source != 'server'",
+	).Scan(out)
+}
