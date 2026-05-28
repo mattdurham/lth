@@ -25,6 +25,28 @@ func init() {
 	rootCmd.AddCommand(uiCmd)
 }
 
+// memSearcher is satisfied by both *lth.Client and *memory.MemoryStore.
+type memSearcher interface {
+	Search(ctx context.Context, req *lth.SearchRequest) ([]*lth.SearchResult, error)
+}
+
+// startUIServer serves the web UI on the given port until ctx is cancelled.
+func startUIServer(ctx context.Context, s memSearcher, port int) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleUIIndex)
+	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+		handleUISearch(w, r, s)
+	})
+	srv := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
+	go func() {
+		<-ctx.Done()
+		_ = srv.Shutdown(context.Background())
+	}()
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		fmt.Printf("lth UI error: %v\n", err)
+	}
+}
+
 func runUI(cmd *cobra.Command, _ []string) error {
 	client, err := lth.NewClient(globalCfg)
 	if err != nil {
@@ -32,18 +54,12 @@ func runUI(cmd *cobra.Command, _ []string) error {
 	}
 	defer client.Close() //nolint:errcheck
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", handleUIIndex)
-	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
-		handleUISearch(w, r, client)
-	})
-
-	addr := fmt.Sprintf(":%d", uiPort)
-	fmt.Printf("lth UI running at http://localhost%s\n", addr)
-	return http.ListenAndServe(addr, mux)
+	fmt.Printf("lth UI running at http://localhost:%d\n", uiPort)
+	startUIServer(cmd.Context(), client, uiPort)
+	return nil
 }
 
-func handleUISearch(w http.ResponseWriter, r *http.Request, client *lth.Client) {
+func handleUISearch(w http.ResponseWriter, r *http.Request, client memSearcher) {
 	q := r.URL.Query().Get("q")
 	if q == "" {
 		http.Error(w, "q required", http.StatusBadRequest)
