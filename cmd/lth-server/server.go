@@ -73,12 +73,14 @@ func (s *Server) buildMux() *http.ServeMux {
 	mux.Handle("/v1/sync/push", pushMetricsHandler(&PushHandler{store: s.store, writer: s.writer, cfg: s.cfg}))
 	mux.Handle("/v1/sync/pull", instrumentHandler("pull", pullRequests, &PullHandler{store: s.store, reader: s.reader}))
 	mux.Handle("/v1/observations", instrumentHandler("observe", obsRequests, &ObserveHandler{store: s.store, writer: s.writer}))
-	mux.Handle("/metrics", metricsHandler(
+	mux.Handle("/v1/identities", &IdentitiesHandler{store: s.store})
+	mux.Handle("/metrics",
 
-	// Start begins serving HTTP. Blocks until ctx is canceled.
-	))
+		// Start begins serving HTTP. Blocks until ctx is canceled.
+		metricsHandler())
 	return mux
 }
+
 func (s *Server) Start(ctx context.Context) error {
 	s.srv = &http.Server{Addr: fmt.Sprintf("%s:%d", s.cfg.BindAddr, s.cfg.Port), Handler: http.MaxBytesHandler(s.buildMux(), 100*1024*1024), ReadTimeout: 30 * time.Second, WriteTimeout: 120 * time.Second}
 	errCh := make(chan error, 1)
