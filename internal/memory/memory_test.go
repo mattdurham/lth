@@ -60,7 +60,7 @@ func (m *mockLLM) Complete(_ context.Context, _ string) (string, error) {
 func testMemoryStore(t *testing.T) *MemoryStore {
 	t.Helper()
 	dir := t.TempDir()
-	d, err := db.Open(filepath.Join(dir, "test.db"))
+	d, err := db.Open(filepath.Join(dir, "test.db"), 0)
 	if err != nil {
 		t.Fatalf("Open DB: %v", err)
 	}

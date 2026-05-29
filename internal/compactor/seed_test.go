@@ -18,7 +18,7 @@ import (
 func seedTestSetup(t *testing.T, llmResp string, llmErr error) (*Compactor, *memory.MemoryStore) {
 	t.Helper()
 	dir := t.TempDir()
-	d, err := db.Open(filepath.Join(dir, "seed_test.db"))
+	d, err := db.Open(filepath.Join(dir, "seed_test.db"), 0)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestCompactSeedSampleCapClusters(t *testing.T) {
 	oneClusterJSON := `{"rules":["rule A","rule B","rule C"],"skills":[{"content":"skill A","tags":"go"},{"content":"skill B","tags":"go"},{"content":"skill C","tags":"go"}]}`
 
 	dir := t.TempDir()
-	d, err := db.Open(filepath.Join(dir, "cap_test.db"))
+	d, err := db.Open(filepath.Join(dir, "cap_test.db"), 0)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
@@ -413,7 +413,7 @@ func TestCompactSeedNoL5Clusters(t *testing.T) {
 	validJSON := `{"rules":["r"],"skills":[{"content":"s","tags":"t"}]}`
 
 	dir := t.TempDir()
-	d, err := db.Open(filepath.Join(dir, "noclusters.db"))
+	d, err := db.Open(filepath.Join(dir, "noclusters.db"), 0)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}

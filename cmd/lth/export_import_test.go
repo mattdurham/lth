@@ -17,7 +17,7 @@ import (
 // testDB opens a fresh DB in a temp dir and registers cleanup.
 func testDB(t *testing.T) *db.DB {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"), 0)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}

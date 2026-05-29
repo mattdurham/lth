@@ -31,7 +31,7 @@ func makeTestEmbedding(seed float32) []byte {
 func testDB(t *testing.T) *DB {
 	t.Helper()
 	dir := t.TempDir()
-	d, err := Open(filepath.Join(dir, "test.db"))
+	d, err := Open(filepath.Join(dir, "test.db"), 1024)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestOpenTwice(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.db")
 
-	d1, err := Open(path)
+	d1, err := Open(path, 0)
 	if err != nil {
 		t.Fatalf("first Open: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestOpenTwice(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	d2, err := Open(path)
+	d2, err := Open(path, 0)
 	if err != nil {
 		t.Fatalf("second Open: %v", err)
 	}

@@ -67,7 +67,7 @@ func TestWatcherIngestsNewLines(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := w.ingestFile(context.Background(), jsonlFile); err != nil {
+	if err := w.IngestFile(context.Background(), jsonlFile); err != nil {
 		t.Fatalf("ingestFile: %v", err)
 	}
 
@@ -138,7 +138,7 @@ func TestWatcherIngestFileStoreError(t *testing.T) {
 	}
 
 	// ingestFile should not return an error even if the store fails (it logs and continues).
-	if err := w.ingestFile(context.Background(), jsonlFile); err != nil {
+	if err := w.IngestFile(context.Background(), jsonlFile); err != nil {
 		t.Errorf("ingestFile with store error: expected nil error, got %v", err)
 	}
 }
@@ -165,7 +165,7 @@ func TestWatcherOffsetPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := w1.ingestFile(context.Background(), jsonlFile); err != nil {
+	if err := w1.IngestFile(context.Background(), jsonlFile); err != nil {
 		t.Fatalf("w1.ingestFile: %v", err)
 	}
 
@@ -198,7 +198,7 @@ func TestWatcherOffsetPersistence(t *testing.T) {
 		t.Fatalf("New(w2): %v", err)
 	}
 
-	if err := w2.ingestFile(context.Background(), jsonlFile); err != nil {
+	if err := w2.IngestFile(context.Background(), jsonlFile); err != nil {
 		t.Fatalf("w2.ingestFile: %v", err)
 	}
 
@@ -267,7 +267,7 @@ func TestIngestFileStoresFilesTouched(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := w.ingestFile(context.Background(), jsonlFile); err != nil {
+	if err := w.IngestFile(context.Background(), jsonlFile); err != nil {
 		t.Fatalf("ingestFile: %v", err)
 	}
 
@@ -354,7 +354,7 @@ func TestWatcherIngestsWllrFile(t *testing.T) {
 		t.Fatalf("write wllr file: %v", err)
 	}
 
-	if err := w.ingestFile(context.Background(), jsonlFile); err != nil {
+	if err := w.IngestFile(context.Background(), jsonlFile); err != nil {
 		t.Fatalf("ingestFile: %v", err)
 	}
 

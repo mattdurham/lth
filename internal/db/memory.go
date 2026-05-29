@@ -339,17 +339,18 @@ LIMIT ?`, limit)
 	return scanMemoryRows(rows)
 }
 
-// ListUnembedded returns up to limit memories where embedding is NULL or empty and compacted_at IS NULL.
-// Used by the BackfillEmbeddings goroutine in the daemon.
-func (d *DB) ListUnembedded(ctx context.Context, limit int) ([]*MemoryRow, error) {
+// ListUnembedded returns up to limit memories that need embedding: either no embedding exists,
+// or the embedding was produced by a different model. Used by BackfillEmbeddings.
+func (d *DB) ListUnembedded(ctx context.Context, limit int, model string) ([]*MemoryRow, error) {
 	rows, err := d.db.QueryContext(ctx, `
 SELECT id, layer, content, content_hash, embedding, importance, access_count,
        created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent, compacted_at,
        valence, valence_scored, embedding_model
 FROM memories
-WHERE (embedding IS NULL OR length(embedding) = 0) AND compacted_at IS NULL
+WHERE compacted_at IS NULL
+  AND (embedding IS NULL OR length(embedding) = 0 OR embedding_model != ?)
 ORDER BY created_at ASC
-LIMIT ?`, limit)
+LIMIT ?`, model, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list unembedded: %w", err)
 	}

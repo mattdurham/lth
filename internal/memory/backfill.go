@@ -74,7 +74,7 @@ func BackfillEmbeddings(ctx context.Context, d *db.DB, emb vector.Embedder, mode
 		default:
 		}
 
-		batch, err := d.ListUnembedded(ctx, batchSize)
+		batch, err := d.ListUnembedded(ctx, batchSize, model)
 		if err != nil {
 			slog.Warn("backfill embeddings: query failed", "err", err)
 			backfillWait(ctx, interval)

@@ -82,7 +82,7 @@ func (w *Watcher) Start(ctx context.Context) error {
 			}
 			if event.Op&(fsnotify.Write|fsnotify.Create) != 0 {
 				if strings.HasSuffix(event.Name, ".jsonl") {
-					if err := w.ingestFile(ctx, event.Name); err != nil {
+					if err := w.IngestFile(ctx, event.Name); err != nil {
 						w.logger.Warn("ingest error", "file", event.Name, "err", err)
 					}
 				}
@@ -97,7 +97,7 @@ func (w *Watcher) Start(ctx context.Context) error {
 }
 
 // ingestFile reads new bytes from path (from stored offset to EOF) and stores messages.
-func (w *Watcher) ingestFile(ctx context.Context, path string) error {
+func (w *Watcher) IngestFile(ctx context.Context, path string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
@@ -244,7 +244,7 @@ func (w *Watcher) scanExisting(ctx context.Context, dir string) {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".jsonl") {
 			return nil //nolint:nilerr // Walk: skip inaccessible paths and non-JSONL files intentionally
 		}
-		if ingestErr := w.ingestFile(ctx, path); ingestErr != nil {
+		if ingestErr := w.IngestFile(ctx, path); ingestErr != nil {
 			w.logger.Warn("initial ingest error", "file", path, "err", ingestErr)
 		}
 		return nil

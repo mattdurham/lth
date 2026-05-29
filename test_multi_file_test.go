@@ -65,7 +65,7 @@ func TestMultipleFilePathsInSingleMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := w.ingestFile(context.Background(), jsonlFile); err != nil {
+	if err := w.IngestFile(context.Background(), jsonlFile); err != nil {
 		t.Fatalf("ingestFile: %v", err)
 	}
 

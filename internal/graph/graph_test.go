@@ -38,7 +38,7 @@ func makeEmbeddingF32(seed float32) []float32 {
 func testDB(t *testing.T) *db.DB {
 	t.Helper()
 	dir := t.TempDir()
-	d, err := db.Open(filepath.Join(dir, "test.db"))
+	d, err := db.Open(filepath.Join(dir, "test.db"), 0)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
