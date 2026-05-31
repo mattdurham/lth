@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -103,7 +104,47 @@ func runChat(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+var chatTools = []llm.Tool{
+	{
+		Name:        "search",
+		Description: "Search the knowledge base for memories relevant to a query. Use this to find more context on any topic.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"query":  {"type": "string",  "description": "Search query"},
+				"layers": {"type": "array", "items": {"type": "integer"}, "description": "Layers to search (1=identity,2=rules,3=skills,4=context,5=raw). Omit for all."},
+				"top":    {"type": "integer", "description": "Number of results (default 20)"}
+			},
+			"required": ["query"]
+		}`),
+	},
+	{
+		Name:        "get_memory",
+		Description: "Retrieve the full content of a specific memory by its ID.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"id": {"type": "string", "description": "Memory ID or unique prefix"}
+			},
+			"required": ["id"]
+		}`),
+	},
+	{
+		Name:        "get_neighbors",
+		Description: "Get graph neighbors of a memory — related memories connected by edges. Use this to explore connected context.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"id":    {"type": "string",  "description": "Memory ID"},
+				"depth": {"type": "integer", "description": "Traversal depth 1-3 (default 1)"}
+			},
+			"required": ["id"]
+		}`),
+	},
+}
+
 func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string, history []chatTurn) (string, error) {
+	// Seed with initial search results
 	results, err := client.Search(ctx, &lth.SearchRequest{
 		Query:  question,
 		Layers: chatLayers,
@@ -114,15 +155,16 @@ func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string,
 		return "", fmt.Errorf("search: %w", err)
 	}
 
+	// Build user message: seed context + conversation history + question
 	var sb strings.Builder
-	sb.WriteString(chatSystemPrompt)
-	sb.WriteString("\n\n---\nKnowledge base context (ordered by relevance):\n\n")
+	sb.WriteString("Here are memory search results for your question (ordered by relevance). Use the tools to search further or get more detail if needed.\n\n")
+	sb.WriteString("---\nInitial context:\n\n")
 	for i, r := range results {
-		sb.WriteString(fmt.Sprintf("[%d] L%d", i+1, r.Layer))
+		fmt.Fprintf(&sb, "[%d] L%d", i+1, r.Layer)
 		if r.Source != "" && r.Source != "server" {
-			sb.WriteString(fmt.Sprintf(" (%s)", r.Source))
+			fmt.Fprintf(&sb, " (%s)", r.Source)
 		}
-		sb.WriteString(fmt.Sprintf(": %s\n\n", r.Content))
+		fmt.Fprintf(&sb, " id=%s\n%s\n\n", r.ID[:8], r.Content)
 	}
 
 	if len(history) > 0 {
@@ -132,17 +174,98 @@ func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string,
 			start = len(history) - 6
 		}
 		for _, h := range history[start:] {
-			sb.WriteString(fmt.Sprintf("Human: %s\nAssistant: %s\n\n", h.user, h.assistant))
+			fmt.Fprintf(&sb, "Human: %s\nAssistant: %s\n\n", h.user, h.assistant)
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("---\nHuman: %s\nAssistant:", question))
+	fmt.Fprintf(&sb, "---\nQuestion: %s", question)
 
-	answer, err := l.Complete(ctx, sb.String())
+	// Tool executor
+	executor := func(ctx context.Context, name string, input json.RawMessage) (string, error) {
+		switch name {
+		case "search":
+			var args struct {
+				Query  string `json:"query"`
+				Layers []int  `json:"layers"`
+				Top    int    `json:"top"`
+			}
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", err
+			}
+			if args.Top == 0 {
+				args.Top = 20
+			}
+			if len(args.Layers) == 0 {
+				args.Layers = chatLayers
+			}
+			res, err := client.Search(ctx, &lth.SearchRequest{
+				Query: args.Query, Layers: args.Layers, TopK: args.Top,
+			})
+			if err != nil {
+				return "", err
+			}
+			var out strings.Builder
+			for i, r := range res {
+				fmt.Fprintf(&out, "[%d] L%d id=%s score=%.3f\n%s\n\n", i+1, r.Layer, r.ID[:8], r.Score, r.Content)
+			}
+			return out.String(), nil
+
+		case "get_memory":
+			var args struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", err
+			}
+			m, err := client.Get(ctx, args.ID)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("L%d [%s]\n%s", m.Layer, m.ID, m.Content), nil
+
+		case "get_neighbors":
+			var args struct {
+				ID    string `json:"id"`
+				Depth int    `json:"depth"`
+			}
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", err
+			}
+			if args.Depth == 0 {
+				args.Depth = 1
+			}
+			edges, err := client.GraphNeighbors(ctx, args.ID, args.Depth)
+			if err != nil {
+				return "", err
+			}
+			var out strings.Builder
+			fmt.Fprintf(&out, "%d neighbors:\n", len(edges))
+			for _, e := range edges {
+				fmt.Fprintf(&out, "  %s -[%s]-> %s (weight=%.2f)\n", e.FromID[:8], e.EdgeType, e.ToID[:8], e.Weight)
+			}
+			return out.String(), nil
+		}
+		return "", fmt.Errorf("unknown tool: %s", name)
+	}
+
+	// Use agentic loop if LLM supports it
+	if al, ok := l.(*llm.AnthropicLLM); ok {
+		answer, err := al.CompleteWithTools(ctx, chatSystemPrompt, sb.String(), chatTools, executor)
+		if err != nil {
+			return "", fmt.Errorf("llm: %w", err)
+		}
+		return strings.TrimSpace(answer), nil
+	}
+
+	// Fallback: simple completion without tools
+	var prompt strings.Builder
+	prompt.WriteString(chatSystemPrompt)
+	prompt.WriteString("\n\n")
+	prompt.WriteString(sb.String())
+	answer, err := l.Complete(ctx, prompt.String())
 	if err != nil {
 		return "", fmt.Errorf("llm: %w", err)
 	}
-
 	return strings.TrimSpace(answer), nil
 }
 
@@ -150,3 +273,4 @@ func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string,
 func globalLLM() llm.LLM {
 	return llm.New(globalCfg)
 }
+
