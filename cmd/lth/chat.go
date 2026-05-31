@@ -26,8 +26,8 @@ var chatCmd = &cobra.Command{
 }
 
 func init() {
-	chatCmd.Flags().IntVar(&chatTopK, "top", 20, "memories to retrieve per turn")
-	chatCmd.Flags().IntSliceVar(&chatLayers, "layers", []int{1, 2, 3, 4}, "layers to search")
+	chatCmd.Flags().IntVar(&chatTopK, "top", 50, "memories to retrieve per turn")
+	chatCmd.Flags().IntSliceVar(&chatLayers, "layers", []int{1, 2, 3, 4, 5}, "layers to search")
 	chatCmd.Flags().BoolVar(&chatStore, "store", true, "store each exchange as L5")
 	rootCmd.AddCommand(chatCmd)
 }
@@ -39,9 +39,14 @@ type chatTurn struct {
 
 const chatSystemPrompt = `You are a personal AI assistant with access to the user's knowledge base — their memories, notes, observations, and work history.
 
-Answer questions by drawing on the provided context memories. Be specific and reference details from the memories. If the memories don't contain enough to answer confidently, say so and share what is relevant.
+You will receive a list of candidate memories retrieved by vector search. Some will be highly relevant, others tangentially related or noise. Your job is to:
+1. Identify which memories are actually useful for answering the question
+2. Synthesize a specific, accurate answer from those relevant memories
+3. Ignore memories that are not pertinent
 
-Do not fabricate information not present in the context.`
+Be specific — cite details, names, metrics, and decisions from the memories. If the relevant memories don't contain enough to answer confidently, say so clearly and share what is available.
+
+Do not fabricate information not present in the memories.`
 
 func runChat(cmd *cobra.Command, args []string) error {
 	client, err := lth.NewClient(globalCfg)
