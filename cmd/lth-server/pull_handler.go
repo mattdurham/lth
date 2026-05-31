@@ -120,7 +120,7 @@ func parseSince(s string) (time.Time, error) {
 
 func parseLayers(s string) ([]int, error) {
 	if s == "" {
-		return []int{1, 2, 3, 4}, nil
+		return []int{1, 2, 3, 4, 5}, nil
 	}
 	parts := strings.Split(s, ",")
 	layers := make([]int, 0, len(parts))
@@ -133,11 +133,8 @@ func parseLayers(s string) ([]int, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid layer %q", p)
 		}
-		if n == 5 {
-			return nil, fmt.Errorf("layer 5 has no pull endpoint")
-		}
-		if n < 1 || n > 4 {
-			return nil, fmt.Errorf("layer must be 1-4, got %d", n)
+		if n < 1 || n > 5 {
+			return nil, fmt.Errorf("layer must be 1-5, got %d", n)
 		}
 		layers = append(layers, n)
 	}

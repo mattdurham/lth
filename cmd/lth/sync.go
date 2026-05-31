@@ -71,7 +71,7 @@ func init() {
 	syncPushCmd.Flags().StringVar(&syncFlagTeam, "team", "", "override config sync.team")
 
 	syncPullCmd.Flags().StringVar(&syncPullSince, "since", "", "pull memories at or after this RFC3339 timestamp (default: all)")
-	syncPullCmd.Flags().StringVar(&syncPullLayers, "layers", "1,2,3,4", "comma-separated layer numbers to pull (1-4)")
+	syncPullCmd.Flags().StringVar(&syncPullLayers, "layers", "1,2,3,4,5", "comma-separated layer numbers to pull (1-5)")
 	syncPullCmd.Flags().StringVar(&syncFlagAccount, "account", "", "override config sync.account")
 	syncPullCmd.Flags().StringVar(&syncFlagOrg, "org", "", "override config sync.org")
 	syncPullCmd.Flags().StringVar(&syncFlagUser, "user", "", "override config sync.user")
@@ -329,8 +329,8 @@ func parseSyncLayers(s string) ([]int, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid layer %q: %w", p, err)
 		}
-		if n < 1 || n > 4 {
-			return nil, fmt.Errorf("layer %d out of range: must be 1-4 (L5 has no pull endpoint)", n)
+		if n < 1 || n > 5 {
+			return nil, fmt.Errorf("layer %d out of range: must be 1-5", n)
 		}
 		layers = append(layers, n)
 	}
