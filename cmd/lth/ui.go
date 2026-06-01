@@ -25,17 +25,29 @@ func init() {
 	rootCmd.AddCommand(uiCmd)
 }
 
-// memSearcher is satisfied by both *lth.Client and *memory.MemoryStore.
+// memSearcher is satisfied by *lth.Client and *memory.MemoryStore.
 type memSearcher interface {
 	Search(ctx context.Context, req *lth.SearchRequest) ([]*lth.SearchResult, error)
 }
 
 // startUIServer serves the web UI on the given port until ctx is cancelled.
-func startUIServer(ctx context.Context, s memSearcher, port int) {
+// client may be nil — when nil, the /chat route returns 503.
+func startUIServer(ctx context.Context, s memSearcher, client *lth.Client, port int) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleUIIndex)
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
 		handleUISearch(w, r, s)
+	})
+	mux.HandleFunc("/chat", func(w http.ResponseWriter, r *http.Request) {
+		if client == nil {
+			http.Error(w, "chat unavailable in daemon mode", http.StatusServiceUnavailable)
+			return
+		}
+		if r.Method == http.MethodPost {
+			handleWebChatAPI(w, r, client)
+			return
+		}
+		handleWebChatPage(w, r)
 	})
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
 	go func() {
@@ -55,7 +67,7 @@ func runUI(cmd *cobra.Command, _ []string) error {
 	defer client.Close() //nolint:errcheck
 
 	fmt.Printf("lth UI running at http://localhost:%d\n", uiPort)
-	startUIServer(cmd.Context(), client, uiPort)
+	startUIServer(cmd.Context(), client, client, uiPort)
 	return nil
 }
 
@@ -143,7 +155,10 @@ const uiHTML = `<!DOCTYPE html>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen p-6 font-mono">
 <div class="max-w-4xl mx-auto">
-  <h1 class="text-2xl font-bold text-indigo-400 mb-6">lth memory search</h1>
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-indigo-400">lth memory search</h1>
+    <a href="/chat" class="text-indigo-400 hover:text-indigo-300 text-sm transition-colors">chat &rarr;</a>
+  </div>
 
   <div class="flex gap-2 mb-4">
     <input id="q" type="text" placeholder="search memories..."

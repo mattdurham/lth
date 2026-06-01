@@ -1,0 +1,175 @@
+// NOTE: Any changes to this file must be reflected in the corresponding SPECS.md or NOTES.md.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/mattdurham/lth/pkg/lth"
+)
+
+// webChatHistoryItem is one turn of conversation, round-tripped through the browser.
+type webChatHistoryItem struct {
+	User      string `json:"user"`
+	Assistant string `json:"assistant"`
+}
+
+// webChatRequest is the JSON body for POST /chat.
+type webChatRequest struct {
+	Message string               `json:"message"`
+	History []webChatHistoryItem `json:"history"`
+	Store   bool                 `json:"store"`
+}
+
+// webChatResponse is the JSON body returned from POST /chat.
+type webChatResponse struct {
+	Reply   string               `json:"reply"`
+	History []webChatHistoryItem `json:"history"`
+}
+
+// doChatFn is the function used to perform a chat turn.
+// Replaced in tests to avoid live LLM calls. globalLLM() is called inside
+// the default so tests that replace doChatFn never trigger it.
+var doChatFn = func(ctx context.Context, client *lth.Client, question string, history []chatTurn) (string, error) {
+	return doChat(ctx, client, globalLLM(), question, history)
+}
+
+func handleWebChatPage(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, chatHTML)
+}
+
+func handleWebChatAPI(w http.ResponseWriter, r *http.Request, client *lth.Client) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var req webChatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Message == "" {
+		http.Error(w, "message required", http.StatusBadRequest)
+		return
+	}
+
+	history := make([]chatTurn, len(req.History))
+	for i, h := range req.History {
+		history[i] = chatTurn{user: h.User, assistant: h.Assistant}
+	}
+
+	// chatLayers and chatTopK are read-only after startup — safe for concurrent use.
+	reply, err := doChatFn(r.Context(), client, req.Message, history)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if req.Store {
+		content := fmt.Sprintf("Q: %s\nA: %s", req.Message, reply)
+		_, _ = client.Store(r.Context(), 5, content, map[string]string{"source": "chat"})
+	}
+
+	updated := append(req.History, webChatHistoryItem{User: req.Message, Assistant: reply})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(webChatResponse{Reply: reply, History: updated})
+}
+
+const chatHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>lth chat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-mono">
+  <div class="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+    <a href="/" class="text-gray-400 hover:text-gray-200 text-sm transition-colors">&larr; search</a>
+    <span class="text-indigo-400 font-bold">lth chat</span>
+    <label class="flex items-center gap-2 text-sm text-gray-400">
+      <input type="checkbox" id="storeToggle" checked> store as L5
+    </label>
+  </div>
+  <div id="messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4 max-w-4xl mx-auto w-full"></div>
+  <div id="status" class="text-gray-500 text-xs text-center py-1"></div>
+  <div class="border-t border-gray-800 px-6 py-4 max-w-4xl mx-auto w-full">
+    <div class="flex gap-2">
+      <textarea id="input" rows="2" placeholder="ask a question..."
+        class="flex-1 bg-gray-800 border border-gray-700 rounded px-4 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 resize-none"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}">
+      </textarea>
+      <button id="sendBtn" onclick="send()"
+        class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition-colors self-end">
+        Send
+      </button>
+    </div>
+  </div>
+  <script>
+    let history = [];
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function addBubble(role, text) {
+      const msgs = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
+      const inner = document.createElement('div');
+      inner.className = role === 'user'
+        ? 'bg-indigo-900 border border-indigo-800 rounded-lg px-4 py-2 max-w-2xl text-sm leading-relaxed whitespace-pre-wrap'
+        : 'bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 max-w-2xl text-sm leading-relaxed whitespace-pre-wrap text-gray-200';
+      inner.textContent = text;
+      div.appendChild(inner);
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+      return div;
+    }
+
+    async function send() {
+      const input = document.getElementById('input');
+      const btn = document.getElementById('sendBtn');
+      const status = document.getElementById('status');
+      const store = document.getElementById('storeToggle').checked;
+
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      input.disabled = true;
+      btn.disabled = true;
+      status.textContent = 'thinking...';
+      const userBubble = addBubble('user', msg);
+
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({message: msg, history: history, store: store}),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          status.textContent = 'error: ' + text.trim();
+          userBubble.remove();
+          return;
+        }
+        const data = await res.json();
+        history = data.history;
+        addBubble('assistant', data.reply);
+        input.value = '';
+        status.textContent = '';
+      } catch(e) {
+        status.textContent = 'error: ' + e.message;
+        userBubble.remove();
+      } finally {
+        input.disabled = false;
+        btn.disabled = false;
+        input.focus();
+      }
+    }
+
+    document.getElementById('input').focus();
+  </script>
+</body>
+</html>`

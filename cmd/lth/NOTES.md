@@ -23,3 +23,17 @@ handles config loading and daemon auto-start.
 
 **Consequence:** The first invocation of any DB command may have a brief delay (< 1s) while
 the daemon starts. Subsequent invocations are instant (PID file probe is fast).
+
+## 3. Web Chat: Client-Side History
+
+*Added: 2026-06-01*
+
+**Decision:** Chat history is passed client-side in every POST /chat request rather than
+stored server-side in a session map.
+
+**Rationale:** Stateless server is simpler — no mutex, no session GC, no restart-loses-history
+problem. For a dev tool, conversation payloads are small (10-20 turns × ~500 chars = ~10 KB).
+The pattern is consistent with handleUISearch (also stateless).
+
+**Consequence:** The server becomes a pure function: (history, message) → (reply, updated_history).
+Long conversations send slightly larger payloads but this is negligible in practice.

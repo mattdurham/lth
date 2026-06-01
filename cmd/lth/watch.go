@@ -23,6 +23,7 @@ import (
 	"github.com/mattdurham/lth/internal/traces"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/watcher"
+	"github.com/mattdurham/lth/pkg/lth"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
@@ -185,8 +186,16 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 		go mw.Run(ctx)
 	}
 	if !flagNoUI {
-		go startUIServer(ctx, daemon.ms, flagUIPort)
-		slog.Info("web UI running", "addr", fmt.Sprintf("http://localhost:%d", flagUIPort))
+		uiClient, uiClientErr := lth.NewClient(globalCfg)
+		if uiClientErr != nil {
+			slog.Warn("web UI disabled: could not create client", "err", uiClientErr)
+		} else {
+			go func() {
+				defer uiClient.Close() //nolint:errcheck
+				startUIServer(ctx, uiClient, uiClient, flagUIPort)
+			}()
+			slog.Info("web UI running", "addr", fmt.Sprintf("http://localhost:%d", flagUIPort))
+		}
 	}
 
 	slog.Info("daemon started", "pid", os.Getpid(), "metrics", metricsAddr)

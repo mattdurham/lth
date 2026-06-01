@@ -14,3 +14,36 @@
 12. `lth sync push` never pushes memories with source="server" to prevent sync loops.
     `lth sync pull` imports received memories, setting source="server" on all received records.
     `lth sync pull` with layers=5 returns an error (L5 has no pull endpoint).
+
+## UI Server Routes (port 8765, `lth ui`)
+
+The `lth ui` command starts a standalone HTTP server on port 8765. It exposes:
+
+- `GET /` — Memory search page (HTML)
+- `GET /search` — Memory search JSON API (query params: q, top, layers, expand)
+- `GET /chat` — Multi-turn chat page (HTML)
+- `POST /chat` — Chat API (JSON request/response, see below)
+
+### POST /chat request
+
+```json
+{
+  "message": "string — required, the user's current message",
+  "history": [{"user": "string", "assistant": "string"}, ...],
+  "store":   true
+}
+```
+
+### POST /chat response
+
+```json
+{
+  "reply":   "string — assistant's answer",
+  "history": [{"user": "string", "assistant": "string"}, ...]
+}
+```
+
+History is owned entirely by the client and re-sent in full on every request.
+The server is stateless with respect to chat sessions.
+The `store` field controls whether the Q&A exchange is stored as an L5 memory (default: true).
+The backend calls the same `doChat()` function used by `lth chat`, including the agentic tool-use loop.
