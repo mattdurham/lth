@@ -65,37 +65,59 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	})
 }
 
-// InsertMemoryBatch inserts a slice of memories in a single transaction.
-// Rows that violate the content_hash UNIQUE constraint are counted as skipped.
+// InsertMemoryBatch upserts a slice of memories in a single transaction.
+// New rows are inserted; existing rows (matched by content_hash) are updated
+// only when the incoming updated_at is strictly newer than the stored value.
 // attrs maps memory ID to its key/value attributes; may be nil.
-func (d *DB) InsertMemoryBatch(ctx context.Context, rows []*MemoryRow, attrs map[string]map[string]string) (inserted, skipped int, err error) {
+// Returns counts of inserted, updated, and skipped (existing and not newer) rows.
+func (d *DB) InsertMemoryBatch(ctx context.Context, rows []*MemoryRow, attrs map[string]map[string]string) (inserted, updated, skipped int, err error) {
 	// Ensure memories_vec exists before opening the transaction — DDL cannot run
 	// on d.db while the single connection is held by the transaction.
 	for _, m := range rows {
 		if len(m.Embedding) > 0 {
 			dim := len(m.Embedding) / 4
 			if _, err := d.db.ExecContext(ctx, fmt.Sprintf(schemaVec, dim)); err != nil {
-				return 0, 0, fmt.Errorf("ensure vec table: %w", err)
+				return 0, 0, 0, fmt.Errorf("ensure vec table: %w", err)
 			}
 			break
+		}
+	}
+
+	// Build a content_hash → incoming attrs index so we can apply attrs after
+	// the upsert without relying on the incoming ID (which may differ from the
+	// server-side ID when the same content was stored independently on two machines).
+	hashAttrs := make(map[string]map[string]string, len(rows))
+	for _, m := range rows {
+		if a := attrs[m.ID]; len(a) > 0 {
+			hashAttrs[m.ContentHash] = a
 		}
 	}
 
 	err = d.WithTx(ctx, func(tx *sql.Tx) error {
 		for _, m := range rows {
 			res, err := tx.ExecContext(ctx, `
-INSERT OR IGNORE INTO memories
+INSERT INTO memories
 	(id, layer, content, content_hash, embedding, importance, access_count,
 	 created_at, updated_at, last_accessed_at, decay_rate, stability, source, agent,
 	 valence, valence_scored, embedding_model)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(content_hash) DO UPDATE SET
+	updated_at      = excluded.updated_at,
+	importance      = excluded.importance,
+	valence         = excluded.valence,
+	valence_scored  = excluded.valence_scored,
+	embedding       = CASE WHEN length(excluded.embedding) > 0 THEN excluded.embedding ELSE memories.embedding END,
+	embedding_model = excluded.embedding_model,
+	decay_rate      = excluded.decay_rate,
+	stability       = excluded.stability
+WHERE excluded.updated_at > memories.updated_at`,
 				m.ID, m.Layer, m.Content, m.ContentHash, m.Embedding, m.Importance, m.AccessCount,
 				m.CreatedAt.UTC(), m.UpdatedAt.UTC(), m.LastAccessedAt.UTC(),
 				m.DecayRate, m.Stability, m.Source, m.Agent,
 				m.Valence, m.ValenceScored, m.EmbeddingModel,
 			)
 			if err != nil {
-				return fmt.Errorf("insert memory %q: %w", m.ID, err)
+				return fmt.Errorf("upsert memory %q: %w", m.ID, err)
 			}
 			n, err := res.RowsAffected()
 			if err != nil {
@@ -105,35 +127,67 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				skipped++
 				continue
 			}
+
 			rowID, err := res.LastInsertId()
 			if err != nil {
 				return fmt.Errorf("last insert id %q: %w", m.ID, err)
 			}
+
 			if len(m.Embedding) > 0 {
 				embJSON, err := embeddingBytesToJSON(m.Embedding)
 				if err != nil {
 					return fmt.Errorf("encode embedding %q: %w", m.ID, err)
 				}
 				if _, err := tx.ExecContext(ctx,
-					`INSERT OR IGNORE INTO memories_vec(rowid, embedding) VALUES (?, ?)`,
+					`INSERT INTO memories_vec(rowid, embedding) VALUES (?, ?)
+					 ON CONFLICT(rowid) DO UPDATE SET embedding = excluded.embedding`,
 					rowID, embJSON,
 				); err != nil {
-					return fmt.Errorf("insert vec %q: %w", m.ID, err)
+					return fmt.Errorf("upsert vec %q: %w", m.ID, err)
 				}
 			}
-			for k, v := range attrs[m.ID] {
-				if _, err := tx.ExecContext(ctx,
-					`INSERT INTO memory_attributes(mem_id, key, value) VALUES (?, ?, ?)`,
-					m.ID, k, v,
-				); err != nil {
-					return fmt.Errorf("insert attr %q %q: %w", m.ID, k, err)
+
+			// Resolve the actual stored ID — may differ from m.ID when the same
+			// content was stored independently on two machines (conflict on content_hash).
+			var actualID string
+			if err := tx.QueryRowContext(ctx,
+				`SELECT id FROM memories WHERE rowid = ?`, rowID,
+			).Scan(&actualID); err != nil {
+				return fmt.Errorf("resolve id %q: %w", m.ID, err)
+			}
+
+			// Apply attrs using the resolved ID.
+			if a := hashAttrs[m.ContentHash]; len(a) > 0 {
+				for k, v := range a {
+					if _, err := tx.ExecContext(ctx,
+						`INSERT INTO memory_attributes(mem_id, key, value) VALUES (?, ?, ?)
+						 ON CONFLICT(mem_id, key) DO UPDATE SET value = excluded.value`,
+						actualID, k, v,
+					); err != nil {
+						return fmt.Errorf("upsert attr %q %q: %w", actualID, k, err)
+					}
 				}
 			}
-			inserted++
+
+			if actualID == m.ID {
+				inserted++
+			} else {
+				updated++
+			}
 		}
 		return nil
 	})
-	return inserted, skipped, err
+	return inserted, updated, skipped, err
+}
+
+// TouchMemory bumps the updated_at timestamp for an existing memory.
+// Used when re-storing identical content with new attributes so the change
+// propagates on the next sync push.
+func (d *DB) TouchMemory(ctx context.Context, id string, t time.Time) error {
+	_, err := d.db.ExecContext(ctx,
+		`UPDATE memories SET updated_at = ? WHERE id = ?`, t.UTC(), id,
+	)
+	return err
 }
 
 // GetMemory retrieves a memory row by its UUID ID or a unique prefix.

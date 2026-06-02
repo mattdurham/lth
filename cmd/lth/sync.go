@@ -569,8 +569,8 @@ func importMemoriesServerSource(ctx context.Context, d *db.DB, rc interface{ Rea
 		if len(batch) == 0 {
 			return nil
 		}
-		n, s, err := d.InsertMemoryBatch(ctx, batch, batchAttrs)
-		imported += n
+		n, u, s, err := d.InsertMemoryBatch(ctx, batch, batchAttrs)
+		imported += n + u
 		skipped += s
 		batch = batch[:0]
 		batchAttrs = make(map[string]map[string]string)

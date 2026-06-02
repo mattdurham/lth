@@ -72,6 +72,13 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 		return nil, fmt.Errorf("check hash: %w", err)
 	}
 	if existing != nil {
+		// Bump updated_at and merge any new attrs so the change propagates on
+		// the next sync push — otherwise re-storing with new attributes is a no-op.
+		now := time.Now().UTC()
+		_ = s.db.TouchMemory(ctx, existing.ID, now)
+		for k, v := range attrs {
+			_ = s.db.MergeAttribute(ctx, existing.ID, k, v)
+		}
 		return rowToMemory(existing, attrs), nil
 	}
 
