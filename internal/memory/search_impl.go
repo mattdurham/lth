@@ -87,6 +87,19 @@ func (s *MemoryStore) Search(ctx context.Context, req *SearchRequest) ([]*Scored
 		return scored[i].Score > scored[j].Score
 	})
 
+	// Boost memories whose attributes match all FilterAttrs key=value pairs.
+	if len(req.FilterAttrs) > 0 {
+		for _, sm := range scored {
+			if attrsMatch(sm.Attrs, req.FilterAttrs) {
+				sm.Score *= 1.5
+			}
+		}
+		// Re-sort after boost.
+		sort.Slice(scored, func(i, j int) bool {
+			return scored[i].Score > scored[j].Score
+		})
+	}
+
 	// Post-filter by valence range if specified.
 	if req.MinValence != nil || req.MaxValence != nil {
 		filtered := scored[:0]
@@ -248,4 +261,14 @@ func (s *MemoryStore) applySearchDefaults(req *SearchRequest) {
 	if len(req.Layers) == 0 {
 		req.Layers = []int{1, 2, 3, 4, 5}
 	}
+}
+
+// attrsMatch returns true if memory attrs contain all key=value pairs in filter.
+func attrsMatch(attrs, filter map[string]string) bool {
+	for k, v := range filter {
+		if attrs[k] != v {
+			return false
+		}
+	}
+	return true
 }

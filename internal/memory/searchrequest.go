@@ -11,4 +11,8 @@ type SearchRequest struct {
 	MinValence *float32
 	MaxValence *float32
 	Expand     bool
+	// FilterAttrs boosts memories whose attributes contain all given key=value pairs.
+	// Memories matching all pairs receive an AttrBoost score multiplier (default 1.5×).
+	// Does not hard-filter — non-matching results still appear, just ranked lower.
+	FilterAttrs map[string]string
 }

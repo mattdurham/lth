@@ -19,6 +19,7 @@ var (
 	promptPPR         bool
 	promptPPRTop      int
 	promptExpand      bool
+	promptFilterAttrs []string // key=value pairs for attribute boosting
 )
 
 var promptCmd = &cobra.Command{
@@ -35,6 +36,7 @@ func init() {
 	promptCmd.Flags().BoolVar(&promptPPR, "ppr", true, "expand context via Personalized PageRank from search result seeds")
 	promptCmd.Flags().IntVar(&promptPPRTop, "ppr-top", 5, "number of PPR-expanded memories to include")
 	promptCmd.Flags().BoolVar(&promptExpand, "expand", true, "expand queries via LLM for broader context retrieval (default true)")
+	promptCmd.Flags().StringArrayVar(&promptFilterAttrs, "attr", nil, "boost memories matching attribute key=value (repeatable, e.g. --attr project=tempo)")
 	rootCmd.AddCommand(promptCmd)
 }
 
@@ -47,12 +49,15 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close() //nolint:errcheck
 
+	filterAttrs := parseAttrs(promptFilterAttrs)
+
 	// L1+L2: Role & Principles
 	principles, err := client.Search(cmd.Context(), &lth.SearchRequest{
-		Query:  query,
-		Layers: []int{1, 2},
-		TopK:   promptTopEach,
-		Expand: promptExpand,
+		Query:       query,
+		Layers:      []int{1, 2},
+		TopK:        promptTopEach,
+		Expand:      promptExpand,
+		FilterAttrs: filterAttrs,
 	})
 	if err != nil {
 		return fmt.Errorf("search L1/L2: %w", err)
@@ -60,10 +65,11 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 
 	// L3: Relevant Techniques
 	techniques, err := client.Search(cmd.Context(), &lth.SearchRequest{
-		Query:  query,
-		Layers: []int{3},
-		TopK:   promptTopEach,
-		Expand: promptExpand,
+		Query:       query,
+		Layers:      []int{3},
+		TopK:        promptTopEach,
+		Expand:      promptExpand,
+		FilterAttrs: filterAttrs,
 	})
 	if err != nil {
 		return fmt.Errorf("search L3: %w", err)
@@ -71,10 +77,11 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 
 	// L4 only: Current Project Context (L5 excluded — too ephemeral, too noisy)
 	context, err := client.Search(cmd.Context(), &lth.SearchRequest{
-		Query:  query,
-		Layers: []int{4},
-		TopK:   promptTopEach,
-		Expand: promptExpand,
+		Query:       query,
+		Layers:      []int{4},
+		TopK:        promptTopEach,
+		Expand:      promptExpand,
+		FilterAttrs: filterAttrs,
 	})
 	if err != nil {
 		return fmt.Errorf("search L4: %w", err)
@@ -96,13 +103,17 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 	}
 
 	// PPR expansion: seed from all search results, surface graph-linked memories not yet seen.
+	// Seed attributes are collected to apply affinity re-ranking — memories sharing attrs
+	// with the seeds score higher, reducing cross-project contamination.
 	var related []*lth.Memory
 	if promptPPR {
 		seeds := collectIDs(principles, techniques, context, nil)
 		if len(seeds) > 0 {
 			pprScores, err := client.GraphPPR(cmd.Context(), seeds)
 			if err == nil && len(pprScores) > 0 {
-				// Sort by descending PPR score.
+				// Collect attribute fingerprint from seed memories for affinity scoring.
+				seedAttrs := collectSeedAttrs(principles, techniques, context)
+
 				type scored struct {
 					id    string
 					score float64
@@ -111,15 +122,22 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 				for id, score := range pprScores {
 					ranked = append(ranked, scored{id, score})
 				}
-				sort.Slice(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
 
-				// Fetch top-N memories not already in results.
+				// Fetch candidates and apply affinity re-ranking before selecting top-N.
 				seen := make(map[string]bool, len(seeds))
 				for _, id := range seeds {
 					seen[id] = true
 				}
+
+				// Pre-fetch a larger pool then re-rank by attr affinity.
+				pool := promptPPRTop * 4
+				var candidates []struct {
+					mem   *lth.Memory
+					score float64
+				}
+				sort.Slice(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
 				for _, s := range ranked {
-					if len(related) >= promptPPRTop {
+					if len(candidates) >= pool {
 						break
 					}
 					if seen[s.id] {
@@ -130,7 +148,27 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 					if err != nil {
 						continue
 					}
-					related = append(related, mem)
+					score := s.score
+					// Boost memories whose attributes overlap with seed attrs.
+					if attrAffinityScore(mem.Attrs, seedAttrs) > 0 {
+						score *= 1.5
+					}
+					// Also apply explicit FilterAttrs boost.
+					if len(filterAttrs) > 0 && attrSubsetMatch(mem.Attrs, filterAttrs) {
+						score *= 1.5
+					}
+					candidates = append(candidates, struct {
+						mem   *lth.Memory
+						score float64
+					}{mem, score})
+				}
+
+				sort.Slice(candidates, func(i, j int) bool { return candidates[i].score > candidates[j].score })
+				for _, c := range candidates {
+					if len(related) >= promptPPRTop {
+						break
+					}
+					related = append(related, c.mem)
 				}
 			}
 		}
@@ -252,4 +290,44 @@ func collectIDs(principles, techniques, context []*lth.SearchResult, episodes []
 		}
 	}
 	return ids
+}
+
+// collectSeedAttrs aggregates attribute key=value counts across all seed memories.
+// Keys with consistent values across seeds form the "affinity fingerprint".
+func collectSeedAttrs(groups ...[]*lth.SearchResult) map[string]map[string]int {
+	counts := map[string]map[string]int{}
+	for _, group := range groups {
+		for _, r := range group {
+			for k, v := range r.Attrs {
+				if counts[k] == nil {
+					counts[k] = map[string]int{}
+				}
+				counts[k][v]++
+			}
+		}
+	}
+	return counts
+}
+
+// attrAffinityScore returns >0 if mem shares any high-frequency attribute values with seeds.
+func attrAffinityScore(memAttrs map[string]string, seedCounts map[string]map[string]int) float64 {
+	var score float64
+	for k, v := range memAttrs {
+		if vCounts, ok := seedCounts[k]; ok {
+			if n := vCounts[v]; n > 0 {
+				score += float64(n)
+			}
+		}
+	}
+	return score
+}
+
+// attrSubsetMatch returns true if memAttrs contains all key=value pairs in filter.
+func attrSubsetMatch(memAttrs, filter map[string]string) bool {
+	for k, v := range filter {
+		if memAttrs[k] != v {
+			return false
+		}
+	}
+	return true
 }
