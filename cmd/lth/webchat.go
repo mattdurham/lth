@@ -136,11 +136,21 @@ const chatHTML = `<!DOCTYPE html>
       const inner = document.createElement('div');
       inner.className = role === 'user'
         ? 'bg-indigo-900 border border-indigo-800 rounded-lg px-4 py-2 max-w-2xl text-sm leading-relaxed whitespace-pre-wrap'
-        : 'prose-chat bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 max-w-2xl text-sm leading-relaxed text-gray-200';
+        : 'prose-chat bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 max-w-2xl text-sm leading-relaxed text-gray-200 relative group';
       if (role === 'user') {
         inner.textContent = text;
       } else {
         inner.innerHTML = marked.parse(text);
+        const btn = document.createElement('button');
+        btn.className = 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-2 py-1 rounded';
+        btn.textContent = 'copy';
+        btn.onclick = () => {
+          navigator.clipboard.writeText(text).then(() => {
+            btn.textContent = 'copied!';
+            setTimeout(() => btn.textContent = 'copy', 1500);
+          });
+        };
+        inner.appendChild(btn);
       }
       div.appendChild(inner);
       msgs.appendChild(div);
