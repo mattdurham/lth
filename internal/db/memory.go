@@ -128,9 +128,15 @@ WHERE excluded.updated_at > memories.updated_at`,
 				continue
 			}
 
-			rowID, err := res.LastInsertId()
-			if err != nil {
-				return fmt.Errorf("last insert id %q: %w", m.ID, err)
+			// Resolve the actual stored ID and rowid via content_hash — reliable for both
+			// INSERT (new row) and UPDATE (conflict resolved) paths.
+			// LastInsertId() is unreliable for UPDATE in some SQLite drivers.
+			var actualID string
+			var rowID int64
+			if err := tx.QueryRowContext(ctx,
+				`SELECT id, rowid FROM memories WHERE content_hash = ?`, m.ContentHash,
+			).Scan(&actualID, &rowID); err != nil {
+				return fmt.Errorf("resolve id %q: %w", m.ID, err)
 			}
 
 			if len(m.Embedding) > 0 {
@@ -145,15 +151,6 @@ WHERE excluded.updated_at > memories.updated_at`,
 				); err != nil {
 					return fmt.Errorf("upsert vec %q: %w", m.ID, err)
 				}
-			}
-
-			// Resolve the actual stored ID — may differ from m.ID when the same
-			// content was stored independently on two machines (conflict on content_hash).
-			var actualID string
-			if err := tx.QueryRowContext(ctx,
-				`SELECT id FROM memories WHERE rowid = ?`, rowID,
-			).Scan(&actualID); err != nil {
-				return fmt.Errorf("resolve id %q: %w", m.ID, err)
 			}
 
 			// Apply attrs using the resolved ID.
