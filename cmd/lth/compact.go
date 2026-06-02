@@ -72,7 +72,7 @@ func runCompact(cmd *cobra.Command, _ []string) error {
 	}
 
 	if report.SeedL2 > 0 || report.SeedL3 > 0 {
-		fmt.Printf("Seeded:    L2: %d rules, L3: %d skills\n", report.SeedL2, report.SeedL3)
+		fmt.Printf("Seeded:    L2: %d principles, L3: %d knowledge\n", report.SeedL2, report.SeedL3)
 	}
 	fmt.Printf("Compacted: L5→L4: %d, L4→L3: %d, L3→L2: %d\n",
 		report.L5toL4, report.L4toL3, report.L3toL2)

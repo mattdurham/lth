@@ -114,7 +114,7 @@ var chatTools = []llm.Tool{
 			"type": "object",
 			"properties": {
 				"query":  {"type": "string",  "description": "Search query"},
-				"layers": {"type": "array", "items": {"type": "integer"}, "description": "Layers to search (1=identity,2=rules,3=skills,4=context,5=raw). Omit for all."},
+				"layers": {"type": "array", "items": {"type": "integer"}, "description": "Layers to search (1=core,2=principles,3=knowledge,4=workspace,5=observations). Omit for all."},
 				"top":    {"type": "integer", "description": "Number of results (default 20)"}
 			},
 			"required": ["query"]

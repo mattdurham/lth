@@ -89,23 +89,23 @@ td{padding:6px 8px;border-bottom:1px solid #1a1a1a;vertical-align:top}
 
 <div class="agents hidden" id="agents">
   <div class="agent-card l1" id="card-1">
-    <div class="agent-header">L1 — identity</div>
+    <div class="agent-header">L1 — core</div>
     <div class="agent-body" id="body-1"><span class="spinner">···</span></div>
   </div>
   <div class="agent-card l2" id="card-2">
-    <div class="agent-header">L2 — rules</div>
+    <div class="agent-header">L2 — principles</div>
     <div class="agent-body" id="body-2"><span class="spinner">···</span></div>
   </div>
   <div class="agent-card l3" id="card-3">
-    <div class="agent-header">L3 — skills</div>
+    <div class="agent-header">L3 — knowledge</div>
     <div class="agent-body" id="body-3"><span class="spinner">···</span></div>
   </div>
   <div class="agent-card l4" id="card-4">
-    <div class="agent-header">L4 — situational</div>
+    <div class="agent-header">L4 — workspace</div>
     <div class="agent-body" id="body-4"><span class="spinner">···</span></div>
   </div>
   <div class="agent-card l5" id="card-5">
-    <div class="agent-header">L5 — recent</div>
+    <div class="agent-header">L5 — observations</div>
     <div class="agent-body" id="body-5"><span class="spinner">···</span></div>
   </div>
 </div>
@@ -126,7 +126,7 @@ td{padding:6px 8px;border-bottom:1px solid #1a1a1a;vertical-align:top}
 </div>
 
 <script>
-const LAYER_NAMES = {1:'identity',2:'rules',3:'skills',4:'situational',5:'recent'};
+const LAYER_NAMES = {1:'core',2:'principles',3:'knowledge',4:'workspace',5:'observations'};
 
 async function loadStats() {
   try {

@@ -195,7 +195,7 @@ const uiHTML = `<!DOCTYPE html>
 
 <script>
 const layerColors = {1:'text-purple-400',2:'text-blue-400',3:'text-green-400',4:'text-yellow-400',5:'text-orange-400'};
-const layerNames = {1:'L1 identity',2:'L2 rules',3:'L3 skills',4:'L4 context',5:'L5 raw'};
+const layerNames = {1:'core',2:'principles',3:'knowledge',4:'workspace',5:'observations'};
 
 async function search() {
   const q = document.getElementById('q').value.trim();
