@@ -14,6 +14,7 @@ import (
 
 	"github.com/mattdurham/lth/internal/compactor"
 	"github.com/mattdurham/lth/internal/config"
+	"github.com/mattdurham/lth/internal/issueswatcher"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/llm"
@@ -184,6 +185,10 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	if len(globalCfg.Markdown.Dirs) > 0 {
 		mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg)
 		go mw.Run(ctx)
+	}
+	if len(globalCfg.Issues.Repos) > 0 {
+		iw := issueswatcher.New(daemon.ms, globalCfg)
+		go iw.Run(ctx)
 	}
 	if !flagNoUI {
 		uiClient, uiClientErr := lth.NewClient(globalCfg)

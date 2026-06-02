@@ -69,6 +69,7 @@ func Default() *Config {
 	cfg.Search.Alpha = 0.333
 	cfg.Search.Beta = 0.333
 	cfg.Search.Gamma = 0.333
+	cfg.Issues.IntervalS = 3600
 	cfg.Markdown.Layer = 3
 	cfg.Markdown.IntervalS = 300
 	cfg.Markdown.GitPull = true
@@ -184,6 +185,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Watcher.StateFile == "" {
 		cfg.Watcher.StateFile = def.Watcher.StateFile
+	}
+	if cfg.Issues.IntervalS == 0 {
+		cfg.Issues.IntervalS = def.Issues.IntervalS
 	}
 	if cfg.Markdown.Layer == 0 {
 		cfg.Markdown.Layer = def.Markdown.Layer

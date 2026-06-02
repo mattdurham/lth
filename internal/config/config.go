@@ -59,6 +59,11 @@ type Config struct {
 		Paths     []string `yaml:"paths"`
 		StateFile string   `yaml:"state_file"`
 	} `yaml:"watcher"`
+	Issues struct {
+		Repos     []string `yaml:"repos"`      // e.g. ["grafana/tempo", "mattdurham/lth"]
+		IntervalS int      `yaml:"interval_s"` // default 3600
+	} `yaml:"issues"`
+
 	Markdown struct {
 		Dirs             []string `yaml:"dirs"`
 		Layer            int      `yaml:"layer"`              // default 3
