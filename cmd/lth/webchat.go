@@ -83,6 +83,22 @@ const chatHTML = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>lth chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .prose-chat p { margin: 0.4em 0; }
+    .prose-chat p:first-child { margin-top: 0; }
+    .prose-chat p:last-child { margin-bottom: 0; }
+    .prose-chat ul, .prose-chat ol { margin: 0.4em 0 0.4em 1.2em; }
+    .prose-chat li { margin: 0.15em 0; }
+    .prose-chat code { background: rgba(255,255,255,0.08); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.9em; }
+    .prose-chat pre { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 0.75em 1em; overflow-x: auto; margin: 0.5em 0; }
+    .prose-chat pre code { background: none; padding: 0; }
+    .prose-chat h1, .prose-chat h2, .prose-chat h3 { font-weight: 600; margin: 0.6em 0 0.3em; }
+    .prose-chat strong { font-weight: 600; }
+    .prose-chat a { color: #818cf8; text-decoration: underline; }
+    .prose-chat hr { border-color: rgba(255,255,255,0.1); margin: 0.5em 0; }
+    .prose-chat blockquote { border-left: 3px solid rgba(255,255,255,0.2); padding-left: 0.75em; color: rgba(255,255,255,0.6); }
+  </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-mono">
   <div class="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
@@ -120,8 +136,12 @@ const chatHTML = `<!DOCTYPE html>
       const inner = document.createElement('div');
       inner.className = role === 'user'
         ? 'bg-indigo-900 border border-indigo-800 rounded-lg px-4 py-2 max-w-2xl text-sm leading-relaxed whitespace-pre-wrap'
-        : 'bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 max-w-2xl text-sm leading-relaxed whitespace-pre-wrap text-gray-200';
-      inner.textContent = text;
+        : 'prose-chat bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 max-w-2xl text-sm leading-relaxed text-gray-200';
+      if (role === 'user') {
+        inner.textContent = text;
+      } else {
+        inner.innerHTML = marked.parse(text);
+      }
       div.appendChild(inner);
       msgs.appendChild(div);
       msgs.scrollTop = msgs.scrollHeight;
