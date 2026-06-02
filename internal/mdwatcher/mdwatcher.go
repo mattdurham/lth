@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"os/exec"
+
 	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/gitproject"
 	"github.com/mattdurham/lth/internal/llm"
@@ -35,12 +37,13 @@ type state struct {
 
 // MDWatcher scans configured dirs for markdown files and ingests them.
 type MDWatcher struct {
-	store     *memory.MemoryStore
-	llm       llm.LLM
-	cfg       *config.Config
-	stateFile string
-	mu        sync.Mutex
-	st        state
+	store       *memory.MemoryStore
+	llm         llm.LLM
+	cfg         *config.Config
+	stateFile   string
+	mu          sync.Mutex
+	st          state
+	lastPull    map[string]time.Time // dir → last git pull time
 }
 
 // New creates an MDWatcher. stateFile is where ingestion state is persisted.
@@ -52,6 +55,7 @@ func New(store *memory.MemoryStore, l llm.LLM, cfg *config.Config) *MDWatcher {
 		llm:       l,
 		cfg:       cfg,
 		stateFile: stateFile,
+		lastPull:  map[string]time.Time{},
 	}
 }
 
@@ -85,6 +89,7 @@ func (w *MDWatcher) ScanOnce(ctx context.Context) error {
 
 	for _, dir := range w.cfg.Markdown.Dirs {
 		dir = expandHome(dir)
+		w.maybeGitPull(dir)
 		_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return nil
@@ -297,4 +302,34 @@ func (w *MDWatcher) saveState() {
 		return
 	}
 	_ = os.WriteFile(w.stateFile, data, 0o600)
+}
+
+// maybeGitPull runs `git pull` in dir if it is a git repo and enough time has
+// elapsed since the last pull (GitPullIntervalS, default 3600s).
+// Skips silently if git_pull is false or the dir is not a git repo.
+func (w *MDWatcher) maybeGitPull(dir string) {
+	if !w.cfg.Markdown.GitPull {
+		return
+	}
+	// Only pull if it's actually a git repo.
+	if gitproject.Detect(dir) == "" {
+		return
+	}
+	interval := time.Duration(w.cfg.Markdown.GitPullIntervalS) * time.Second
+	w.mu.Lock()
+	last := w.lastPull[dir]
+	w.mu.Unlock()
+	if time.Since(last) < interval {
+		return
+	}
+	cmd := exec.Command("git", "-C", dir, "pull", "--ff-only", "--quiet")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		slog.Warn("mdwatcher: git pull failed", "dir", dir, "err", err, "output", strings.TrimSpace(string(out)))
+	} else {
+		slog.Info("mdwatcher: git pull", "dir", dir, "output", strings.TrimSpace(string(out)))
+	}
+	w.mu.Lock()
+	w.lastPull[dir] = time.Now()
+	w.mu.Unlock()
 }

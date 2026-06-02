@@ -60,9 +60,11 @@ type Config struct {
 		StateFile string   `yaml:"state_file"`
 	} `yaml:"watcher"`
 	Markdown struct {
-		Dirs      []string `yaml:"dirs"`
-		Layer     int      `yaml:"layer"`      // default 3
-		IntervalS int      `yaml:"interval_s"` // default 300
+		Dirs             []string `yaml:"dirs"`
+		Layer            int      `yaml:"layer"`              // default 3
+		IntervalS        int      `yaml:"interval_s"`         // default 300
+		GitPull          bool     `yaml:"git_pull"`           // run git pull before rescanning; default true
+		GitPullIntervalS int      `yaml:"git_pull_interval_s"` // default 3600
 	} `yaml:"markdown"`
 
 	Sync struct {

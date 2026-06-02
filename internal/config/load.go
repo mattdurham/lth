@@ -71,6 +71,8 @@ func Default() *Config {
 	cfg.Search.Gamma = 0.333
 	cfg.Markdown.Layer = 3
 	cfg.Markdown.IntervalS = 300
+	cfg.Markdown.GitPull = true
+	cfg.Markdown.GitPullIntervalS = 3600
 	cfg.Watcher.Paths = []string{
 		filepath.Join(home, ".claude", "projects"),
 		filepath.Join(home, ".wllr", "sessions"),
@@ -188,6 +190,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Markdown.IntervalS == 0 {
 		cfg.Markdown.IntervalS = def.Markdown.IntervalS
+	}
+	if cfg.Markdown.GitPullIntervalS == 0 {
+		cfg.Markdown.GitPullIntervalS = def.Markdown.GitPullIntervalS
 	}
 }
 
