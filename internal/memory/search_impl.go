@@ -20,7 +20,7 @@ import (
 // The non-linear transform (valence × |valence|) suppresses near-zero values naturally.
 const delta = float32(0.15)
 
-const scoringLambda = 0.995 // decay constant per hour
+const scoringLambda = 0.9995 // decay constant per hour — half-life ~58 days
 
 // Search performs multi-modal search and returns at most TopK scored results.
 func (s *MemoryStore) Search(ctx context.Context, req *SearchRequest) ([]*ScoredMemory, error) {
