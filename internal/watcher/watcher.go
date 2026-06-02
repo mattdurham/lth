@@ -17,6 +17,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/mattdurham/lth/internal/config"
+	"github.com/mattdurham/lth/internal/gitproject"
 	"github.com/mattdurham/lth/internal/memory"
 )
 
@@ -175,6 +176,9 @@ func (w *Watcher) IngestFile(ctx context.Context, path string) error {
 			"cwd":     cwd,
 			"file":    path,
 		}
+		if p := gitproject.Detect(cwd); p != "" {
+			attrs["project"] = p
+		}
 		if _, err := w.store.Store(ctx, 5, content, attrs); err != nil {
 			w.logger.Warn("store memory error", "err", err)
 		}
@@ -232,6 +236,14 @@ func (w *Watcher) storeFilesTouched(ctx context.Context, sessionID string, paths
 		"source":  "watcher",
 		"session": sessionID,
 		"repo":    repo,
+	}
+	for _, p := range sorted {
+		if filepath.IsAbs(p) {
+			if proj := gitproject.Detect(filepath.Dir(p)); proj != "" {
+				attrs["project"] = proj
+				break
+			}
+		}
 	}
 	if _, err := w.store.Store(ctx, 5, sb.String(), attrs); err != nil {
 		w.logger.Warn("store files-touched error", "err", err)

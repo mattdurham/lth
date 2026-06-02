@@ -193,6 +193,10 @@ func (c *Compactor) summarizeCluster(ctx context.Context, cluster []*memory.Memo
 		"window_start": cluster[0].CreatedAt.Format(time.RFC3339),
 		"window_end":   cluster[len(cluster)-1].CreatedAt.Format(time.RFC3339),
 	}
+	// Inherit the most common project attribute from the source cluster.
+	if p := dominantAttr(cluster, "project"); p != "" {
+		attrs["project"] = p
+	}
 	l4, err := c.store.Store(ctx, 4, summary, attrs)
 	if err != nil {
 		return 0, fmt.Errorf("store L4 summary: %w", err)
@@ -211,4 +215,22 @@ func (c *Compactor) summarizeCluster(ctx context.Context, cluster []*memory.Memo
 	}
 
 	return 1, nil // 1 L4 memory created per cluster/window
+}
+
+// dominantAttr returns the most frequently occurring value for the given attribute key
+// across all memories in the cluster. Returns "" if no memory has the key.
+func dominantAttr(cluster []*memory.Memory, key string) string {
+	counts := map[string]int{}
+	for _, m := range cluster {
+		if v := m.Attrs[key]; v != "" {
+			counts[v]++
+		}
+	}
+	best, bestN := "", 0
+	for v, n := range counts {
+		if n > bestN {
+			best, bestN = v, n
+		}
+	}
+	return best
 }

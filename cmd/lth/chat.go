@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	chatTopK   int
-	chatLayers []int
-	chatStore  bool
+	chatTopK        int
+	chatLayers      []int
+	chatStore       bool
+	chatFilterAttrs []string
 )
 
 var chatCmd = &cobra.Command{
@@ -30,6 +31,7 @@ func init() {
 	chatCmd.Flags().IntVar(&chatTopK, "top", 50, "memories to retrieve per turn")
 	chatCmd.Flags().IntSliceVar(&chatLayers, "layers", []int{1, 2, 3, 4, 5}, "layers to search")
 	chatCmd.Flags().BoolVar(&chatStore, "store", true, "store each exchange as L5")
+	chatCmd.Flags().StringArrayVar(&chatFilterAttrs, "attr", nil, "boost memories matching attribute key=value (e.g. --attr project=grafana/tempo)")
 	rootCmd.AddCommand(chatCmd)
 }
 
@@ -146,10 +148,11 @@ var chatTools = []llm.Tool{
 func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string, history []chatTurn) (string, error) {
 	// Seed with initial search results
 	results, err := client.Search(ctx, &lth.SearchRequest{
-		Query:  question,
-		Layers: chatLayers,
-		TopK:   chatTopK,
-		Expand: true,
+		Query:       question,
+		Layers:      chatLayers,
+		TopK:        chatTopK,
+		Expand:      true,
+		FilterAttrs: parseAttrs(chatFilterAttrs),
 	})
 	if err != nil {
 		return "", fmt.Errorf("search: %w", err)

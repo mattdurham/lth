@@ -81,6 +81,11 @@ func (c *Client) Get(ctx context.Context, id string) (*Memory, error) {
 	return c.store.Get(ctx, id)
 }
 
+// DistinctAttrValues returns all distinct values for a given attribute key.
+func (c *Client) DistinctAttrValues(ctx context.Context, key string) ([]string, error) {
+	return c.store.DistinctAttrValues(ctx, key)
+}
+
 // Stats returns aggregate statistics about the memory store.
 func (c *Client) Stats(ctx context.Context) (*Stats, error) {
 	return c.store.Stats(ctx)

@@ -91,3 +91,8 @@ func (s *MemoryStore) Stats(ctx context.Context) (*Stats, error) {
 		TotalEdges:    dbStats.TotalEdges,
 	}, nil
 }
+
+// DistinctAttrValues returns all distinct values for a given attribute key across all memories.
+func (s *MemoryStore) DistinctAttrValues(ctx context.Context, key string) ([]string, error) {
+	return s.db.DistinctAttrValues(ctx, key)
+}

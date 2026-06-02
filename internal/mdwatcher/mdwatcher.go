@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/mattdurham/lth/internal/config"
+	"github.com/mattdurham/lth/internal/gitproject"
 	"github.com/mattdurham/lth/internal/llm"
 	"github.com/mattdurham/lth/internal/memory"
 )
@@ -186,6 +187,9 @@ func (w *MDWatcher) ingestChunk(ctx context.Context, path, part, content string)
 	}
 	if part != "" {
 		attrs["source_part"] = part
+	}
+	if p := gitproject.Detect(filepath.Dir(path)); p != "" {
+		attrs["project"] = p
 	}
 
 	ids := make([]string, 0, len(facts))

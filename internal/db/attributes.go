@@ -58,6 +58,26 @@ func (d *DB) GetMemIDsByAttr(ctx context.Context, key, value string) ([]string, 
 	return ids, rows.Err()
 }
 
+// DistinctAttrValues returns all distinct values stored for the given attribute key,
+// ordered alphabetically. Used by lth projects and filter hint generation.
+func (d *DB) DistinctAttrValues(ctx context.Context, key string) ([]string, error) {
+	rows, err := d.db.QueryContext(ctx,
+		"SELECT DISTINCT value FROM memory_attributes WHERE key = ? ORDER BY value", key)
+	if err != nil {
+		return nil, fmt.Errorf("distinct attr values: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+	var vals []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, fmt.Errorf("scan value: %w", err)
+		}
+		vals = append(vals, v)
+	}
+	return vals, rows.Err()
+}
+
 // GetAttributes returns all attributes for the given memory ID as a map.
 func (d *DB) GetAttributes(ctx context.Context, memID string) (map[string]string, error) {
 	rows, err := d.db.QueryContext(ctx,

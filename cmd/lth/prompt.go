@@ -259,6 +259,18 @@ func formatPromptOutput(w io.Writer, principles, techniques, context []*lth.Sear
 			fmt.Fprintf(w, "  %s\n", id) //nolint:errcheck
 		}
 	}
+
+	// Project filter hints: collect distinct projects across all results and suggest --attr filter.
+	projects := collectResultProjects(principles, techniques, context, related, episodes)
+	if len(projects) > 0 {
+		fmt.Fprintln(w, "\n## Filter by project")                   //nolint:errcheck
+		fmt.Fprintln(w, "Memories from these projects are present:") //nolint:errcheck
+		for _, p := range projects {
+			fmt.Fprintf(w, "  lth prompt \"...\" --attr project=%s\n", p) //nolint:errcheck
+		}
+		fmt.Fprintln(w, "  lth projects  — list all tracked projects")        //nolint:errcheck
+		fmt.Fprintln(w, "  lth chat \"...\" --attr project=<project> — filtered chat") //nolint:errcheck
+	}
 }
 
 // collectIDs gathers all memory IDs from search results and raw memories, deduped.
@@ -290,6 +302,31 @@ func collectIDs(principles, techniques, context []*lth.SearchResult, episodes []
 		}
 	}
 	return ids
+}
+
+// collectResultProjects returns distinct project attribute values across all result sets, sorted.
+func collectResultProjects(principles, techniques, context []*lth.SearchResult, related, episodes []*lth.Memory) []string {
+	seen := map[string]struct{}{}
+	for _, group := range [][]*lth.SearchResult{principles, techniques, context} {
+		for _, r := range group {
+			if p := r.Attrs["project"]; p != "" {
+				seen[p] = struct{}{}
+			}
+		}
+	}
+	for _, group := range [][]*lth.Memory{related, episodes} {
+		for _, m := range group {
+			if p := m.Attrs["project"]; p != "" {
+				seen[p] = struct{}{}
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for p := range seen {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // collectSeedAttrs aggregates attribute key=value counts across all seed memories.
