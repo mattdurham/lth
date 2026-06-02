@@ -21,6 +21,12 @@ type Metrics struct {
 	SyncPushedTotal      *prometheus.CounterVec
 	SyncPulledTotal      *prometheus.CounterVec
 	SyncDurationSeconds  *prometheus.HistogramVec
+
+	// Per-source ingestion counters.
+	WatcherIngestedTotal  *prometheus.CounterVec // label: path
+	MarkdownIngestedTotal *prometheus.CounterVec // label: dir
+	IssuesIngestedTotal   *prometheus.CounterVec // label: repo
+	IssuesLastSync        *prometheus.GaugeVec   // label: repo — Unix timestamp of last successful sync
 }
 
 // New creates and registers all lth metrics with the given registry.
@@ -99,6 +105,26 @@ func New(reg prometheus.Registerer) *Metrics {
 			Help:    "Duration of sync push/pull operations in seconds.",
 			Buckets: []float64{1, 5, 10, 30, 60, 120, 300},
 		}, []string{"operation"}),
+
+		WatcherIngestedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "lth_watcher_ingested_total",
+			Help: "Memories ingested by the session/JSONL watcher, by watched path.",
+		}, []string{"path"}),
+
+		MarkdownIngestedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "lth_markdown_ingested_total",
+			Help: "Memories ingested by the markdown watcher, by directory.",
+		}, []string{"dir"}),
+
+		IssuesIngestedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "lth_issues_ingested_total",
+			Help: "Memories ingested by the issues watcher, by repo.",
+		}, []string{"repo"}),
+
+		IssuesLastSync: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "lth_issues_last_sync_timestamp",
+			Help: "Unix timestamp of the last successful issues sync, by repo.",
+		}, []string{"repo"}),
 	}
 
 	reg.MustRegister(
@@ -116,6 +142,10 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.SyncPushedTotal,
 		m.SyncPulledTotal,
 		m.SyncDurationSeconds,
+		m.WatcherIngestedTotal,
+		m.MarkdownIngestedTotal,
+		m.IssuesIngestedTotal,
+		m.IssuesLastSync,
 	)
 	return m
 }

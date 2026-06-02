@@ -48,7 +48,7 @@ func TestWatcherIngestsNewLines(t *testing.T) {
 	cfg.Watcher.Paths = []string{dir}
 
 	store := &mockStore{}
-	w, err := New(store, cfg)
+	w, err := New(store, cfg, nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestWatcherInitialScan(t *testing.T) {
 	}
 
 	store := &mockStore{}
-	w, err := New(store, cfg)
+	w, err := New(store, cfg, nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestWatcherIngestFileStoreError(t *testing.T) {
 	cfg.Watcher.Paths = []string{dir}
 
 	store := &mockStore{callErr: fmt.Errorf("store unavailable")}
-	w, err := New(store, cfg)
+	w, err := New(store, cfg, nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestIngestFileStoresFilesTouched(t *testing.T) {
 	cfg.Watcher.Paths = []string{dir}
 
 	store := &mockStore{}
-	w, err := New(store, cfg)
+	w, err := New(store, cfg, nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -336,7 +336,7 @@ func TestWatcherIngestsWllrFile(t *testing.T) {
 	cfg.Watcher.Paths = []string{wllrDir}
 
 	store := &mockStoreWithAttrs{}
-	w, err := New(store, cfg)
+	w, err := New(store, cfg, nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

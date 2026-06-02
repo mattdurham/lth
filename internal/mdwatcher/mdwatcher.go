@@ -20,6 +20,7 @@ import (
 	"github.com/mattdurham/lth/internal/gitproject"
 	"github.com/mattdurham/lth/internal/llm"
 	"github.com/mattdurham/lth/internal/memory"
+	"github.com/mattdurham/lth/internal/metrics"
 )
 
 const maxFileSizeBytes = 600_000 // ~150K tokens, safe for any model
@@ -44,15 +45,17 @@ type MDWatcher struct {
 	mu          sync.Mutex
 	st          state
 	lastPull    map[string]time.Time // dir → last git pull time
+	metrics     *metrics.Metrics
 }
 
 // New creates an MDWatcher. stateFile is where ingestion state is persisted.
-func New(store *memory.MemoryStore, l llm.LLM, cfg *config.Config) *MDWatcher {
+func New(store *memory.MemoryStore, l llm.LLM, cfg *config.Config, m *metrics.Metrics) *MDWatcher {
 	home, _ := os.UserHomeDir()
 	stateFile := filepath.Join(home, ".lth", "mdwatcher-state.json")
 	return &MDWatcher{
 		store:     store,
 		llm:       l,
+		metrics:   m,
 		cfg:       cfg,
 		stateFile: stateFile,
 		lastPull:  map[string]time.Time{},
@@ -202,12 +205,15 @@ func (w *MDWatcher) ingestChunk(ctx context.Context, path, part, content string)
 		if strings.TrimSpace(fact) == "" {
 			continue
 		}
-		m, err := w.store.Store(ctx, w.cfg.Markdown.Layer, fact, attrs)
+		mem, err := w.store.Store(ctx, w.cfg.Markdown.Layer, fact, attrs)
 		if err != nil {
 			slog.Warn("mdwatcher: store fact failed", "err", err)
 			continue
 		}
-		ids = append(ids, m.ID)
+		ids = append(ids, mem.ID)
+		if w.metrics != nil {
+			w.metrics.MarkdownIngestedTotal.WithLabelValues(filepath.Dir(path)).Inc()
+		}
 	}
 	return ids, nil
 }

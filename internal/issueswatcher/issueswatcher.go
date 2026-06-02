@@ -15,6 +15,7 @@ import (
 
 	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/memory"
+	"github.com/mattdurham/lth/internal/metrics"
 )
 
 // issueState tracks what has been ingested for a single issue.
@@ -42,15 +43,17 @@ type Watcher struct {
 	stateFile string
 	mu        sync.Mutex
 	st        state
+	metrics   *metrics.Metrics
 }
 
 // New creates a new issues Watcher.
-func New(store *memory.MemoryStore, cfg *config.Config) *Watcher {
+func New(store *memory.MemoryStore, cfg *config.Config, m *metrics.Metrics) *Watcher {
 	home, _ := os.UserHomeDir()
 	return &Watcher{
 		store:     store,
 		cfg:       cfg,
 		stateFile: filepath.Join(home, ".lth", "issues-state.json"),
+		metrics:   m,
 	}
 }
 
@@ -112,6 +115,9 @@ func (w *Watcher) syncRepo(ctx context.Context, repo string) error {
 	w.st.Repos[repo] = rs
 	w.mu.Unlock()
 	w.saveState()
+	if w.metrics != nil {
+		w.metrics.IssuesLastSync.WithLabelValues(repo).SetToCurrentTime()
+	}
 	return nil
 }
 
@@ -151,6 +157,9 @@ func (w *Watcher) processIssue(ctx context.Context, repo string, issue ghIssue) 
 	if err != nil {
 		return fmt.Errorf("store issue: %w", err)
 	}
+	if w.metrics != nil {
+		w.metrics.IssuesIngestedTotal.WithLabelValues(repo).Inc()
+	}
 
 	is := issueState{
 		MemoryID:   m.ID,
@@ -187,6 +196,9 @@ func (w *Watcher) processIssue(ctx context.Context, repo string, issue ghIssue) 
 				if err != nil {
 					slog.Warn("issueswatcher: store comment failed", "err", err)
 					continue
+				}
+				if w.metrics != nil {
+					w.metrics.IssuesIngestedTotal.WithLabelValues(repo).Inc()
 				}
 				is.CommentIDs[cid] = cm.ID
 			}

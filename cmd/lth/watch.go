@@ -149,7 +149,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	defer daemon.close()
 
 	// Start watcher goroutine.
-	w, err := watcher.New(daemon.store, globalCfg)
+	w, err := watcher.New(daemon.store, globalCfg, m)
 	if err != nil {
 		return fmt.Errorf("create watcher: %w", err)
 	}
@@ -183,11 +183,11 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 		go autoSync(ctx, globalCfg, m)
 	}
 	if len(globalCfg.Markdown.Dirs) > 0 {
-		mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg)
+		mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg, m)
 		go mw.Run(ctx)
 	}
 	if len(globalCfg.Issues.Repos) > 0 {
-		iw := issueswatcher.New(daemon.ms, globalCfg)
+		iw := issueswatcher.New(daemon.ms, globalCfg, m)
 		go iw.Run(ctx)
 	}
 	if !flagNoUI {

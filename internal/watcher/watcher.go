@@ -17,6 +17,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/mattdurham/lth/internal/config"
+	"github.com/mattdurham/lth/internal/metrics"
 	"github.com/mattdurham/lth/internal/gitproject"
 	"github.com/mattdurham/lth/internal/memory"
 )
@@ -29,10 +30,11 @@ type Watcher struct {
 	offsets map[string]int64
 	mu      sync.Mutex
 	logger  *slog.Logger
+	metrics *metrics.Metrics
 }
 
 // New creates a new Watcher. Call Start to begin watching.
-func New(store memory.Store, cfg *config.Config) (*Watcher, error) {
+func New(store memory.Store, cfg *config.Config, m *metrics.Metrics) (*Watcher, error) {
 	fw, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("create fsnotify watcher: %w", err)
@@ -44,6 +46,7 @@ func New(store memory.Store, cfg *config.Config) (*Watcher, error) {
 		watcher: fw,
 		offsets: make(map[string]int64),
 		logger:  slog.Default(),
+		metrics: m,
 	}
 
 	if err := w.loadOffsets(); err != nil {
@@ -181,6 +184,8 @@ func (w *Watcher) IngestFile(ctx context.Context, path string) error {
 		}
 		if _, err := w.store.Store(ctx, 5, content, attrs); err != nil {
 			w.logger.Warn("store memory error", "err", err)
+		} else if w.metrics != nil {
+			w.metrics.WatcherIngestedTotal.WithLabelValues(cwd).Inc()
 		}
 	}
 
