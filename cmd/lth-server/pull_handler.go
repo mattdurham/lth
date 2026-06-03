@@ -5,6 +5,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,8 +14,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/mattdurham/lth/internal/blobstore"
 	"github.com/mattdurham/lth/internal/parquet"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/wire"
@@ -86,10 +89,47 @@ func (h *PullHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Overlay attrs sidecars — attrs are stored separately so they can be
+	// updated without re-pushing content (which is immutable once indexed).
+	overlayAttrs(ctx, h.store, account, org, allRecords)
+
 	w.Header().Set("Content-Type", "application/zip")
 	if err := buildZIPResponse(w, allRecords); err != nil {
 		return
 	}
+}
+
+// overlayAttrs fetches the attrs sidecar for each record and merges it over
+// the record's embedded attrs. Sidecars win because they represent the most
+// recent update; parquet attrs are from the original push.
+func overlayAttrs(ctx context.Context, store blobstore.BlobStore, account, org string, records []parquet.MemoryRecord) {
+	const concurrency = 20
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	for i := range records {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			rec := &records[i]
+			attrsKey := fmt.Sprintf("%s/%s/attrs/%s/%s", account, org, rec.ContentHash[:2], rec.ContentHash)
+			rc, err := store.Get(ctx, attrsKey)
+			if err != nil {
+				return // no sidecar, keep parquet attrs
+			}
+			defer rc.Close() //nolint:errcheck
+			data, err := io.ReadAll(rc)
+			if err != nil || len(data) == 0 {
+				return
+			}
+			// Validate it's a JSON object before overwriting.
+			if json.Valid(data) {
+				rec.Attrs = string(data)
+			}
+		}(i)
+	}
+	wg.Wait()
 }
 
 // keyDateGe returns true if the BlobStore key contains a date= partition >= minDate.

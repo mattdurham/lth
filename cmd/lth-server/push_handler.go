@@ -98,8 +98,14 @@ func (h *PushHandler) processPush(ctx context.Context, account, org, user, team 
 
 	for layer, recs := range byLayer {
 		// Dedup: check content_hash index, skip already-seen memories.
+		// Attrs are always written/updated even on a dedup hit — content is
+		// immutable but attrs are mutable metadata that can change over time.
 		var fresh []parquet.MemoryRecord
 		for _, rec := range recs {
+			if rec.Attrs != "" {
+				attrsKey := fmt.Sprintf("%s/%s/attrs/%s/%s", account, org, rec.ContentHash[:2], rec.ContentHash)
+				_ = h.store.Put(ctx, attrsKey, strings.NewReader(rec.Attrs))
+			}
 			indexKey := fmt.Sprintf("%s/%s/index/%s/%s", account, org, rec.ContentHash[:2], rec.ContentHash)
 			exists, checkErr := h.store.Exists(ctx, indexKey)
 			if checkErr != nil || exists {
