@@ -203,6 +203,10 @@ func buildZIPResponse(w io.Writer, records []parquet.MemoryRecord) error {
 }
 
 func recordToExportMemory(r parquet.MemoryRecord) wire.ExportMemory {
+	var attrs map[string]string
+	if r.Attrs != "" {
+		_ = json.Unmarshal([]byte(r.Attrs), &attrs)
+	}
 	return wire.ExportMemory{
 		ID:             r.ID,
 		Layer:          int(r.Layer),
@@ -221,6 +225,7 @@ func recordToExportMemory(r parquet.MemoryRecord) wire.ExportMemory {
 		Valence:        r.Valence,
 		ValenceScored:  r.ValenceScored,
 		EmbeddingModel: r.EmbeddingModel,
+		Attrs:          attrs,
 	}
 }
 

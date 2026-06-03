@@ -157,6 +157,12 @@ func (h *PushHandler) parseMemoryFile(rc io.Reader) (accepted, skipped int, recs
 }
 
 func exportMemoryToRecord(em wire.ExportMemory) parquet.MemoryRecord {
+	var attrsJSON string
+	if len(em.Attrs) > 0 {
+		if b, err := json.Marshal(em.Attrs); err == nil {
+			attrsJSON = string(b)
+		}
+	}
 	return parquet.MemoryRecord{
 		ID:             em.ID,
 		Layer:          int32(em.Layer),
@@ -175,6 +181,7 @@ func exportMemoryToRecord(em wire.ExportMemory) parquet.MemoryRecord {
 		Valence:        em.Valence,
 		ValenceScored:  em.ValenceScored,
 		EmbeddingModel: em.EmbeddingModel,
+		Attrs:          attrsJSON,
 	}
 }
 

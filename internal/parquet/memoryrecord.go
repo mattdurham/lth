@@ -20,4 +20,7 @@ type MemoryRecord struct {
 	Valence        float32   `parquet:"valence"`
 	ValenceScored  bool      `parquet:"valence_scored"`
 	EmbeddingModel string    `parquet:"embedding_model,zstd"`
+	// Attrs holds key=value attributes as a JSON-encoded string.
+	// Parquet does not have a native map type; JSON encoding is the simplest approach.
+	Attrs          string    `parquet:"attrs,zstd"`
 }
