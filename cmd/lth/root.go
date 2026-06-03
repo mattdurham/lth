@@ -88,7 +88,7 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&flagDB, "db", "", "path to memory database (default: ~/.lth/memory.db)")
-	rootCmd.PersistentFlags().StringVar(&flagConfig, "config", "", "path to config file (default: ~/.lth/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&flagConfig, "config", "", "path to config file (default: ~/.lth/config.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&flagVerbose, "verbose", false, "enable verbose logging")
 	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "output as JSON")
 	rootCmd.PersistentFlags().Int("metrics-port", 10010, "port for Prometheus metrics server (daemon only)")

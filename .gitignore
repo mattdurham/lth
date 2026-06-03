@@ -1,5 +1,7 @@
 .bob/
 /lth
+/lth-server
+/bench
 *.test
 bin/
 logs/

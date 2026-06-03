@@ -108,7 +108,7 @@ func effectiveSyncCfg() (syncCfg, error) {
 }
 func (s syncCfg) validate() error {
 	if s.serverURL == "" {
-		return fmt.Errorf("sync.server_url is not configured; set [sync] server_url in ~/.lth/config.toml")
+		return fmt.Errorf("sync.server_url is not configured; set server_url in ~/.lth/config.yaml")
 	}
 	if s.account == "" {
 		s.account = "default"
