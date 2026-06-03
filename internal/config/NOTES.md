@@ -1,15 +1,15 @@
 # internal/config -- Design Notes
 
-## 1. BurntSushi/toml for Configuration Parsing
+## 1. YAML for Configuration Parsing
 
-*Added: 2026-05-14*
+*Added: 2026-05-14, updated: 2026-06-03*
 
-**Decision:** Use `github.com/BurntSushi/toml` for TOML parsing.
+**Decision:** Use `gopkg.in/yaml.v3` for YAML parsing.
 
-**Rationale:** TOML is the configuration format used by other tools in this project family (wllr,
-bob). BurntSushi/toml is the de-facto standard Go TOML library, already in the module cache.
+**Rationale:** YAML is human-friendly for nested config with comments. The standard Go YAML library
+is widely used and already in the module cache.
 
-**Consequence:** Configuration file format is TOML. No environment variable overrides are supported
+**Consequence:** Configuration file format is YAML. No environment variable overrides are supported
 in v1 -- config is file-only for simplicity and auditability.
 
 ## 2. ~/.lth/ Home Directory Convention
@@ -17,7 +17,7 @@ in v1 -- config is file-only for simplicity and auditability.
 *Added: 2026-05-14*
 
 **Decision:** All lth state lives under `~/.lth/`: DB at `~/.lth/memory.db`, config at
-`~/.lth/config.toml`, watcher state at `~/.lth/watcher-state.json`, PID file at `~/.lth/watch.pid`.
+`~/.lth/config.yaml`, watcher state at `~/.lth/watcher-state.json`, PID file at `~/.lth/watch.pid`.
 
 **Rationale:** Follows the XDG-adjacent pattern of single-directory state for single-user tools.
 Simple to back up, inspect, and clean up. No XDG_DATA_HOME support in v1 (unnecessary complexity).
@@ -49,28 +49,23 @@ Simple to back up, inspect, and clean up. No XDG_DATA_HOME support in v1 (unnece
 
 *Added: 2026-05-23*
 
-**Decision:** Add a `[sync]` section to the existing Config struct for `lth sync push/pull` configuration.
+**Decision:** Add a `sync` section to the existing Config struct for `lth sync push/pull` configuration.
 
 **Rationale:** The sync client needs server URL and identity (account, org, user, team). Reusing the
-existing TOML config file avoids a second config file on the client side.
+existing YAML config file avoids a second config file on the client side.
 
-**Consequence:** Existing config files without a `[sync]` section load successfully (all fields zero/empty).
+**Consequence:** Existing config files without a `sync` section load successfully (all fields zero/empty).
 The `lth sync` commands validate non-empty values at runtime.
 
-## 6. Default Watcher Paths Include Both ~/.claude/projects and ~/.wllr/sessions
+## 6. Default Watcher Path is ~/.claude/projects
 
-*Added: 2026-05-29*
+*Added: 2026-05-29, updated: 2026-06-03*
 
-**Decision:** `Default()` now sets `Watcher.Paths` to `[~/.claude/projects, ~/.wllr/sessions]` instead
-of just `[~/.claude/projects]`.
+**Decision:** `Default()` sets `Watcher.Paths` to `[~/.claude/projects]`.
 
-**Rationale:** lth now supports ingesting conversation history from both Claude CLI (`.claude/projects/`)
-and the wllr agent shell (`.wllr/sessions/`). The watcher detects the format of each file at ingest time
-via `detectFormat(path)` — paths containing `/.wllr/` use the wllr JSONL format; all others use the
-Claude format. Including both directories in the default config means new users automatically get full
-coverage without manual configuration.
+**Rationale:** lth watches Claude CLI conversation history by default. Additional paths (e.g. other
+conversation tools) can be added via the config file. The watcher detects the JSONL format of each
+file at ingest time via `detectFormat(path)`.
 
-**Consequence:** Users who previously relied on `Default()` returning a single-element slice for
-`Watcher.Paths` must update any test assertions that check the exact length or contents of that slice.
-Existing config files with an explicit `watcher.paths` list are unaffected — `applyDefaults` only fills
-in the default when the loaded slice is empty.
+**Consequence:** Existing config files with an explicit `watcher.paths` list are unaffected —
+`applyDefaults` only fills in the default when the loaded slice is empty.
