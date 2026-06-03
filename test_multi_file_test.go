@@ -46,7 +46,7 @@ func TestMultipleFilePathsInSingleMessage(t *testing.T) {
 	cfg.Watcher.Paths = []string{dir}
 
 	store := &mockStore{}
-	w, err := watcher.New(store, cfg)
+	w, err := watcher.New(store, cfg, nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
