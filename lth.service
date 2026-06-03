@@ -1,0 +1,11 @@
+[Unit]
+Description=lth memory daemon
+After=network.target
+
+[Service]
+ExecStart=%h/bin/lth watch daemon
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

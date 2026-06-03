@@ -1,4 +1,4 @@
-.PHONY: build test lint ci clean install install-cli install-skills install-server uninstall bench-build benchmark bench-eval bench-all
+.PHONY: build test lint ci clean install install-cli install-skills install-server install-daemon uninstall bench-build benchmark bench-eval bench-all
 
 build:
 	go build ./...
@@ -46,8 +46,8 @@ GOBIN ?= $(HOME)/bin
 SKILL_DIR ?= $(HOME)/.claude/skills/lth-amnesia
 SKILLS_DIR ?= $(HOME)/.claude/skills
 
-## install: Install lth CLI to ~/bin and all lth skills to ~/.claude/skills/
-install: install-cli install-skills
+## install: Install lth CLI to ~/bin, all lth skills, and the daemon service
+install: install-cli install-skills install-daemon
 	@echo ""
 	@echo "lth installed successfully."
 	@echo "  CLI:    $(GOBIN)/lth"
@@ -74,6 +74,18 @@ install-skills:
 		cp $$skill/SKILL.md $(SKILLS_DIR)/$$name/SKILL.md; \
 		echo "✓ $$name installed to $(SKILLS_DIR)/$$name/SKILL.md"; \
 	done
+
+## install-daemon: Install systemd user service for lth daemon and (re)start it
+install-daemon:
+	@mkdir -p $(HOME)/.config/systemd/user
+	cp lth.service $(HOME)/.config/systemd/user/lth.service
+	@echo "✓ systemd unit installed"
+	systemctl --user daemon-reload
+	systemctl --user enable lth
+	systemctl --user restart lth
+	@echo ""
+	@echo "lth daemon running. Check status: systemctl --user status lth"
+	@echo "Logs: journalctl --user -u lth -f"
 
 ## install-server: Build lth-server, install to ~/bin, install systemd user service, and (re)start it
 install-server:
@@ -102,7 +114,7 @@ install-server:
 uninstall:
 	rm -f $(GOBIN)/lth $(GOBIN)/lth-server
 	rm -rf $(SKILLS_DIR)/lth-amnesia $(SKILLS_DIR)/lth-warmup $(SKILLS_DIR)/lth-brief $(SKILLS_DIR)/lth-reflect
-	-systemctl --user stop lth-server 2>/dev/null || true
-	-systemctl --user disable lth-server 2>/dev/null || true
-	rm -f $(HOME)/.config/systemd/user/lth-server.service
+	-systemctl --user stop lth lth-server 2>/dev/null || true
+	-systemctl --user disable lth lth-server 2>/dev/null || true
+	rm -f $(HOME)/.config/systemd/user/lth.service $(HOME)/.config/systemd/user/lth-server.service
 	@echo "✓ lth uninstalled"
