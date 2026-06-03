@@ -9,7 +9,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/mattdurham/lth/internal/llm"
 	"github.com/mattdurham/lth/pkg/lth"
 	"github.com/spf13/cobra"
 )
@@ -24,6 +26,8 @@ var (
 	searchMinValence float32
 	searchMaxValence float32
 	searchExpand     bool
+	searchAttrs      []string
+	searchBrief      bool
 )
 
 var searchCmd = &cobra.Command{
@@ -43,6 +47,8 @@ func init() {
 	searchCmd.Flags().Float32Var(&searchMinValence, "min-valence", 0, "only return memories with valence >= this value (e.g. 0.5 for positive outcomes)")
 	searchCmd.Flags().Float32Var(&searchMaxValence, "max-valence", 0, "only return memories with valence <= this value (e.g. -0.5 for failures)")
 	searchCmd.Flags().BoolVar(&searchExpand, "expand", false, "expand query via LLM to find related memories")
+	searchCmd.Flags().StringArrayVar(&searchAttrs, "attr", nil, "boost memories matching attribute key=value (repeatable, e.g. --attr file=/path/to/foo.go --attr project=github.com/org/repo)")
+	searchCmd.Flags().BoolVar(&searchBrief, "brief", false, "return compact output: 3-sentence summary + fetch command instead of full content")
 	rootCmd.AddCommand(searchCmd)
 }
 
@@ -61,13 +67,14 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	defer client.Close() //nolint:errcheck
 
 	req := &lth.SearchRequest{
-		Query:  query,
-		Layers: layers,
-		TopK:   searchTop,
-		Alpha:  searchAlpha,
-		Beta:   searchBeta,
-		Gamma:  searchGamma,
-		Expand: searchExpand,
+		Query:       query,
+		Layers:      layers,
+		TopK:        searchTop,
+		Alpha:       searchAlpha,
+		Beta:        searchBeta,
+		Gamma:       searchGamma,
+		Expand:      searchExpand,
+		FilterAttrs: parseAttrs(searchAttrs),
 	}
 
 	// Set valence filters only when the flags were explicitly provided.
@@ -98,11 +105,63 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		results = filtered
 	}
 
+	if searchBrief {
+		return encodeBriefResults(cmd, results)
+	}
+
 	if flagJSON {
 		return json.NewEncoder(os.Stdout).Encode(results)
 	}
 	formatSearchTable(os.Stdout, results)
 	return nil
+}
+
+// BriefResult is the compact output shape for --brief mode.
+type BriefResult struct {
+	ID      string  `json:"id"`
+	Layer   int     `json:"layer"`
+	Score   float32 `json:"score"`
+	Summary string  `json:"summary"`
+	Fetch   string  `json:"fetch"`
+}
+
+// encodeBriefResults summarizes each result with Haiku and writes compact JSON.
+func encodeBriefResults(cmd *cobra.Command, results []*lth.SearchResult) error {
+	haiku := llm.NewAnthropicLLM(globalCfg.LLM.APIKey, "claude-haiku-4-5-20251001", 15)
+
+	brief := make([]BriefResult, len(results))
+	var wg sync.WaitGroup
+	for i, r := range results {
+		wg.Add(1)
+		go func(i int, r *lth.SearchResult) {
+			defer wg.Done()
+			summary := summarizeContent(cmd, haiku, r.Content)
+			brief[i] = BriefResult{
+				ID:      r.ID,
+				Layer:   r.Layer,
+				Score:   r.Score,
+				Summary: summary,
+				Fetch:   fmt.Sprintf("lth --json get %s", r.ID),
+			}
+		}(i, r)
+	}
+	wg.Wait()
+
+	return json.NewEncoder(os.Stdout).Encode(brief)
+}
+
+// summarizeContent calls Haiku to produce a 3-sentence summary.
+// Falls back to truncating the content if the LLM call fails.
+func summarizeContent(cmd *cobra.Command, l llm.LLM, content string) string {
+	prompt := "Summarize the following engineering memory in exactly 3 sentences. Be concise and technical. Return only the summary text, no preamble or labels:\n\n" + content
+	summary, err := l.Complete(cmd.Context(), prompt)
+	if err != nil || strings.TrimSpace(summary) == "" {
+		if len(content) > 300 {
+			return content[:297] + "..."
+		}
+		return content
+	}
+	return strings.TrimSpace(summary)
 }
 
 // containsAllTags returns true if every needle is found in haystack (exact match).
