@@ -13,3 +13,5 @@
 11. `EnsureEmbeddingServer(cfg)` is a no-op unless `cfg.Embedding.Provider == "huggingface"` AND `cfg.Embedding.AutoDocker == true`.
 12. `EnsureEmbeddingServer` returns nil if the server is already reachable; it only starts Docker if the server is unreachable.
 13. HuggingFace TEI exposes an OpenAI-compatible `/v1/embeddings` endpoint; `OllamaEmbedder` is used for it.
+14. When `cfg.Embedding.AutoDocker == true` and `cfg.Embedding.Provider == "huggingface"`, `NewEmbedder` wraps the inner embedder in a `ResilientEmbedder` that calls `EnsureEmbeddingServer` and retries once on failure.
+15. `ResilientEmbedder.Dims()` delegates to the inner embedder.

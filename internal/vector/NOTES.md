@@ -59,3 +59,20 @@ removes the manual setup step for new users while remaining opt-out via `auto_do
 **Consequence:** First startup with `auto_docker = true` may take up to 90 seconds if the model
 needs to be downloaded. The Docker container is named `lth-embeddings` for lifecycle management.
 A `docker-compose.yml` is provided for users who prefer explicit management over auto-docker.
+
+---
+
+## 5. ResilientEmbedder — Restart-on-Failure Wrapper
+
+*Added: 2026-06-03*
+
+**Decision:** Wrap `OllamaEmbedder` in a `ResilientEmbedder` (when `auto_docker = true`) that calls
+`EnsureEmbeddingServer` and retries once on any `Embed` failure.
+
+**Rationale:** `EnsureEmbeddingServer` is called only at startup. If the Docker container exits
+while lth is running (e.g. SIGTERM from the host), subsequent embed calls fail silently — new
+memories are written to the DB but never vectorized. The wrapper closes this gap without requiring
+a separate health-check goroutine or a restart policy on the container.
+
+**Consequence:** A failing embed now incurs one extra `docker start` attempt and one retry before
+returning an error. The retry adds latency only on failure paths; the happy path is unchanged.
