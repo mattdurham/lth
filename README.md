@@ -102,7 +102,7 @@ watcher:
 issues:
   repos:
     - grafana/tempo
-    - mattdurham/lth
+    - owner/repo
   interval_s: 3600               # poll interval (default: 1 hour)
 
 # Markdown watcher — scans directories for .md files and extracts facts via

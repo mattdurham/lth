@@ -60,7 +60,7 @@ type Config struct {
 		StateFile string   `yaml:"state_file"`
 	} `yaml:"watcher"`
 	Issues struct {
-		Repos     []string `yaml:"repos"`      // e.g. ["grafana/tempo", "mattdurham/lth"]
+		Repos     []string `yaml:"repos"`      // e.g. ["grafana/tempo", "owner/repo"]
 		IntervalS int      `yaml:"interval_s"` // default 3600
 	} `yaml:"issues"`
 
