@@ -172,6 +172,7 @@ func (c *Compactor) summarizeCluster(ctx context.Context, cluster []*memory.Memo
 	var sb strings.Builder
 	sb.WriteString("Summarize these raw observations into 1-3 key insights for future reference.\n")
 	sb.WriteString("Focus on decisions made, problems encountered, and solutions found.\n")
+	sb.WriteString("Each insight must be one sentence. No headers, no bullet points, no markdown.\n")
 	sb.WriteString("Observations:\n")
 	for _, m := range cluster {
 		sb.WriteString("- ")

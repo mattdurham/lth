@@ -15,10 +15,9 @@ import (
 
 // wisdomResponse is the structured output from the L3→L2 promotion prompt.
 type wisdomResponse struct {
-	Rule       string   `json:"rule"`
-	Apply      string   `json:"apply"`
-	Situations []string `json:"situations"`
-	Tags       []string `json:"tags"`
+	Rule   string   `json:"rule"`
+	Tags   []string `json:"tags"`
+	Domain string   `json:"domain"`
 }
 
 // compactL3toL2 promotes eligible L3 memories to L2 via LLM pattern recognition.
@@ -61,13 +60,12 @@ func (c *Compactor) compactL3toL2(ctx context.Context) (int, error) {
 
 // wisdomPrompt builds the L3→L2 promotion prompt.
 func wisdomPrompt(content string) string {
-	return `You are distilling a repeated engineering skill into a durable wisdom entry for an AI agent memory system.
+	return `You are distilling a repeated engineering skill into a concise behavioral rule for an AI agent memory system.
 
 Given the skill below, respond with ONLY a valid JSON object (no markdown, no code fences) with these fields:
-- "rule": one crisp imperative sentence stating the core behavioral rule
-- "apply": 2-3 sentences describing how to apply it in practice
-- "situations": array of 2-4 short strings, each a specific situation where this wisdom applies
-- "tags": array of 3-6 lowercase strings describing relevant topics, domains, or technologies
+- "rule": one actionable imperative sentence, max 20 words
+- "tags": array of 3-5 lowercase topic/technology strings
+- "domain": single lowercase slug (e.g. "coding", "ops", "email", "research", "writing", "general")
 
 Skill:
 ` + content
@@ -90,20 +88,7 @@ func parseWisdom(resp string) (*wisdomResponse, error) {
 
 // formatWisdom renders a wisdomResponse as the L2 memory content string.
 func formatWisdom(w *wisdomResponse) string {
-	var sb strings.Builder
-	sb.WriteString("**Rule:** ")
-	sb.WriteString(w.Rule)
-	sb.WriteString("\n\n**How to apply:** ")
-	sb.WriteString(w.Apply)
-	if len(w.Situations) > 0 {
-		sb.WriteString("\n\n**When it applies:**\n")
-		for _, s := range w.Situations {
-			sb.WriteString("- ")
-			sb.WriteString(s)
-			sb.WriteByte('\n')
-		}
-	}
-	return strings.TrimSpace(sb.String())
+	return strings.TrimSpace(w.Rule)
 }
 
 // promoteToL2 creates an L2 memory from a single L3 memory.
@@ -122,7 +107,14 @@ func (c *Compactor) promoteToL2(ctx context.Context, sourceID, content string) (
 	}
 
 	tags := strings.Join(w.Tags, ",")
-	attrs := map[string]string{"source": "compactor", "tags": tags}
+	attrs := map[string]string{
+		"source":         "compactor",
+		"tags":           tags,
+		"lth_classified": "1",
+	}
+	if w.Domain != "" {
+		attrs["domain"] = strings.ToLower(strings.TrimSpace(w.Domain))
+	}
 	l2, err := c.store.Store(ctx, 2, formatWisdom(w), attrs)
 	if err != nil {
 		return 0, fmt.Errorf("store L2: %w", err)

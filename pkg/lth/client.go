@@ -86,6 +86,17 @@ func (c *Client) DistinctAttrValues(ctx context.Context, key string) ([]string, 
 	return c.store.DistinctAttrValues(ctx, key)
 }
 
+// MergeAttr upserts a single attribute key=value on an existing memory.
+// If the key already exists it is overwritten; other attrs are unchanged.
+func (c *Client) MergeAttr(ctx context.Context, id, key, value string) error {
+	return c.db.MergeAttribute(ctx, id, key, value)
+}
+
+// ListLayer returns all active memories in the given layer.
+func (c *Client) ListLayer(ctx context.Context, layer int) ([]*Memory, error) {
+	return c.store.ListLayer(ctx, layer)
+}
+
 // Stats returns aggregate statistics about the memory store.
 func (c *Client) Stats(ctx context.Context) (*Stats, error) {
 	return c.store.Stats(ctx)
