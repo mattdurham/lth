@@ -94,6 +94,18 @@ func (g *Graph) AddEdge(ctx context.Context, e *Edge) error {
 	return nil
 }
 
+// RemoveEdgesFromNodes deletes all edges originating from the given node IDs from both the
+// DB and the in-memory adjacency cache. Used when rebuilding a layer.
+func (g *Graph) RemoveEdgesFromNodes(ctx context.Context, ids []string) error {
+	if err := g.db.DeleteEdgesFromNodes(ctx, ids); err != nil {
+		return fmt.Errorf("delete edges: %w", err)
+	}
+	if err := g.LoadAll(ctx); err != nil {
+		return fmt.Errorf("reload graph: %w", err)
+	}
+	return nil
+}
+
 // NeighborEdges returns all edges adjacent to the given memory ID as exported Edge values.
 // If edgeTypes is non-empty, only edges of those types are returned.
 // This is safe to call concurrently.

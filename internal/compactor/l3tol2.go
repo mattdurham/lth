@@ -4,12 +4,22 @@ package compactor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mattdurham/lth/internal/graph"
 )
+
+// wisdomResponse is the structured output from the L3→L2 promotion prompt.
+type wisdomResponse struct {
+	Rule       string   `json:"rule"`
+	Apply      string   `json:"apply"`
+	Situations []string `json:"situations"`
+	Tags       []string `json:"tags"`
+}
 
 // compactL3toL2 promotes eligible L3 memories to L2 via LLM pattern recognition.
 // Triggers when access_count >= L3EpisodesMin AND importance > L3ImportanceMin.
@@ -49,22 +59,71 @@ func (c *Compactor) compactL3toL2(ctx context.Context) (int, error) {
 	return promoted, nil
 }
 
+// wisdomPrompt builds the L3→L2 promotion prompt.
+func wisdomPrompt(content string) string {
+	return `You are distilling a repeated engineering skill into a durable wisdom entry for an AI agent memory system.
+
+Given the skill below, respond with ONLY a valid JSON object (no markdown, no code fences) with these fields:
+- "rule": one crisp imperative sentence stating the core behavioral rule
+- "apply": 2-3 sentences describing how to apply it in practice
+- "situations": array of 2-4 short strings, each a specific situation where this wisdom applies
+- "tags": array of 3-6 lowercase strings describing relevant topics, domains, or technologies
+
+Skill:
+` + content
+}
+
+// parseWisdom parses the structured JSON response from the L3→L2 promotion LLM call.
+func parseWisdom(resp string) (*wisdomResponse, error) {
+	resp = strings.TrimSpace(resp)
+	resp = strings.TrimPrefix(resp, "```json")
+	resp = strings.TrimPrefix(resp, "```")
+	resp = strings.TrimSuffix(resp, "```")
+	resp = strings.TrimSpace(resp)
+
+	var w wisdomResponse
+	if err := json.Unmarshal([]byte(resp), &w); err != nil {
+		return nil, fmt.Errorf("unmarshal wisdom: %w", err)
+	}
+	return &w, nil
+}
+
+// formatWisdom renders a wisdomResponse as the L2 memory content string.
+func formatWisdom(w *wisdomResponse) string {
+	var sb strings.Builder
+	sb.WriteString("**Rule:** ")
+	sb.WriteString(w.Rule)
+	sb.WriteString("\n\n**How to apply:** ")
+	sb.WriteString(w.Apply)
+	if len(w.Situations) > 0 {
+		sb.WriteString("\n\n**When it applies:**\n")
+		for _, s := range w.Situations {
+			sb.WriteString("- ")
+			sb.WriteString(s)
+			sb.WriteByte('\n')
+		}
+	}
+	return strings.TrimSpace(sb.String())
+}
+
 // promoteToL2 creates an L2 memory from a single L3 memory.
 func (c *Compactor) promoteToL2(ctx context.Context, sourceID, content string) (int, error) {
-	prompt := fmt.Sprintf(
-		"What general rule or heuristic does this repeated skill represent? "+
-			"State it as a concise behavioral rule.\nSkill: %s", content)
-
 	llmCtx, cancel := context.WithTimeout(ctx, time.Duration(c.cfg.LLM.TimeoutS)*time.Second)
 	defer cancel()
 
-	rule, err := c.llm.Complete(llmCtx, prompt)
+	resp, err := c.llm.Complete(llmCtx, wisdomPrompt(content))
 	if err != nil {
 		return 0, fmt.Errorf("LLM rule extraction: %w", err)
 	}
 
-	attrs := map[string]string{"source": "compactor"}
-	l2, err := c.store.Store(ctx, 2, rule, attrs)
+	w, err := parseWisdom(resp)
+	if err != nil {
+		return 0, fmt.Errorf("parse wisdom: %w", err)
+	}
+
+	tags := strings.Join(w.Tags, ",")
+	attrs := map[string]string{"source": "compactor", "tags": tags}
+	l2, err := c.store.Store(ctx, 2, formatWisdom(w), attrs)
 	if err != nil {
 		return 0, fmt.Errorf("store L2: %w", err)
 	}

@@ -111,6 +111,26 @@ WHERE (from_id = ? OR to_id = ?)`
 	return result, nil
 }
 
+// DeleteEdgesFromNodes removes all edges where from_id is one of the given IDs.
+// Used when rebuilding a layer to clear stale derived_from edges.
+func (d *DB) DeleteEdgesFromNodes(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	//nolint:gosec // placeholders are parameterized, not interpolated
+	query := fmt.Sprintf("DELETE FROM memory_edges WHERE from_id IN (%s)", strings.Join(placeholders, ","))
+	if _, err := d.db.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("delete edges from nodes: %w", err)
+	}
+	return nil
+}
+
 // InsertCompactionLog logs a compaction event.
 func (d *DB) InsertCompactionLog(ctx context.Context, log *CompactionLog) error {
 	_, err := d.db.ExecContext(ctx, `

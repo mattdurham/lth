@@ -19,6 +19,7 @@ import (
 )
 
 var compactDryRun bool
+var compactRebuildL2 bool
 
 var compactCmd = &cobra.Command{
 	Use:   "compact",
@@ -28,6 +29,7 @@ var compactCmd = &cobra.Command{
 
 func init() {
 	compactCmd.Flags().BoolVar(&compactDryRun, "dry-run", false, "show what would be compacted without making changes")
+	compactCmd.Flags().BoolVar(&compactRebuildL2, "rebuild-l2", false, "soft-delete all L2 memories and re-promote from L3")
 	rootCmd.AddCommand(compactCmd)
 }
 
@@ -59,6 +61,26 @@ func runCompact(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("L4 memories: %d\n", stats.ByLayer[4])
 		fmt.Printf("L3 memories: %d\n", stats.ByLayer[3])
 		return nil
+	}
+
+	if compactRebuildL2 {
+		l2s, listErr := store.ListLayer(cmd.Context(), 2)
+		if listErr != nil {
+			return fmt.Errorf("list L2: %w", listErr)
+		}
+		ids := make([]string, len(l2s))
+		for i, m := range l2s {
+			ids[i] = m.ID
+		}
+		if len(ids) > 0 {
+			if err = store.SoftDelete(cmd.Context(), ids, "rebuild-l2"); err != nil {
+				return fmt.Errorf("soft-delete L2s: %w", err)
+			}
+			if err = g.RemoveEdgesFromNodes(cmd.Context(), ids); err != nil {
+				return fmt.Errorf("remove L2 edges: %w", err)
+			}
+			fmt.Printf("Cleared %d L2 memories for rebuild\n", len(ids))
+		}
 	}
 
 	c := compactor.New(store, l, g, globalCfg, slog.Default())
