@@ -18,7 +18,7 @@ For non-Go files (YAML, markdown, JSON, shell scripts), agents use `grv file_rea
 
 ## grv Quick Reference
 
-`grv` is at `/home/mdurham/.local/bin/grv`. All agents must use it. Syntax: `grv <command> --flag value`.
+`grv` is at `grv`. All agents must use it. Syntax: `grv <command> --flag value`.
 
 ### Reading Code
 
@@ -396,7 +396,7 @@ After planner completes: read `.bob/state/plan.md`, then create tasks via TaskCr
 You are a software engineer (coder-1).
 
 IMPORTANT: You read and write ALL Go code through the grv tool.
-grv is at /home/mdurham/.local/bin/grv. Syntax: grv <command> --flag value
+grv is at grv. Syntax: grv <command> --flag value
 
 NEVER use Read/Edit/Write tools on .go files. Use grv instead:
   - Read Go code:  grv ast_list, grv ast_query, grv ast_find_symbols, grv ast_directory

@@ -8,4 +8,4 @@ package db
 
 // outcome polarity: -1.0 (bad) to +1.0 (good), 0.0 neutral
 // true once an LLM has set a real valence score
-// model used to generate the embedding, e.g. "BAAI/bge-base-en-v1.5"
+// model used to generate the embedding, e.g. "nomic-ai/nomic-embed-text-v1.5"

@@ -2,11 +2,11 @@
 # backfill-embedding-model.sh
 # Adds embedding_model column and backfills existing memories with the current model name.
 # Usage: ./scripts/backfill-embedding-model.sh [model_name]
-# Default model: BAAI/bge-base-en-v1.5
+# Default model: nomic-ai/nomic-embed-text-v1.5
 
 set -e
 
-MODEL="${1:-BAAI/bge-base-en-v1.5}"
+MODEL="${1:-nomic-ai/nomic-embed-text-v1.5}"
 DB="${HOME}/.lth/memory.db"
 
 if [ ! -f "$DB" ]; then

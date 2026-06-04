@@ -44,4 +44,4 @@ multiple times. Dedup is the client responsibility (lth sync push filters source
 **Rationale:** The task specification requires YAML for lth-server. lth-server is a distinct binary
 deployed server-side. YAML is more familiar to operators configuring servers.
 
-**Consequence:** lth-server.yaml is separate from ~/.lth/config.toml. The two configs cannot be merged.
+**Consequence:** lth-server.yaml is separate from ~/.lth/config.yaml. The two configs cannot be merged.

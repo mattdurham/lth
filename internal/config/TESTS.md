@@ -1,18 +1,18 @@
 # internal/config — Test Scenarios
 
 ## TestLoadDefaults
-**Scenario:** Load from an empty TOML file.
+**Scenario:** Load from an empty YAML file.
 **Setup:** Write an empty file to a temp directory; call `Load(path)`.
 **Assertions:** All struct fields match `Default()` values; no zero-value strings returned.
 
 ## TestLoadOverrides
-**Scenario:** Load a TOML file with partial overrides.
-**Setup:** Write a TOML file that sets only `[db] path = "/custom/path.db"`.
+**Scenario:** Load a YAML file with partial overrides.
+**Setup:** Write a YAML file that sets only `db: {path: "/custom/path.db"}`.
 **Assertions:** `cfg.DB.Path == "/custom/path.db"`; all other fields match defaults.
 
 ## TestLoadInvalid
-**Scenario:** Load a file with invalid TOML syntax.
-**Setup:** Write `"key = [invalid"` to a temp file; call `Load(path)`.
+**Scenario:** Load a file with invalid YAML syntax.
+**Setup:** Write `"key: [invalid"` to a temp file; call `Load(path)`.
 **Assertions:** Error is returned; result is nil.
 
 ## TestLoadMissing
@@ -23,7 +23,7 @@
 ## TestConfigPath
 **Scenario:** Verify canonical config path.
 **Setup:** Call `ConfigPath()`.
-**Assertions:** Returned path contains `.lth/config.toml`; no error.
+**Assertions:** Returned path contains `.lth/config.yaml`; no error.
 
 ## TestDefault
 **Scenario:** Verify Default() returns sensible values.
@@ -37,6 +37,5 @@
 - `Compaction.L5Threshold` == 50
 - `Search.DefaultTopK` == 10
 - `Search.Alpha` > 0
-- `Watcher.Paths` has length 2
+- `Watcher.Paths` has length 1
 - `Watcher.Paths[0]` ends with `.claude/projects`
-- `Watcher.Paths[1]` ends with `.wllr/sessions`

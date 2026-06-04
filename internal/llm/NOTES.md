@@ -22,7 +22,7 @@ This does not create a cycle since `internal/llm` has no project imports.
 **Decision:** Use `/v1/chat/completions` with a single user message for LLM calls.
 
 **Rationale:** Same as the embedding endpoint — Ollama and OpenAI both support this format.
-The model is configured in `config.toml`.
+The model is configured in `config.yaml`.
 
 **Consequence:** Response parsing extracts `choices[0].message.content` as the completion text.
 
