@@ -95,7 +95,24 @@ llm:
 
 watcher:
   paths:
-    - ~/.claude/projects         # Claude Code conversation history
+    - ~/.claude/projects         # Claude Code conversation history (JSONL)
+
+# GitHub Issues — polls repos and ingests issues + comments as L5 memories.
+# Requires `gh` CLI to be authenticated.
+issues:
+  repos:
+    - grafana/tempo
+    - mattdurham/lth
+  interval_s: 3600               # poll interval (default: 1 hour)
+
+# Markdown watcher — scans directories for .md files and extracts facts via
+# LLM into L3 knowledge memories. Runs git pull before each scan.
+markdown:
+  dirs:
+    - ~/source/my-notes
+  layer: 3                       # target layer (default: 3)
+  interval_s: 300                # rescan interval (default: 5 min)
+  git_pull: true                 # pull latest before scanning
 
 sync:
   server_url: http://your-server:8090
@@ -104,11 +121,21 @@ sync:
   user: myuser
 ```
 
+## Ingestion Sources
+
+The daemon can pull memories from three sources:
+
+**Conversation transcripts** — watches JSONL files written by Claude Code (or compatible tools). Each conversation turn becomes an L5 observation memory tagged with `cwd`, `file`, `session`, and `repo` attributes. The `project` attribute is automatically derived from the working directory path.
+
+**GitHub Issues** — polls repositories via the `gh` CLI and ingests issues and comments as L5 memories. Tracks state in `~/.lth/issues-state.json` so only new or updated issues are ingested on subsequent polls. Requires `gh auth login`.
+
+**Markdown files** — scans directories for `.md` files and uses an LLM to extract all meaningful facts, storing them as L3 knowledge memories. Useful for ingesting documentation, notes, or wiki content. Optionally runs `git pull` before each scan to stay current with remote changes.
+
 ## Daemon
 
 The daemon (`lth watch start`) runs in the background and:
 
-- Watches configured paths for new conversation transcripts (L5 ingestion)
+- Ingests from all configured sources (transcripts, GitHub issues, markdown)
 - Runs compaction on a schedule (L5→L4→L3→L2)
 - Serves the web UI on port 8765
 - Serves Prometheus metrics on port 10010
