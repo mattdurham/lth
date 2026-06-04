@@ -1,4 +1,4 @@
-# lth
+# lth — Lethe
 
 A persistent memory system for AI agents. Stores, searches, and compacts knowledge across five semantic layers — from raw observations up to core identity — with automatic embedding, graph linking, and LLM-powered enrichment.
 
