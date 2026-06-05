@@ -49,10 +49,24 @@ func (d *DB) Stats(ctx context.Context) (*StatsRow, error) {
 	return stats, nil
 }
 
-// CountPendingPush returns the number of active memories that would be sent on next push
-// (i.e. all non-compacted memories excluding those with source="server").
+// CountPendingPush returns the number of active memories not yet pushed to the server,
+// i.e. those modified after their last push (or never pushed).
 func (d *DB) CountPendingPush(ctx context.Context, out *int) error {
 	return d.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM memories WHERE compacted_at IS NULL AND source != 'server'",
+		`SELECT COUNT(*) FROM memories
+		 WHERE compacted_at IS NULL
+		   AND source != 'server'
+		   AND (pushed_at IS NULL OR pushed_at < updated_at)`,
 	).Scan(out)
+}
+
+// MarkPushed stamps pushed_at = now on all active non-server memories,
+// recording that they have been successfully sent to the server.
+func (d *DB) MarkPushed(ctx context.Context, now string) error {
+	_, err := d.db.ExecContext(ctx,
+		`UPDATE memories SET pushed_at = ?
+		 WHERE compacted_at IS NULL AND source != 'server'`,
+		now,
+	)
+	return err
 }

@@ -190,6 +190,9 @@ func syncPush(ctx context.Context, m *metrics.Metrics) error {
 	if m != nil {
 		m.SyncPushedTotal.WithLabelValues("ok").Add(float64(result.Accepted))
 	}
+	if err := d.MarkPushed(ctx, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		slog.Warn("mark pushed failed", "err", err)
+	}
 	return nil
 }
 

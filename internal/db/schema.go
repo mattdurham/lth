@@ -136,6 +136,10 @@ func (d *DB) migrateSchema() error {
 			sql:  `ALTER TABLE memories ADD COLUMN embedding_model TEXT NOT NULL DEFAULT ''`,
 			name: "embedding_model column",
 		},
+		{
+			sql:  `ALTER TABLE memories ADD COLUMN pushed_at DATETIME`,
+			name: "pushed_at column",
+		},
 	}
 	for _, m := range migrations {
 		if _, err := d.db.ExecContext(ctx, m.sql); err != nil {
