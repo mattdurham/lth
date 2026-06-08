@@ -69,3 +69,44 @@ file at ingest time via `detectFormat(path)`.
 
 **Consequence:** Existing config files with an explicit `watcher.paths` list are unaffected —
 `applyDefaults` only fills in the default when the loaded slice is empty.
+
+---
+
+## 7. Hot Config Reload via mtime Polling
+
+*Added: 2026-06-08*
+
+**Decision:** The daemon polls `~/.lth/config.yaml` every 60 seconds and re-parses
+it when the file's mtime increases. On a successful parse, `ReloadInPlace` overwrites
+the running `*Config` in place; on parse failure the old config remains live and the
+failure is logged at WARN. Field paths that are not in `HotFields` are written but
+require a daemon restart to fully take effect (the consumer has already captured the
+old value at construction time).
+
+**Rationale considered alternatives:**
+
+- **`atomic.Pointer[Config]` with re-fetch at each read site** — cleanest but requires
+  touching every component that currently captures the `*Config` pointer at startup
+  (compactor, watcher, mdwatcher, issueswatcher, autoSync, sync push/pull). Large
+  refactor for marginal benefit since most fields are captured into local vars
+  anyway (ticker intervals, fsnotify watch paths).
+- **`SIGHUP` handler** — explicit user signal, no polling overhead, but UX-hostile:
+  user has to remember to send the signal after every edit.
+- **`fsnotify` on the config file itself** — slightly more responsive than 60s polling
+  but adds a watcher dependency for one file. mtime polling at 60s is dirt cheap
+  (one `Stat()` per minute) and "config edit visible within a minute" is plenty fast
+  for tuning use cases.
+
+**Consequences:**
+
+1. Editing the YAML and saving propagates **hot fields** (Compaction tuning, Search
+   weights, Sync credentials, Markdown/Issues lists) automatically within ≤60 seconds.
+2. Editing **non-hot fields** (DB.Path, Embedding/LLM construction, Watcher.Paths,
+   any `IntervalS`, any `TimeoutS`) logs an INFO message naming them but does NOT
+   apply — the daemon must be restarted (`lth watch stop && lth watch start`).
+3. A YAML typo is logged and the daemon keeps running with the previous config.
+   The poller will retry on the next mtime change.
+4. `HotFields` is the source of truth for which fields can be live-tuned. Adding a
+   new tunable field to a per-tick consumer is a two-step change: (a) make the
+   consumer read from the shared `*Config` (not a captured value), (b) add the
+   field path to `HotFields` in `reload.go`.

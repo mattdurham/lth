@@ -105,6 +105,70 @@ func runWatchStop(_ *cobra.Command, _ []string) error {
 	return fmt.Errorf("daemon did not stop within 5 seconds")
 }
 
+// configReloadLoop polls path every interval. When the file's mtime changes, it
+// attempts to re-load via config.ReloadInPlace. On a successful parse, hot fields
+// (Compaction tuning, Search weights, Sync credentials, Markdown/Issues lists) are
+// picked up by the running daemon on the next per-tick read. Fields that were
+// captured at startup (DB path, embedder/LLM construction, fsnotify watch paths,
+// ticker intervals) are logged but not applied — the daemon must be restarted to
+// pick them up.
+//
+// A broken edit never kills the daemon: if the file fails to parse, the old
+// config remains in place and the failure is logged at warn level.
+func configReloadLoop(ctx context.Context, path string, cfg *config.Config, interval time.Duration) {
+	if path == "" {
+		slog.Debug("config reload disabled: no config path")
+		return
+	}
+	var lastMtime time.Time
+	// Seed lastMtime from current state so we don't fire a no-op reload on startup.
+	if info, err := os.Stat(path); err == nil {
+		lastMtime = info.ModTime()
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			info, err := os.Stat(path)
+			if err != nil {
+				slog.Debug("config stat", "path", path, "err", err)
+				continue
+			}
+			if !info.ModTime().After(lastMtime) {
+				continue
+			}
+			changed, restart, err := config.ReloadInPlace(path, cfg)
+			if err != nil {
+				slog.Warn("config reload failed; keeping previous", "path", path, "err", err)
+				// Do NOT advance lastMtime — retry next tick in case the user fixes the typo.
+				continue
+			}
+			lastMtime = info.ModTime()
+			if len(changed) == 0 {
+				continue
+			}
+			slog.Info("config reloaded", "changed", changed, "requires_restart", restart)
+		}
+	}
+}
+
+// effectiveConfigPath returns the path the daemon is reading config from. Mirrors
+// the resolution in root.go's PersistentPreRunE: --config flag overrides the
+// default ~/.lth/config.yaml. Returns the empty string when neither is set.
+func effectiveConfigPath() string {
+	if flagConfig != "" {
+		return flagConfig
+	}
+	p, err := config.ConfigPath()
+	if err != nil {
+		return ""
+	}
+	return p
+}
+
 // walCheckpointLoop periodically runs PRAGMA wal_checkpoint(TRUNCATE) to keep the
 // SQLite WAL file bounded. Without this the WAL can grow into the tens or hundreds
 // of MB on a long-running daemon because SQLite's automatic checkpointer uses
@@ -209,6 +273,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
 	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, config.EmbeddingModel, 50, 2*time.Second)
 	go walCheckpointLoop(ctx, daemon.d, 5*time.Minute)
+	go configReloadLoop(ctx, effectiveConfigPath(), globalCfg, 1*time.Minute)
 	if globalCfg.Sync.ServerURL != "" {
 		go autoSync(ctx, globalCfg, m)
 	}
