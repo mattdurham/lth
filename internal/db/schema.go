@@ -62,13 +62,12 @@ CREATE TABLE IF NOT EXISTS memory_attributes (
 );
 
 CREATE TABLE IF NOT EXISTS memory_edges (
-	id         TEXT PRIMARY KEY,
 	from_id    TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
 	to_id      TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
 	edge_type  TEXT NOT NULL,
 	weight     REAL NOT NULL DEFAULT 1.0,
 	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	UNIQUE(from_id, to_id, edge_type)
+	PRIMARY KEY (from_id, to_id, edge_type)
 );
 
 CREATE INDEX IF NOT EXISTS idx_edges_from ON memory_edges(from_id);
@@ -151,6 +150,21 @@ func (d *DB) migrateSchema() error {
 			name: "drop redundant idx_memories_content_hash",
 		},
 		{
+			// Drop the synthetic memory_edges.id PRIMARY KEY (UUID string) and use
+			// the natural composite key (from_id, to_id, edge_type) as the PK
+			// instead. The synthetic id was never queried by application code — it
+			// only served as a PK — and cost ~4 MB of duplicate storage (the table
+			// already had a UNIQUE constraint on the natural key that created an
+			// autoindex). The migration rebuilds the table because SQLite cannot
+			// drop a PRIMARY KEY column via ALTER TABLE.
+			//
+			// Detection: check whether the 'id' column still exists in PRAGMA
+			// table_info before rebuilding. Re-running on an already-migrated
+			// schema is a no-op.
+			sql:  `-- handled in Go via rebuildMemoryEdgesTable`,
+			name: "rebuild memory_edges without synthetic id",
+		},
+		{
 			// Stop dual-storing embeddings. memories_vec is the authoritative store;
 			// the memories.embedding BLOB column was holding a redundant copy that
 			// accounted for ~180 MB on a 70k-row database (3 KB per row, 60k rows).
@@ -162,6 +176,14 @@ func (d *DB) migrateSchema() error {
 		},
 	}
 	for _, m := range migrations {
+		// The memory_edges rebuild is handled in Go because SQLite can't drop a
+		// PRIMARY KEY column via ALTER TABLE — we need a multi-statement table swap.
+		if m.name == "rebuild memory_edges without synthetic id" {
+			if err := d.rebuildMemoryEdgesTable(ctx); err != nil {
+				return fmt.Errorf("migrate %s: %w", m.name, err)
+			}
+			continue
+		}
 		// The dual-store-removal migration only applies when memories_vec exists.
 		// Open(embedDim=0) does not create memories_vec; in that case there is no
 		// embedding data to migrate and the UPDATE would fail with "no such table".

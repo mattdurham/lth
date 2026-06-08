@@ -5,8 +5,11 @@ package graph
 import "time"
 
 // Edge represents a typed, weighted connection between two memories.
+//
+// Edges are identified by their natural composite key (FromID, ToID, EdgeType).
+// Two edges with the same triple are considered the same edge; there is no
+// synthetic id field.
 type Edge struct {
-	ID       string
 	FromID   string
 	ToID     string
 	EdgeType string // "relates_to" | "contradicts" | "supports" | "derived_from" | "compacted_from"

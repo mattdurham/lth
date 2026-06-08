@@ -466,7 +466,6 @@ func exportDBFiltered(ctx context.Context, d *db.DB, excludeSource string, chunk
 			records := make([]exportEdge, len(chunk))
 			for i, e := range chunk {
 				records[i] = exportEdge{
-					ID:        e.ID,
 					FromID:    e.FromID,
 					ToID:      e.ToID,
 					EdgeType:  e.EdgeType,

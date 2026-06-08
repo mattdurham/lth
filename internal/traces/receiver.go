@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/memory"
@@ -103,7 +102,6 @@ func (r *Receiver) processSpan(ctx context.Context, job spanJob) {
 			continue
 		}
 		r.g.AddEdge(ctx, &graph.Edge{ //nolint:errcheck
-			ID:       uuid.New().String(),
 			FromID:   m.ID,
 			ToID:     sibID,
 			EdgeType: "same_trace",

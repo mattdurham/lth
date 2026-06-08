@@ -186,7 +186,6 @@ func exportDB(ctx context.Context, d *db.DB, zipPath string, chunkSize int) (tot
 			records := make([]exportEdge, len(chunk))
 			for i, e := range chunk {
 				records[i] = exportEdge{
-					ID:        e.ID,
 					FromID:    e.FromID,
 					ToID:      e.ToID,
 					EdgeType:  e.EdgeType,

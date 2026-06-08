@@ -12,9 +12,9 @@ import (
 // It silently ignores duplicate edges (same from_id, to_id, edge_type).
 func (d *DB) InsertEdge(ctx context.Context, e *EdgeRow) error {
 	_, err := d.db.ExecContext(ctx, `
-INSERT OR IGNORE INTO memory_edges (id, from_id, to_id, edge_type, weight, created_at)
-VALUES (?, ?, ?, ?, ?, ?)`,
-		e.ID, e.FromID, e.ToID, e.EdgeType, e.Weight, e.CreatedAt.UTC(),
+INSERT OR IGNORE INTO memory_edges (from_id, to_id, edge_type, weight, created_at)
+VALUES (?, ?, ?, ?, ?)`,
+		e.FromID, e.ToID, e.EdgeType, e.Weight, e.CreatedAt.UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("insert edge: %w", err)
@@ -26,7 +26,7 @@ VALUES (?, ?, ?, ?, ?, ?)`,
 // Used by graph.LoadAll to populate the in-memory adjacency cache.
 func (d *DB) GetAllEdges(ctx context.Context) ([]*EdgeRow, error) {
 	rows, err := d.db.QueryContext(ctx, `
-SELECT id, from_id, to_id, edge_type, weight, created_at FROM memory_edges`)
+SELECT from_id, to_id, edge_type, weight, created_at FROM memory_edges`)
 	if err != nil {
 		return nil, fmt.Errorf("get all edges: %w", err)
 	}
@@ -35,7 +35,7 @@ SELECT id, from_id, to_id, edge_type, weight, created_at FROM memory_edges`)
 	var result []*EdgeRow
 	for rows.Next() {
 		e := &EdgeRow{}
-		if err := rows.Scan(&e.ID, &e.FromID, &e.ToID, &e.EdgeType, &e.Weight, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.FromID, &e.ToID, &e.EdgeType, &e.Weight, &e.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan edge: %w", err)
 		}
 		result = append(result, e)
@@ -49,7 +49,7 @@ SELECT id, from_id, to_id, edge_type, weight, created_at FROM memory_edges`)
 // GetEdges returns all edges where from_id matches the given memory ID.
 func (d *DB) GetEdges(ctx context.Context, fromID string) ([]*EdgeRow, error) {
 	rows, err := d.db.QueryContext(ctx, `
-SELECT id, from_id, to_id, edge_type, weight, created_at
+SELECT from_id, to_id, edge_type, weight, created_at
 FROM memory_edges WHERE from_id = ?`, fromID)
 	if err != nil {
 		return nil, fmt.Errorf("get edges: %w", err)
@@ -59,7 +59,7 @@ FROM memory_edges WHERE from_id = ?`, fromID)
 	var result []*EdgeRow
 	for rows.Next() {
 		e := &EdgeRow{}
-		if err := rows.Scan(&e.ID, &e.FromID, &e.ToID, &e.EdgeType, &e.Weight, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.FromID, &e.ToID, &e.EdgeType, &e.Weight, &e.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan edge: %w", err)
 		}
 		result = append(result, e)

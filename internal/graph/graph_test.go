@@ -72,7 +72,6 @@ func TestLoadAll(t *testing.T) {
 	insertTestMemory(t, d, "mem-b", makeEmbedding(0.2))
 
 	edge := &db.EdgeRow{
-		ID:        "edge-1",
 		FromID:    "mem-a",
 		ToID:      "mem-b",
 		EdgeType:  "relates_to",
@@ -110,7 +109,6 @@ func TestAddEdge(t *testing.T) {
 	g := New(d)
 
 	e := &Edge{
-		ID:       "edge-add-1",
 		FromID:   "add-a",
 		ToID:     "add-b",
 		EdgeType: "relates_to",
@@ -166,8 +164,8 @@ func TestNeighborsFilter(t *testing.T) {
 	g := New(d)
 
 	edges := []*Edge{
-		{ID: "fe-1", FromID: "filter-a", ToID: "filter-b", EdgeType: "relates_to", Weight: 0.9, Created: time.Now()},
-		{ID: "fe-2", FromID: "filter-a", ToID: "filter-c", EdgeType: "supports", Weight: 0.7, Created: time.Now()},
+		{FromID: "filter-a", ToID: "filter-b", EdgeType: "relates_to", Weight: 0.9, Created: time.Now()},
+		{FromID: "filter-a", ToID: "filter-c", EdgeType: "supports", Weight: 0.7, Created: time.Now()},
 	}
 	for _, e := range edges {
 		if err := g.AddEdge(ctx, e); err != nil {
@@ -201,9 +199,9 @@ func TestPPRSingleSeed(t *testing.T) {
 
 	g := New(d)
 	chain := []*Edge{
-		{ID: "pp-1", FromID: "ppr-a", ToID: "ppr-b", EdgeType: "relates_to", Weight: 1.0, Created: time.Now()},
-		{ID: "pp-2", FromID: "ppr-b", ToID: "ppr-c", EdgeType: "relates_to", Weight: 1.0, Created: time.Now()},
-		{ID: "pp-3", FromID: "ppr-c", ToID: "ppr-d", EdgeType: "relates_to", Weight: 1.0, Created: time.Now()},
+		{FromID: "ppr-a", ToID: "ppr-b", EdgeType: "relates_to", Weight: 1.0, Created: time.Now()},
+		{FromID: "ppr-b", ToID: "ppr-c", EdgeType: "relates_to", Weight: 1.0, Created: time.Now()},
+		{FromID: "ppr-c", ToID: "ppr-d", EdgeType: "relates_to", Weight: 1.0, Created: time.Now()},
 	}
 	for _, e := range chain {
 		if err := g.AddEdge(ctx, e); err != nil {

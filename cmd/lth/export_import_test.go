@@ -93,34 +93,13 @@ func populateDB(t *testing.T, d *db.DB) ([]*db.MemoryRow, []*db.EdgeRow) {
 	// Build edges: use some of the inserted memory IDs.
 	// "relates_to" between layer-1 memories, "compacted_from" between layer-5 and layer-4.
 	edges := []*db.EdgeRow{
-		{
-			ID:        "edge-001",
-			FromID:    "mem-a0",
-			ToID:      "mem-a1",
-			EdgeType:  "relates_to",
-			Weight:    0.9,
-			CreatedAt: now,
-		},
-		{
-			ID:        "edge-002",
-			FromID:    "mem-e0",
-			ToID:      "mem-d0",
-			EdgeType:  "compacted_from",
-			Weight:    1.0,
-			CreatedAt: now,
-		},
-		{
-			ID:        "edge-003",
-			FromID:    "mem-b0",
-			ToID:      "mem-c1",
-			EdgeType:  "supports",
-			Weight:    0.75,
-			CreatedAt: now,
-		},
+		{FromID: "mem-a0", ToID: "mem-a1", EdgeType: "relates_to", Weight: 0.9, CreatedAt: now},
+		{FromID: "mem-e0", ToID: "mem-d0", EdgeType: "compacted_from", Weight: 1.0, CreatedAt: now},
+		{FromID: "mem-b0", ToID: "mem-c1", EdgeType: "supports", Weight: 0.75, CreatedAt: now},
 	}
 	for _, e := range edges {
 		if err := d.InsertEdge(ctx, e); err != nil {
-			t.Fatalf("InsertEdge(%s): %v", e.ID, err)
+			t.Fatalf("InsertEdge(%s→%s/%s): %v", e.FromID, e.ToID, e.EdgeType, err)
 		}
 	}
 
@@ -204,27 +183,22 @@ func TestExportImportRoundtrip(t *testing.T) {
 	if len(allEdges) != len(origEdges) {
 		t.Errorf("edge count = %d, want %d", len(allEdges), len(origEdges))
 	}
-	edgeByID := make(map[string]*db.EdgeRow, len(allEdges))
+	// Index by the natural composite key (FromID|ToID|EdgeType) instead of the
+	// removed synthetic id field.
+	edgeKey := func(e *db.EdgeRow) string { return e.FromID + "|" + e.ToID + "|" + e.EdgeType }
+	edgeByKey := make(map[string]*db.EdgeRow, len(allEdges))
 	for _, e := range allEdges {
-		edgeByID[e.ID] = e
+		edgeByKey[edgeKey(e)] = e
 	}
 	for _, orig := range origEdges {
-		got, ok := edgeByID[orig.ID]
+		k := edgeKey(orig)
+		got, ok := edgeByKey[k]
 		if !ok {
-			t.Errorf("edge %s missing from imported DB", orig.ID)
+			t.Errorf("edge %s missing from imported DB", k)
 			continue
 		}
-		if got.FromID != orig.FromID {
-			t.Errorf("edge %s FromID = %q, want %q", orig.ID, got.FromID, orig.FromID)
-		}
-		if got.ToID != orig.ToID {
-			t.Errorf("edge %s ToID = %q, want %q", orig.ID, got.ToID, orig.ToID)
-		}
-		if got.EdgeType != orig.EdgeType {
-			t.Errorf("edge %s EdgeType = %q, want %q", orig.ID, got.EdgeType, orig.EdgeType)
-		}
 		if got.Weight != orig.Weight {
-			t.Errorf("edge %s Weight = %v, want %v", orig.ID, got.Weight, orig.Weight)
+			t.Errorf("edge %s Weight = %v, want %v", k, got.Weight, orig.Weight)
 		}
 	}
 }

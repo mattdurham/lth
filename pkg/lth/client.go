@@ -149,7 +149,6 @@ func bfsEdgesDB(ctx context.Context, d *db.DB, rootID string, depth int) ([]*Edg
 					visited[nid] = true
 					next = append(next, nid)
 					result = append(result, &Edge{
-						ID:       e.ID,
 						FromID:   e.FromID,
 						ToID:     e.ToID,
 						EdgeType: e.EdgeType,

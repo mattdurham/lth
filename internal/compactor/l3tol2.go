@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mattdurham/lth/internal/graph"
 )
 
@@ -122,7 +121,6 @@ func (c *Compactor) promoteToL2(ctx context.Context, sourceID, content string) (
 
 	// Add derived_from edge: L2 → L3.
 	e := &graph.Edge{
-		ID:       uuid.New().String(),
 		FromID:   l2.ID,
 		ToID:     sourceID,
 		EdgeType: "derived_from",

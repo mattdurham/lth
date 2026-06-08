@@ -5,7 +5,6 @@ package compactor
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/memory"
 	"github.com/mattdurham/lth/internal/vector"
@@ -27,7 +26,6 @@ func allPairwiseSimilarThreshold(members []*memory.Memory, candidate []float32, 
 func (c *Compactor) addLineageEdges(ctx context.Context, newID string, sources []*memory.Memory) {
 	for _, src := range sources {
 		e := &graph.Edge{
-			ID:       uuid.New().String(),
 			FromID:   newID,
 			ToID:     src.ID,
 			EdgeType: "compacted_from",

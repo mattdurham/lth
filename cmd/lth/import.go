@@ -192,8 +192,8 @@ func importEdges(ctx context.Context, d *db.DB, rc interface{ Read([]byte) (int,
 		if err := json.Unmarshal(line, &ee); err != nil {
 			return imported, skipped, fmt.Errorf("decode edge: %w", err)
 		}
-		if ee.ID == "" || ee.FromID == "" || ee.ToID == "" {
-			return imported, skipped, fmt.Errorf("invalid edge record: id=%q from=%q to=%q", ee.ID, ee.FromID, ee.ToID)
+		if ee.FromID == "" || ee.ToID == "" || ee.EdgeType == "" {
+			return imported, skipped, fmt.Errorf("invalid edge record: from=%q to=%q type=%q", ee.FromID, ee.ToID, ee.EdgeType)
 		}
 
 		if dryRun {
@@ -202,7 +202,6 @@ func importEdges(ctx context.Context, d *db.DB, rc interface{ Read([]byte) (int,
 		}
 
 		edgeRow := &db.EdgeRow{
-			ID:        ee.ID,
 			FromID:    ee.FromID,
 			ToID:      ee.ToID,
 			EdgeType:  ee.EdgeType,
@@ -215,7 +214,7 @@ func importEdges(ctx context.Context, d *db.DB, rc interface{ Read([]byte) (int,
 				skipped++
 				continue
 			}
-			return imported, skipped, fmt.Errorf("insert edge %q: %w", ee.ID, insertErr)
+			return imported, skipped, fmt.Errorf("insert edge from=%q to=%q type=%q: %w", ee.FromID, ee.ToID, ee.EdgeType, insertErr)
 		}
 		imported++
 	}

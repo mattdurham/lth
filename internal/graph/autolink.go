@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mattdurham/lth/internal/vector"
 )
 
@@ -46,7 +45,6 @@ func (g *Graph) AutoLink(ctx context.Context, memID string, emb []float32) error
 		}
 
 		edge := &Edge{
-			ID:       uuid.New().String(),
 			FromID:   memID,
 			ToID:     c.ID,
 			EdgeType: "relates_to",

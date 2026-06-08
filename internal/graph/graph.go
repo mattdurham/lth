@@ -64,7 +64,6 @@ func (g *Graph) LoadAll(ctx context.Context) error {
 // AddEdge persists an edge to the DB and updates the in-memory cache.
 func (g *Graph) AddEdge(ctx context.Context, e *Edge) error {
 	dbEdge := &db.EdgeRow{
-		ID:        e.ID,
 		FromID:    e.FromID,
 		ToID:      e.ToID,
 		EdgeType:  e.EdgeType,

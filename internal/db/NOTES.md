@@ -108,3 +108,35 @@ DO UPDATE`, which silently failed at runtime — another latent bug fixed by thi
 vec0 table is created lazily on the first embedding write. The dim is cached on the `DB`
 struct so we don't take a SQLite reserved lock on every subsequent `UpdateEmbedding` call —
 critical for throughput during embedding backfill.
+
+---
+
+## 6. Drop Synthetic memory_edges.id PK
+
+*Added: 2026-06-08*
+
+**Decision:** Remove the `id TEXT PRIMARY KEY` column from `memory_edges` and use
+the natural composite key `(from_id, to_id, edge_type)` as the primary key.
+
+**Rationale:** A 75k-row audit found the synthetic `id` (a 36-byte UUID) cost
+~4 MB across the table + autoindex, and was never queried by application code.
+The table already had `UNIQUE(from_id, to_id, edge_type)` which produced a
+duplicate autoindex on the same natural key. Two indexes on the same triple is
+pure waste.
+
+**Migration:** SQLite cannot drop a `PRIMARY KEY` column via `ALTER TABLE`, so
+`rebuildMemoryEdgesTable` does a table swap:
+1. CREATE memory_edges_new with the desired schema.
+2. INSERT OR IGNORE INTO new SELECT (from_id, to_id, edge_type, weight, created_at) FROM old.
+3. DROP memory_edges.
+4. RENAME memory_edges_new TO memory_edges.
+5. Recreate `idx_edges_from` and `idx_edges_to` (dropped with the old table).
+
+All inside one transaction; idempotent (the `id`-column existence check skips the
+rebuild after first run).
+
+**Consequence:** The `EdgeRow.ID` and `graph.Edge.ID` fields are removed. Code that
+previously generated a UUID for new edges (compactor, autolink, traces receiver)
+no longer does so. The JSONL `exportEdge` struct also dropped its `id` field; old
+exports still import cleanly because `json.Unmarshal` silently ignores unknown
+fields by default.

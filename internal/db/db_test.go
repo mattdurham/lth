@@ -380,7 +380,6 @@ func TestEdgeCRUD(t *testing.T) {
 	}
 
 	edge := &EdgeRow{
-		ID:        "edge-001",
 		FromID:    "edge-a",
 		ToID:      "edge-b",
 		EdgeType:  "relates_to",

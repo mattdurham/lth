@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mattdurham/lth/internal/graph"
 	"github.com/mattdurham/lth/internal/memory"
 )
@@ -123,7 +122,6 @@ func (c *Compactor) promoteCluster(ctx context.Context, cluster []*memory.Memory
 	// Add compacted_from edges.
 	for _, m := range cluster {
 		e := &graph.Edge{
-			ID:       uuid.New().String(),
 			FromID:   l3.ID,
 			ToID:     m.ID,
 			EdgeType: "compacted_from",
