@@ -4,11 +4,61 @@ package db
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+func TestWALCheckpointTruncate_BusyIsSentinel(t *testing.T) {
+	// Open a second connection to the same DB and hold a read transaction
+	// open, which should cause TRUNCATE to be downgraded. The function must
+	// return ErrCheckpointBusy (a sentinel) and NOT a generic error, so
+	// callers can distinguish busy from real failure.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "busy.db")
+
+	d1, err := Open(path, 768)
+	if err != nil {
+		t.Fatalf("open d1: %v", err)
+	}
+	defer d1.Close() //nolint:errcheck
+
+	// Insert and commit so the WAL has content to checkpoint.
+	for i := 0; i < 5; i++ {
+		row := &MemoryRow{
+			ID: "busy-" + intToStr(i), Layer: 5, Content: "c", ContentHash: "bh-" + intToStr(i),
+			Importance: 5, CreatedAt: time.Now(), UpdatedAt: time.Now(), LastAccessedAt: time.Now(),
+		}
+		if err := d1.InsertMemory(context.Background(), row); err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+	}
+
+	// Open a second connection and begin a read transaction that we leave open.
+	d2, err := Open(path, 768)
+	if err != nil {
+		t.Fatalf("open d2: %v", err)
+	}
+	defer d2.Close() //nolint:errcheck
+
+	tx, err := d2.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("begin d2 tx: %v", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+	if _, err := tx.ExecContext(context.Background(), `SELECT COUNT(*) FROM memories`); err != nil {
+		t.Fatalf("d2 read: %v", err)
+	}
+
+	// Now attempt TRUNCATE on d1 — should be busy (or succeed if SQLite
+	// happens to be lenient). If err is non-nil, it MUST be ErrCheckpointBusy.
+	_, _, err = d1.WALCheckpointTruncate(context.Background())
+	if err != nil && !errors.Is(err, ErrCheckpointBusy) {
+		t.Errorf("got err=%v, want ErrCheckpointBusy or nil", err)
+	}
+}
 
 func TestWALCheckpointTruncate_Empty(t *testing.T) {
 	d := openTempDB(t)

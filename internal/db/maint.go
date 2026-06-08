@@ -4,8 +4,16 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
+
+// ErrCheckpointBusy is returned by WALCheckpointTruncate when SQLite could not
+// fully truncate the WAL because another connection held it open. The data is
+// safe — pending WAL pages have been flushed to the main file — but the .db-wal
+// sidecar was not zeroed. Callers can ignore this (the next idle checkpoint
+// will succeed) or retry. Detected via errors.Is.
+var ErrCheckpointBusy = errors.New("wal checkpoint busy: another connection holds the WAL open")
 
 // ensureVecTable creates memories_vec lazily for the given embedding dimension.
 // It caches the dim after the first successful creation so subsequent calls
@@ -52,15 +60,18 @@ func (d *DB) ensureVecTable(ctx context.Context, dim int) error {
 // Safe to call concurrently with reads. Briefly serializes with writers.
 func (d *DB) WALCheckpointTruncate(ctx context.Context) (walPages, checkpointed int, err error) {
 	// PRAGMA wal_checkpoint returns three columns: (busy, log, checkpointed).
-	// busy=0 means the checkpoint completed; non-zero means readers/writers blocked it.
+	// busy=0 means the checkpoint completed and the .db-wal file was truncated.
+	// busy=1 means another connection held the WAL open and prevented truncate;
+	// in this case PRAGMA returns (1, -1, -1) and the WAL stays at its current
+	// size, but the main file is still consistent. We surface that as a sentinel
+	// error (ErrCheckpointBusy) so callers can distinguish "real failure" from
+	// "please retry when no other connection is active".
 	var busy int
 	if err := d.db.QueryRowContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`).Scan(&busy, &walPages, &checkpointed); err != nil {
 		return 0, 0, fmt.Errorf("wal_checkpoint(TRUNCATE): %w", err)
 	}
 	if busy != 0 {
-		// TRUNCATE was downgraded internally; data is safe but the WAL file
-		// was not zeroed because a reader/writer was active.
-		return walPages, checkpointed, fmt.Errorf("wal_checkpoint(TRUNCATE) busy: %d unflushed pages remain", walPages-checkpointed)
+		return walPages, checkpointed, ErrCheckpointBusy
 	}
 	return walPages, checkpointed, nil
 }

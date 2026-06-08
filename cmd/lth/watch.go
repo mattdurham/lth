@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -117,11 +118,15 @@ func walCheckpointLoop(ctx context.Context, d *db.DB, interval time.Duration) {
 			return
 		case <-t.C:
 			walPages, checkpointed, err := d.WALCheckpointTruncate(ctx)
-			if err != nil {
+			switch {
+			case errors.Is(err, db.ErrCheckpointBusy):
+				// Another connection held the WAL open. Data is safe; the next
+				// tick (or a manual `lth maint checkpoint` with daemon stopped)
+				// will shrink the WAL file. Logged at debug to avoid log spam.
+				slog.Debug("wal checkpoint busy")
+			case err != nil:
 				slog.Debug("wal checkpoint", "wal_pages", walPages, "checkpointed", checkpointed, "err", err)
-				continue
-			}
-			if walPages > 0 {
+			case walPages > 0:
 				slog.Debug("wal checkpoint", "wal_pages", walPages, "checkpointed", checkpointed)
 			}
 		}

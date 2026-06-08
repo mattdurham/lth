@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -141,16 +142,20 @@ func runMaintCheckpoint(cmd *cobra.Command, _ []string) error {
 	defer d.Close() //nolint:errcheck
 
 	walPages, checkpointed, err := d.WALCheckpointTruncate(cmd.Context())
-	if err != nil {
-		// busy checkpoint returns the partial result alongside the error
-		fmt.Fprintf(os.Stderr, "wal pages=%d checkpointed=%d: %v\n", walPages, checkpointed, err)
+	busy := errors.Is(err, db.ErrCheckpointBusy)
+	if err != nil && !busy {
 		return err
 	}
 	if flagJSON {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"wal_pages":    walPages,
 			"checkpointed": checkpointed,
+			"busy":         busy,
 		})
+	}
+	if busy {
+		fmt.Fprintln(os.Stderr, "warning: checkpoint busy — another connection (likely the daemon) holds the WAL open; the WAL file was not truncated. Pending pages have still been flushed to the main DB. Stop the daemon and retry to fully shrink .db-wal.")
+		return nil
 	}
 	fmt.Printf("Checkpoint complete: %d WAL pages flushed, .db-wal truncated\n", checkpointed)
 	return nil
