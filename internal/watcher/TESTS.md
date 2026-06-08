@@ -44,10 +44,35 @@
 **Scenario:** Table-driven tests for format detection by file path.
 
 **Cases:**
+- Path containing `/.pi/agent/sessions/` → `FormatPi`
 - Path containing `/.wllr/` → `FormatWllr`
 - Path containing `/.claude/` → `FormatClaude`
 - Other path → `FormatClaude`
 - Empty path → `FormatClaude`
+- Path under `/.pi/agent/skills/` (no `sessions/`) → `FormatClaude`
+
+## TestDetectFormatPi / TestParsePiLine / TestExtractPiFilePaths
+
+**Scenario:** Table-driven tests for pi agent JSONL parsing.
+
+**ParsePiLine cases:**
+- Session header line → `skip=true`, sessionID + cwd returned
+- User message with text block → `skip=false`, text returned
+- Assistant message mixing `thinking` and `text` blocks → only `text` returned
+- Assistant message containing only `toolCall` blocks → `skip=true` (no text content)
+- `toolResult` role with text block → `skip=false`, content returned
+- `system` role → `skip=true`
+- `model_change` / `thinking_level_change` top-level types → `skip=true`
+- Empty content array → `skip=true`
+- Plain-string `content` (defensive) → `skip=false`, string returned
+- Invalid JSON → `skip=true`, err non-nil
+
+**ExtractPiFilePaths cases:**
+- Assistant `read` toolCall with `path` → path returned
+- Mixed `write` + `edit` + `bash` toolCalls → only write/edit paths returned
+- User-role line → nil
+- Session-type line → nil
+- toolCall with missing `path` arg → nil
 
 ## TestParseWllrLine
 

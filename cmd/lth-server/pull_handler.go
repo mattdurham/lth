@@ -173,8 +173,9 @@ func parseLayers(s string) ([]int, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid layer %q", p)
 		}
-		if n < 1 || n > 5 {
-			return nil, fmt.Errorf("layer must be 1-5, got %d", n)
+		if n < 1 || n > 4 {
+			// L5 is local-only (observations) and has no pull endpoint per SPEC item 5.
+			return nil, fmt.Errorf("layer must be 1-4 (L5 is not pullable), got %d", n)
 		}
 		layers = append(layers, n)
 	}

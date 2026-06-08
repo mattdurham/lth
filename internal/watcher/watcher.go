@@ -122,13 +122,16 @@ func (w *Watcher) IngestFile(ctx context.Context, path string) error {
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB line buffer
 
 	// sessionPaths accumulates touched file paths per session for this ingest batch.
-	// Only used for Claude-format files.
+	// Used for Claude and Pi format files (both expose per-tool-call file paths).
 	sessionPaths := make(map[string]map[string]struct{})
 
-	// carriedCWD holds the cwd from the wllr session header line and is applied
+	// carriedCWD holds the cwd from the wllr/pi session header line and is applied
 	// to all subsequent message lines in the same file. A second session header
 	// mid-file updates carriedCWD for all subsequent messages.
 	var carriedCWD string
+	// carriedSessionID holds the sessionID from the pi session header line. Pi
+	// message records do not repeat sessionID, so we carry it forward like cwd.
+	var carriedSessionID string
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -136,7 +139,35 @@ func (w *Watcher) IngestFile(ctx context.Context, path string) error {
 		var content, sessionID, cwd string
 		var skip bool
 
-		if format == FormatWllr {
+		switch format {
+		case FormatPi:
+			// Collect file paths from toolCall blocks (assistant messages only).
+			if filePaths := ExtractPiFilePaths(line); len(filePaths) > 0 && carriedSessionID != "" {
+				if sessionPaths[carriedSessionID] == nil {
+					sessionPaths[carriedSessionID] = make(map[string]struct{})
+				}
+				for _, fp := range filePaths {
+					sessionPaths[carriedSessionID][fp] = struct{}{}
+				}
+			}
+			var parseErr error
+			var headerSessionID, headerCWD string
+			content, headerSessionID, headerCWD, _, skip, parseErr = ParsePiLine(line)
+			if parseErr != nil {
+				w.logger.Warn("pi parse error", "file", path, "err", parseErr)
+				continue
+			}
+			// Session header: update carried state and move on.
+			if headerSessionID != "" {
+				carriedSessionID = headerSessionID
+			}
+			if headerCWD != "" {
+				carriedCWD = headerCWD
+			}
+			// Use carried state for memory attrs on message lines.
+			sessionID = carriedSessionID
+			cwd = carriedCWD
+		case FormatWllr:
 			// ParseWllrLine returns the session cwd only for session-type lines (skip=true).
 			// For message lines it returns empty cwd and skip=false; we use carriedCWD directly.
 			var parseErr error
@@ -152,7 +183,7 @@ func (w *Watcher) IngestFile(ctx context.Context, path string) error {
 			// Use carriedCWD for the memory attrs; ParseWllrLine returns empty cwd for
 			// message lines — the cwd lives on the session header and is carried forward here.
 			cwd = carriedCWD
-		} else {
+		default:
 			// Claude format: collect file paths from tool_use blocks independently.
 			if filePaths, sid := ParseFilePaths(line); len(filePaths) > 0 {
 				if sessionPaths[sid] == nil {
@@ -189,7 +220,7 @@ func (w *Watcher) IngestFile(ctx context.Context, path string) error {
 		}
 	}
 
-	// Store one compact "files touched" memory per session seen in this batch (Claude only).
+	// Store one compact "files touched" memory per session seen in this batch (Claude + Pi).
 	for sid, paths := range sessionPaths {
 		w.storeFilesTouched(ctx, sid, paths)
 	}

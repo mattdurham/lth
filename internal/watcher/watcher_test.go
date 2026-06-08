@@ -150,7 +150,7 @@ func TestWatcherOffsetPersistence(t *testing.T) {
 	cfg.Watcher.Paths = []string{dir}
 
 	store1 := &mockStore{}
-	w1, err := New(store1, cfg)
+	w1, err := New(store1, cfg, nil)
 	if err != nil {
 		t.Fatalf("New(w1): %v", err)
 	}
@@ -193,7 +193,7 @@ func TestWatcherOffsetPersistence(t *testing.T) {
 
 	// Create new watcher that loads the saved offset.
 	store2 := &mockStore{}
-	w2, err := New(store2, cfg)
+	w2, err := New(store2, cfg, nil)
 	if err != nil {
 		t.Fatalf("New(w2): %v", err)
 	}

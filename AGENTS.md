@@ -42,7 +42,7 @@ The integer values (1–5) are stored in SQLite. Layer names are display-only, d
 | `internal/llm` | LLM providers (Anthropic, Ollama) |
 | `internal/graph` | PPR graph for memory linking |
 | `internal/compactor` | L5→L4→L3→L2 compaction pipeline |
-| `internal/watcher` | fsnotify JSONL watcher for Claude transcript ingestion |
+| `internal/watcher` | fsnotify JSONL watcher for Claude / wllr / pi transcript ingestion |
 | `internal/parquet` | Parquet read/write for sync blob storage |
 | `internal/blobstore` | Blob store abstraction (local filesystem or S3) |
 | `cmd/lth` | CLI — all user-facing commands |

@@ -16,11 +16,18 @@ const (
 	FormatClaude Format = iota
 	// FormatWllr is the wllr flat JSONL format used in ~/.wllr/sessions/**/*.jsonl.
 	FormatWllr
+	// FormatPi is the pi coding agent JSONL format used in ~/.pi/agent/sessions/**/*.jsonl.
+	FormatPi
 )
 
 // detectFormat returns the format for a given file path.
-// Paths containing "/.wllr/" use the wllr flat format; all others use the Claude format.
+// Paths containing "/.pi/agent/sessions/" use the pi format;
+// paths containing "/.wllr/" use the wllr flat format;
+// all others use the Claude format.
 func detectFormat(path string) Format {
+	if strings.Contains(path, "/.pi/agent/sessions/") {
+		return FormatPi
+	}
 	if strings.Contains(path, "/.wllr/") {
 		return FormatWllr
 	}

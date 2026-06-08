@@ -76,6 +76,7 @@ func Default() *Config {
 	cfg.Markdown.GitPullIntervalS = 3600
 	cfg.Watcher.Paths = []string{
 		filepath.Join(home, ".claude", "projects"),
+		filepath.Join(home, ".pi", "agent", "sessions"),
 	}
 	cfg.Watcher.StateFile = filepath.Join(lthDir, "watcher-state.json")
 
@@ -151,6 +152,7 @@ search:
 # watcher:
 #   paths:
 #     - "~/.claude/projects"
+#     - "~/.pi/agent/sessions"
 
 # sync:
 #   server_url: ""
