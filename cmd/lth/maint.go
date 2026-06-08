@@ -49,9 +49,63 @@ between checkpoints.`,
 	RunE: runMaintCheckpoint,
 }
 
+var maintShrinkEmbeddingsCmd = &cobra.Command{
+	Use:   "shrink-embeddings",
+	Short: "Move orphan BLOB embeddings into memories_vec and NULL the BLOB",
+	Long: `One-time data migration: move embeddings that live only in the memories.embedding
+BLOB column into memories_vec, then NULL the BLOB.
+
+These "orphan" rows are a legacy of the now-fixed UpdateEmbedding bug — the old
+implementation wrote backfilled embeddings only to the BLOB, never to vec0, so
+they were invisible to vector search and held ~155 MB of redundant storage on
+a 70k-row database.
+
+Progress is logged every 5,000 rows. Safe to run while the daemon is up. Run
+'lth maint vacuum' afterwards to reclaim the freed disk space.
+
+Idempotent: subsequent runs find 0 orphans and return immediately.`,
+	RunE: runMaintShrinkEmbeddings,
+}
+
 func init() {
-	maintCmd.AddCommand(maintVacuumCmd, maintCheckpointCmd)
+	maintCmd.AddCommand(maintVacuumCmd, maintCheckpointCmd, maintShrinkEmbeddingsCmd)
 	rootCmd.AddCommand(maintCmd)
+}
+
+func runMaintShrinkEmbeddings(cmd *cobra.Command, _ []string) error {
+	d, err := openDBForMaint()
+	if err != nil {
+		return err
+	}
+	defer d.Close() //nolint:errcheck
+
+	before, err := d.CountOrphanEmbeddings(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("count orphans: %w", err)
+	}
+	fmt.Printf("Orphan embeddings to migrate: %d\n", before)
+	if before == 0 {
+		return nil
+	}
+
+	if err := d.MigrateOrphanEmbeddings(cmd.Context()); err != nil {
+		return fmt.Errorf("migrate orphans: %w", err)
+	}
+
+	after, err := d.CountOrphanEmbeddings(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("count orphans after: %w", err)
+	}
+	moved := before - after
+	if flagJSON {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"before": before,
+			"after":  after,
+			"moved":  moved,
+		})
+	}
+	fmt.Printf("Migrated %d orphans (remaining: %d). Run 'lth maint vacuum' to reclaim disk.\n", moved, after)
+	return nil
 }
 
 func runMaintVacuum(cmd *cobra.Command, _ []string) error {

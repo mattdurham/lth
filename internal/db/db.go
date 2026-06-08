@@ -71,6 +71,28 @@ func Open(path string, embedDim int) (*DB, error) {
 	return d, nil
 }
 
+// MigrateOrphanEmbeddings is the exported entry point for the orphan-embedding
+// data migration; see migrate_orphan_embeddings.go. Invoked by `lth maint
+// shrink-embeddings`. Idempotent and safe to run while the daemon is up.
+func (d *DB) MigrateOrphanEmbeddings(ctx context.Context) error {
+	return d.migrateOrphanEmbeddings(ctx)
+}
+
+// CountOrphanEmbeddings returns the number of rows where memories.embedding is
+// non-NULL but the row has no entry in memories_vec. Used by the maint command
+// to report progress.
+func (d *DB) CountOrphanEmbeddings(ctx context.Context) (int, error) {
+	exists, err := d.tableExists(ctx, "memories_vec")
+	if err != nil || !exists {
+		return 0, err
+	}
+	var n int
+	err = d.db.QueryRowContext(ctx, `
+SELECT COUNT(*) FROM memories m
+WHERE m.embedding IS NOT NULL AND m.rowid NOT IN (SELECT rowid FROM memories_vec)`).Scan(&n)
+	return n, err
+}
+
 // Close closes the underlying database connection.
 func (d *DB) Close() error {
 	return d.db.Close()
