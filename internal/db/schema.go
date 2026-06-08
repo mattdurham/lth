@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS memories (
 );
 
 CREATE INDEX IF NOT EXISTS idx_memories_layer       ON memories(layer);
-CREATE INDEX IF NOT EXISTS idx_memories_content_hash ON memories(content_hash);
+-- Note: no explicit index on content_hash — the column's UNIQUE constraint already
+-- creates sqlite_autoindex_memories_2 which serves all content_hash lookups.
+-- A migration drops the legacy idx_memories_content_hash if it exists from an older schema.
 CREATE INDEX IF NOT EXISTS idx_memories_compacted_at ON memories(compacted_at);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
@@ -139,6 +141,14 @@ func (d *DB) migrateSchema() error {
 		{
 			sql:  `ALTER TABLE memories ADD COLUMN pushed_at DATETIME`,
 			name: "pushed_at column",
+		},
+		{
+			// The UNIQUE constraint on memories.content_hash creates an autoindex
+			// that fully serves equality lookups. An explicit secondary index on the
+			// same column was created by older schemas and is pure duplicate storage
+			// (~6 MB on a 70k-row database). Drop it.
+			sql:  `DROP INDEX IF EXISTS idx_memories_content_hash`,
+			name: "drop redundant idx_memories_content_hash",
 		},
 	}
 	for _, m := range migrations {

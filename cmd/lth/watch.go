@@ -104,6 +104,30 @@ func runWatchStop(_ *cobra.Command, _ []string) error {
 	return fmt.Errorf("daemon did not stop within 5 seconds")
 }
 
+// walCheckpointLoop periodically runs PRAGMA wal_checkpoint(TRUNCATE) to keep the
+// SQLite WAL file bounded. Without this the WAL can grow into the tens or hundreds
+// of MB on a long-running daemon because SQLite's automatic checkpointer uses
+// PASSIVE mode (reuses pages in place but never shrinks the file).
+func walCheckpointLoop(ctx context.Context, d *db.DB, interval time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			walPages, checkpointed, err := d.WALCheckpointTruncate(ctx)
+			if err != nil {
+				slog.Debug("wal checkpoint", "wal_pages", walPages, "checkpointed", checkpointed, "err", err)
+				continue
+			}
+			if walPages > 0 {
+				slog.Debug("wal checkpoint", "wal_pages", walPages, "checkpointed", checkpointed)
+			}
+		}
+	}
+}
+
 func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	pidFile := pidFilePath(globalCfg)
 
@@ -179,6 +203,7 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go memory.BackfillImportance(ctx, daemon.d, daemon.llm, 5, 15*time.Second)
 	go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
 	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, config.EmbeddingModel, 50, 2*time.Second)
+	go walCheckpointLoop(ctx, daemon.d, 5*time.Minute)
 	if globalCfg.Sync.ServerURL != "" {
 		go autoSync(ctx, globalCfg, m)
 	}

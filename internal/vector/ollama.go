@@ -8,9 +8,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 )
+
+// MaxEmbedInputBytes is the hard upper bound on text length sent to the embedding
+// endpoint. nomic-embed-text-v1.5 (the default) advertises an 8192-token context;
+// 30 KB at typical text density (~4 bytes/token) is ~7500 tokens, leaving headroom
+// for tokenizer overhead and CJK expansion. Inputs longer than this are truncated
+// at a UTF-8 boundary and a debug log is emitted. Without this cap, a single
+// 60 KB memory could repeatedly fail at the server (HTTP 413 or token-limit error)
+// and starve the BackfillEmbeddings goroutine on infinite retries.
+const MaxEmbedInputBytes = 30 * 1024
 
 // OllamaEmbedder calls an OpenAI-compatible /v1/embeddings endpoint.
 
@@ -26,7 +36,17 @@ func NewOllamaEmbedder(baseURL, model string, timeoutS int) *OllamaEmbedder {
 }
 
 // Embed calls the /v1/embeddings endpoint and returns the float32 embedding vector.
+//
+// Inputs longer than MaxEmbedInputBytes are truncated at the nearest valid UTF-8
+// boundary before being sent. This prevents pathological memories (50+ KB watcher
+// rows, big tool-result dumps) from infinitely failing against the embedder's
+// token limit and blocking the backfill loop.
 func (o *OllamaEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
+	if len(text) > MaxEmbedInputBytes {
+		original := len(text)
+		text = truncateUTF8(text, MaxEmbedInputBytes)
+		slog.Debug("embed input truncated", "original_bytes", original, "truncated_bytes", len(text), "cap", MaxEmbedInputBytes)
+	}
 	reqBody := struct {
 		Model string `json:"model"`
 		Input string `json:"input"`
@@ -84,4 +104,20 @@ func (o *OllamaEmbedder) Embed(ctx context.Context, text string) ([]float32, err
 // Dims returns the dimension of the last successful Embed call, or 0 if never called.
 func (o *OllamaEmbedder) Dims() int {
 	return int(o.dims.Load())
+}
+
+// truncateUTF8 returns the longest prefix of s that is <= max bytes AND ends on
+// a UTF-8 character boundary. Splitting mid-rune would produce invalid UTF-8 that
+// some embedding servers reject.
+func truncateUTF8(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	// Walk backwards from max until we hit the start of a UTF-8 sequence.
+	// A continuation byte has the high bits 10xxxxxx (0x80..0xBF).
+	i := max
+	for i > 0 && (s[i]&0xC0) == 0x80 {
+		i--
+	}
+	return s[:i]
 }

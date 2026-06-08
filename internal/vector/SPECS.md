@@ -15,3 +15,4 @@
 13. HuggingFace TEI exposes an OpenAI-compatible `/v1/embeddings` endpoint; `OllamaEmbedder` is used for it.
 14. When `cfg.Embedding.AutoDocker == true` and `cfg.Embedding.Provider == "huggingface"`, `NewEmbedder` wraps the inner embedder in a `ResilientEmbedder` that calls `EnsureEmbeddingServer` and retries once on failure.
 15. `ResilientEmbedder.Dims()` delegates to the inner embedder.
+16. `OllamaEmbedder.Embed` truncates input text to `MaxEmbedInputBytes` (30 KB) at a valid UTF-8 boundary before sending it to the embedding endpoint. This prevents pathologically large memories from infinitely failing against the embedder's token limit and starving the backfill loop. The truncation is logged at debug level.
