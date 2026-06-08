@@ -7,6 +7,35 @@ import (
 	"fmt"
 )
 
+// ensureVecTable creates memories_vec lazily for the given embedding dimension.
+// It caches the dim after the first successful creation so subsequent calls
+// become a single mutex acquisition and a fast equality check — avoiding the
+// SQLite reserved lock that CREATE TABLE IF NOT EXISTS would otherwise take on
+// every call. This is on the hot path for UpdateEmbedding which can run hundreds
+// of times per second during backfill.
+//
+// Returns an error if the dimension differs from a previously-seen dimension on
+// the same DB connection (which would indicate a config mismatch — the dim of
+// memories_vec is fixed at creation time).
+func (d *DB) ensureVecTable(ctx context.Context, dim int) error {
+	if dim <= 0 {
+		return fmt.Errorf("ensure vec table: invalid dim %d", dim)
+	}
+	d.vecCreatedMu.Lock()
+	defer d.vecCreatedMu.Unlock()
+	if d.vecCreatedDim == dim {
+		return nil
+	}
+	if d.vecCreatedDim != 0 && d.vecCreatedDim != dim {
+		return fmt.Errorf("ensure vec table: dim mismatch (have %d, want %d)", d.vecCreatedDim, dim)
+	}
+	if _, err := d.db.ExecContext(ctx, fmt.Sprintf(schemaVec, dim)); err != nil {
+		return fmt.Errorf("create memories_vec(dim=%d): %w", dim, err)
+	}
+	d.vecCreatedDim = dim
+	return nil
+}
+
 // WALCheckpointTruncate runs `PRAGMA wal_checkpoint(TRUNCATE)`. This copies any
 // pending WAL pages into the main database file, waits briefly for active
 // readers/writers, then truncates the .db-wal sidecar back to zero bytes on disk.

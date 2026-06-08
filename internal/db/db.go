@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 
 	_ "modernc.org/sqlite"     // register sqlite driver
 	_ "modernc.org/sqlite/vec" // register vec0 virtual table
@@ -16,6 +17,16 @@ import (
 type DB struct {
 	db       *sql.DB
 	embedDim int // expected embedding dimension; 0 means unknown
+
+	// vecCreatedMu protects vecCreatedDim. UpdateEmbedding may lazily create
+	// memories_vec the first time an embedding of a given dimension arrives
+	// (when Open was called with embedDim=0). We cache the dim so subsequent
+	// calls skip the CREATE TABLE IF NOT EXISTS DDL — it is cheap when the
+	// table exists, but still acquires SQLite's reserved lock and serialized
+	// with concurrent enrichment goroutines, slowing them down enough to lose
+	// races against immediate compactor reads.
+	vecCreatedMu  sync.Mutex
+	vecCreatedDim int
 }
 
 // Open opens (or creates) the SQLite database at path with WAL mode, foreign keys,
@@ -41,6 +52,9 @@ func Open(path string, embedDim int) (*DB, error) {
 	}
 
 	d := &DB{db: sqlDB, embedDim: embedDim}
+	if embedDim > 0 {
+		d.vecCreatedDim = embedDim // createSchema will create memories_vec eagerly
+	}
 	if err := d.createSchema(embedDim); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("create schema: %w", err)

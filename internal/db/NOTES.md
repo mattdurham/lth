@@ -69,3 +69,42 @@ maintenance.
 
 **Consequence:** The FTS index is invalidated if `memories` rows are modified outside of the
 trigger path. All writes to `memories.content` must go through the standard INSERT/UPDATE path.
+
+---
+
+## 5. Stop Dual-Storing Embeddings (vec0 as Sole Authority)
+
+*Added: 2026-06-08*
+
+**Decision:** The embedding for each memory is stored ONLY in `memories_vec` (the vec0 virtual
+table). The `memories.embedding` BLOB column is always written as NULL. Reads transparently fall
+back to vec0 via a join keyed by `id`.
+
+**Rationale:** A 488 MB production database audit found ~180 MB of duplicated embedding bytes
+(3 KB per row × ~60k rows) split between the BLOB column and the vec0 chunk store. The vec0
+table is required regardless (KNN search uses it via `mv.embedding MATCH ?`), so the BLOB column
+was the redundant copy. Empirical roundtrip test (TestVec0Roundtrip) confirms vec0 returns
+embeddings byte-for-byte identical to what was inserted — no quantization, no precision loss.
+
+**Consequences:**
+1. `InsertMemory` and `InsertMemoryBatch` now write `NULL` to `memories.embedding` and put the
+   vector only in `memories_vec`.
+2. `UpdateEmbedding` (used by `BackfillEmbeddings`) now writes to vec0 instead of the BLOB.
+   Previously it only wrote the BLOB — a latent bug that made backfilled embeddings invisible
+   to vector search.
+3. Scan helpers transparently fall back to vec0 when the BLOB is NULL, so all callers
+   (compactor, search, sync export) continue to see `m.Embedding` populated.
+4. `ListUnembedded` now checks `memories_vec` membership by rowid rather than the BLOB length.
+5. A migration (`migrateSchema`) NULLs out the BLOB for all rows already present in vec0 on
+   first Open after upgrade. Rows missing from vec0 keep their BLOB so no embedding is lost.
+6. `lth maint vacuum` is needed to reclaim the freed disk space.
+
+**Note on vec0 upsert:** `memories_vec` does NOT support `ON CONFLICT` UPSERT clauses or
+`INSERT OR REPLACE`. Both `UpdateEmbedding` and `InsertMemoryBatch` emulate upsert via
+UPDATE-then-INSERT inside a single transaction. The previous code used `ON CONFLICT(rowid)
+DO UPDATE`, which silently failed at runtime — another latent bug fixed by this change.
+
+**Note on lazy vec0 creation:** When `Open(embedDim=0)` is used (typically in tests), the
+vec0 table is created lazily on the first embedding write. The dim is cached on the `DB`
+struct so we don't take a SQLite reserved lock on every subsequent `UpdateEmbedding` call —
+critical for throughput during embedding backfill.

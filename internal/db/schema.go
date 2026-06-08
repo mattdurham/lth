@@ -150,8 +150,30 @@ func (d *DB) migrateSchema() error {
 			sql:  `DROP INDEX IF EXISTS idx_memories_content_hash`,
 			name: "drop redundant idx_memories_content_hash",
 		},
+		{
+			// Stop dual-storing embeddings. memories_vec is the authoritative store;
+			// the memories.embedding BLOB column was holding a redundant copy that
+			// accounted for ~180 MB on a 70k-row database (3 KB per row, 60k rows).
+			// NULL the BLOB only for rows already present in vec0 — rows missing from
+			// vec0 keep their BLOB so scan-fallback continues to work and no embedding
+			// is lost. Reclaim disk space via `lth maint vacuum` after migration.
+			sql:  `UPDATE memories SET embedding = NULL WHERE embedding IS NOT NULL AND rowid IN (SELECT rowid FROM memories_vec)`,
+			name: "null out memories.embedding for vec0-present rows",
+		},
 	}
 	for _, m := range migrations {
+		// The dual-store-removal migration only applies when memories_vec exists.
+		// Open(embedDim=0) does not create memories_vec; in that case there is no
+		// embedding data to migrate and the UPDATE would fail with "no such table".
+		if m.name == "null out memories.embedding for vec0-present rows" {
+			exists, err := d.tableExists(ctx, "memories_vec")
+			if err != nil {
+				return fmt.Errorf("check memories_vec existence: %w", err)
+			}
+			if !exists {
+				continue
+			}
+		}
 		if _, err := d.db.ExecContext(ctx, m.sql); err != nil {
 			// "duplicate column name" means the column already exists — idempotent.
 			if strings.Contains(err.Error(), "duplicate column name") {
@@ -161,4 +183,14 @@ func (d *DB) migrateSchema() error {
 		}
 	}
 	return nil
+}
+
+// tableExists returns whether a table with the given name is present in the schema.
+// Note: virtual tables (vec0, fts5) appear in sqlite_master with type='table'.
+func (d *DB) tableExists(ctx context.Context, name string) (bool, error) {
+	var n int
+	err := d.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, name,
+	).Scan(&n)
+	return n > 0, err
 }

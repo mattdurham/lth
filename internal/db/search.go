@@ -23,9 +23,13 @@ func (d *DB) VectorSearch(ctx context.Context, emb []float32, layers []int, limi
 
 	layerFilter := buildLayerFilter(layers)
 
+	// VectorSearch reads embeddings directly from mv.embedding (vec0) since the
+	// JOIN already has it. The memories.embedding BLOB column is always NULL
+	// after the dual-store-removal migration; reading mv.embedding avoids the
+	// fallback round-trip that scanMemoryRows would otherwise need.
 	//nolint:gosec // layer values are integer constants, not user input
 	query := fmt.Sprintf(`
-SELECT m.id, m.layer, m.content, m.content_hash, m.embedding, m.importance, m.access_count,
+SELECT m.id, m.layer, m.content, m.content_hash, mv.embedding, m.importance, m.access_count,
        m.created_at, m.updated_at, m.last_accessed_at, m.decay_rate, m.stability,
        m.source, m.agent, m.compacted_at, m.valence, m.valence_scored, mv.distance
 FROM memories_vec mv
@@ -95,7 +99,7 @@ LIMIT ?`, layerFilter)
 	}
 	defer rows.Close() //nolint:errcheck
 
-	return scanMemoryRows(rows)
+	return d.scanMemoryRows(ctx, rows)
 }
 
 // buildFTSQuery converts a natural language query into an FTS5 OR query.
