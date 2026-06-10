@@ -41,7 +41,7 @@ func runCompact(cmd *cobra.Command, _ []string) error {
 	defer d.Close() //nolint:errcheck
 
 	emb := vector.NewOllamaEmbedder(globalCfg.Embedding.BaseURL, config.EmbeddingModel, globalCfg.Embedding.TimeoutS)
-	l := llm.NewOllamaLLM(globalCfg.LLM.BaseURL, globalCfg.LLM.Model, globalCfg.LLM.TimeoutS)
+	l := llm.New(globalCfg)
 	g := graph.New(d)
 
 	store, err := memory.NewMemoryStore(d, emb, l, g, globalCfg)

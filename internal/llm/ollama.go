@@ -14,14 +14,16 @@ import (
 
 // OllamaLLM implements the LLM interface via the OpenAI-compatible /v1/chat/completions endpoint.
 
-// NewOllamaLLM creates a new OllamaLLM with the given base URL, model, and timeout.
-func NewOllamaLLM(baseURL, model string, timeoutS int) *OllamaLLM {
+// NewOllamaLLM creates a new OpenAI-compatible chat completions client.
+// apiKey may be empty for unauthenticated endpoints (e.g. Ollama, local servers).
+func NewOllamaLLM(baseURL, model, apiKey string, timeoutS int) *OllamaLLM {
 	// Compile-time interface check.
 	var _ LLM = (*OllamaLLM)(nil)
 
 	return &OllamaLLM{
 		baseURL: baseURL,
 		model:   model,
+		apiKey:  apiKey,
 		client: &http.Client{
 			Timeout: time.Duration(timeoutS) * time.Second,
 		},
@@ -49,6 +51,9 @@ func (o *OllamaLLM) Complete(ctx context.Context, prompt string) (string, error)
 		return "", fmt.Errorf("create llm request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if o.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+o.apiKey)
+	}
 
 	//nolint:gosec // G704: URL is from trusted config, not user input
 	resp, err := o.client.Do(req)

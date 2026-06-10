@@ -24,11 +24,6 @@ type ToolExecutor func(ctx context.Context, name string, input json.RawMessage) 
 
 // CompleteWithTools runs an agentic loop: Haiku can call tools until it reaches end_turn.
 func (a *AnthropicLLM) CompleteWithTools(ctx context.Context, system, userMsg string, tools []Tool, exec ToolExecutor) (string, error) {
-	apiKey := a.apiKey
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_API_KEY")
-	}
-
 	apiTools := make([]toolDef, len(tools))
 	for i, t := range tools {
 		apiTools[i] = toolDef{Name: t.Name, Description: t.Description, InputSchema: t.InputSchema}
@@ -52,7 +47,7 @@ func (a *AnthropicLLM) CompleteWithTools(ctx context.Context, system, userMsg st
 		}
 
 		//nolint:gosec
-		req, err := newAnthropicHTTPRequest(ctx, a.baseURL, apiKey, data)
+		req, err := a.newAnthropicRequest(ctx, data)
 		if err != nil {
 			return "", err
 		}
@@ -121,15 +116,35 @@ func (a *AnthropicLLM) CompleteWithTools(ctx context.Context, system, userMsg st
 	return "", fmt.Errorf("exceeded max tool iterations (%d)", maxToolIterations)
 }
 
-func newAnthropicHTTPRequest(ctx context.Context, baseURL, apiKey string, data []byte) (*http.Request, error) {
-	//nolint:gosec
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/v1/messages", bytes.NewReader(data))
+// newAnthropicRequest builds a POST /v1/messages request. Auth is chosen by
+// the LLM's configuration: if a TokenSource is set, the request uses OAuth
+// Bearer auth + Claude Code identity headers; otherwise it uses x-api-key.
+func (a *AnthropicLLM) newAnthropicRequest(ctx context.Context, data []byte) (*http.Request, error) {
+	//nolint:gosec // URL is constant or trusted config, not user input
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.baseURL+"/v1/messages", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", anthropicVersion)
 	req.Header.Set("content-type", "application/json")
+
+	if a.tokenSource != nil {
+		token, err := a.tokenSource.AccessToken(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("anthropic oauth token: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("anthropic-beta", "claude-code-20250219,oauth-2025-04-20")
+		req.Header.Set("user-agent", "claude-cli/1.0.0")
+		req.Header.Set("x-app", "cli")
+		return req, nil
+	}
+
+	apiKey := a.apiKey
+	if apiKey == "" {
+		apiKey = os.Getenv("ANTHROPIC_API_KEY")
+	}
+	req.Header.Set("x-api-key", apiKey)
 	return req, nil
 }
 

@@ -3,13 +3,11 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -37,11 +35,6 @@ func NewAnthropicLLM(apiKey, model string, timeoutS int) *AnthropicLLM {
 
 // Complete sends a user prompt to the Anthropic Messages API and returns the text response.
 func (a *AnthropicLLM) Complete(ctx context.Context, prompt string) (string, error) {
-	apiKey := a.apiKey
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_API_KEY")
-	}
-
 	reqBody := anthropicRequest{
 		Model:     a.model,
 		MaxTokens: anthropicMaxTokens,
@@ -55,15 +48,10 @@ func (a *AnthropicLLM) Complete(ctx context.Context, prompt string) (string, err
 		return "", fmt.Errorf("marshal anthropic request: %w", err)
 	}
 
-	//nolint:gosec // URL comes from constant or trusted config, not user input
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		a.baseURL+"/v1/messages", bytes.NewReader(data))
+	req, err := a.newAnthropicRequest(ctx, data)
 	if err != nil {
 		return "", fmt.Errorf("create anthropic request: %w", err)
 	}
-	req.Header.Set("x-api-key", apiKey)
-	req.Header.Set("anthropic-version", anthropicVersion)
-	req.Header.Set("content-type", "application/json")
 
 	resp, err := a.client.Do(req) //nolint:gosec // G704: URL is hardcoded constant or trusted config, not user input
 	if err != nil {

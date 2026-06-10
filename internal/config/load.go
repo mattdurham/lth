@@ -50,6 +50,7 @@ func Default() *Config {
 	cfg.Embedding.BaseURL = "http://localhost:8080"
 	cfg.Embedding.TimeoutS = 30
 	cfg.LLM.Provider = "anthropic"
+	cfg.LLM.AuthMode = "api_key"
 	cfg.LLM.BaseURL = "http://localhost:11434"
 	cfg.LLM.Model = "claude-haiku-4-5-20251001"
 	cfg.LLM.TimeoutS = 60
@@ -123,11 +124,15 @@ embedding:
 
 llm:
   # Anthropic Claude for compaction, importance scoring, and tag extraction.
-  # Set ANTHROPIC_API_KEY in your environment.
   provider: anthropic
   model: "claude-haiku-4-5-20251001"
   timeout_s: 60
+  # Authentication mode:
+  #   api_key  (default) -- uses the api_key field below or ANTHROPIC_API_KEY env var
+  #   oauth            -- uses claude.ai Pro/Max via 'lth auth login'
+  auth_mode: api_key
   # api_key: ""  # or set ANTHROPIC_API_KEY env var
+  # oauth_credentials_path: ""  # default: ~/.lth/anthropic-oauth.json
 
 compaction:
   interval_s: 3600
@@ -222,6 +227,9 @@ func applyEmbeddingDefaults(cfg, def *Config) {
 func applyLLMDefaults(cfg, def *Config) {
 	if cfg.LLM.Provider == "" {
 		cfg.LLM.Provider = def.LLM.Provider
+	}
+	if cfg.LLM.AuthMode == "" {
+		cfg.LLM.AuthMode = def.LLM.AuthMode
 	}
 	if cfg.LLM.Model == "" {
 		switch cfg.LLM.Provider {

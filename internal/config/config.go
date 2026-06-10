@@ -11,6 +11,34 @@ const (
 	EmbeddingImage  = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
 )
 
+// LLMBackend describes one LLM endpoint -- either the primary or a fallback.
+// Fields mirror the primary LLM block so chains compose cleanly.
+type LLMBackend struct {
+	Provider             string `yaml:"provider"`               // "anthropic", "openai", "ollama"
+	AuthMode             string `yaml:"auth_mode"`              // "api_key" (default) or "oauth" (Anthropic only)
+	APIKey               string `yaml:"api_key"`                //nolint:gosec // G117: user-supplied key, not hardcoded
+	APIKeyEnv            string `yaml:"api_key_env"`            //nolint:gosec // G117: env var name only
+	OAuthCredentialsPath string `yaml:"oauth_credentials_path"` // anthropic-oauth.json path override
+	BaseURL              string `yaml:"base_url"`
+	Model                string `yaml:"model"`
+	TimeoutS             int    `yaml:"timeout_s"`
+}
+
+// LLMChainConfig tunes the fallback chain. All fields optional.
+type LLMChainConfig struct {
+	CircuitWindow      int     `yaml:"circuit_window"`       // rolling failure window (default 10)
+	CircuitFailurePct  float64 `yaml:"circuit_failure_pct"`  // open threshold 0-1 (default 0.5)
+	CircuitCooldownS   int     `yaml:"circuit_cooldown_s"`   // skip-duration on open (default 30)
+}
+
+// LLMConfig is the llm: section. The top-level fields define the primary
+// backend; Fallbacks adds an ordered list tried on transient errors.
+type LLMConfig struct {
+	LLMBackend `yaml:",inline"`
+	Fallbacks  []LLMBackend   `yaml:"fallbacks"`
+	Chain      LLMChainConfig `yaml:"chain"`
+}
+
 // Config holds all lth configuration loaded from ~/.lth/config.yaml.
 type Config struct {
 	DB struct {
@@ -25,13 +53,7 @@ type Config struct {
 		TimeoutS   int    `yaml:"timeout_s"`
 	} `yaml:"embedding"`
 
-	LLM struct {
-		Provider string `yaml:"provider"` // "anthropic", "ollama", "openai" -- default: "anthropic"
-		APIKey   string `yaml:"api_key"`  //nolint:gosec // G117: not a hardcoded secret -- config field for user-supplied key
-		BaseURL  string `yaml:"base_url"`
-		Model    string `yaml:"model"`
-		TimeoutS int    `yaml:"timeout_s"`
-	} `yaml:"llm"`
+	LLM LLMConfig `yaml:"llm"`
 
 	Compaction struct {
 		IntervalS            int     `yaml:"interval_s"`

@@ -127,7 +127,7 @@ type BriefResult struct {
 
 // encodeBriefResults summarizes each result with Haiku and writes compact JSON.
 func encodeBriefResults(cmd *cobra.Command, results []*lth.SearchResult) error {
-	haiku := llm.NewAnthropicLLM(globalCfg.LLM.APIKey, "claude-haiku-4-5-20251001", 15)
+	haiku := llm.New(globalCfg)
 
 	brief := make([]BriefResult, len(results))
 	var wg sync.WaitGroup

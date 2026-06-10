@@ -251,8 +251,16 @@ func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string,
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
 
-	// Use agentic loop if LLM supports it
-	if al, ok := l.(*llm.AnthropicLLM); ok {
+	// Use agentic loop if any backend in the chain is Anthropic (only Anthropic
+	// supports CompleteWithTools).
+	var al *llm.AnthropicLLM
+	switch x := l.(type) {
+	case *llm.AnthropicLLM:
+		al = x
+	case *llm.Chain:
+		al = x.AnthropicEntry()
+	}
+	if al != nil {
 		answer, err := al.CompleteWithTools(ctx, chatSystemPrompt, sb.String(), chatTools, executor)
 		if err != nil {
 			return "", fmt.Errorf("llm: %w", err)

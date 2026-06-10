@@ -21,7 +21,7 @@ Higher layers compact into lower ones automatically. L5 observations cluster int
 ## Requirements
 
 - Go 1.25+
-- [Anthropic API key](https://console.anthropic.com) (for LLM enrichment and chat)
+- An Anthropic credential — either an [API key](https://console.anthropic.com) or a Claude Pro/Max subscription via OAuth (see `lth auth login`)
 - Docker (for the local embedding server, auto-started on first use)
 
 ## Installation
@@ -76,6 +76,7 @@ lth ui   # → http://localhost:8765
 | `lth watch` | Manage the background daemon |
 | `lth projects` | List all tracked projects |
 | `lth read` | Read a file with lth memory context prepended |
+| `lth auth` | Manage Anthropic OAuth (claude.ai Pro/Max) credentials |
 
 ## Configuration
 
@@ -91,7 +92,10 @@ embedding:
 llm:
   provider: anthropic
   model: claude-haiku-4-5-20251001
-  # api_key: ""  # or set ANTHROPIC_API_KEY env var
+  # Authentication: either an API key, or claude.ai OAuth (Pro/Max).
+  auth_mode: api_key             # or "oauth" (after `lth auth login`)
+  # api_key: ""                  # or set ANTHROPIC_API_KEY env var
+  # oauth_credentials_path: ""   # default: ~/.lth/anthropic-oauth.json
 
 watcher:
   paths:

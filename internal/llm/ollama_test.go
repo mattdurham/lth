@@ -34,7 +34,7 @@ func TestComplete_success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	llm := NewOllamaLLM(srv.URL, "test-model", 30)
+	llm := NewOllamaLLM(srv.URL, "test-model", "", 30)
 	got, err := llm.Complete(context.Background(), "rate this 1-10")
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -44,13 +44,42 @@ func TestComplete_success(t *testing.T) {
 	}
 }
 
+func TestComplete_bearerAuth(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{"message": map[string]string{"content": "ok"}}},
+		})
+	}))
+	defer srv.Close()
+
+	l := NewOllamaLLM(srv.URL, "m", "sk-xyz", 30)
+	if _, err := l.Complete(context.Background(), "hi"); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if gotAuth != "Bearer sk-xyz" {
+		t.Errorf("Authorization = %q, want Bearer sk-xyz", gotAuth)
+	}
+
+	// Empty key -> no Authorization header (unauthenticated endpoints).
+	gotAuth = ""
+	l2 := NewOllamaLLM(srv.URL, "m", "", 30)
+	if _, err := l2.Complete(context.Background(), "hi"); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if gotAuth != "" {
+		t.Errorf("unexpected Authorization header: %q", gotAuth)
+	}
+}
+
 func TestComplete_serverError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}))
 	defer srv.Close()
 
-	llm := NewOllamaLLM(srv.URL, "test-model", 30)
+	llm := NewOllamaLLM(srv.URL, "test-model", "", 30)
 	_, err := llm.Complete(context.Background(), "rate this 1-10")
 	if err == nil {
 		t.Error("Complete: expected error for 500 status, got nil")
@@ -72,7 +101,7 @@ func TestComplete_timeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	llm := NewOllamaLLM(srv.URL, "test-model", 30)
+	llm := NewOllamaLLM(srv.URL, "test-model", "", 30)
 	_, err := llm.Complete(ctx, "rate this 1-10")
 	if err == nil {
 		t.Error("Complete: expected error for timeout, got nil")
