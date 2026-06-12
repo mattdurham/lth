@@ -69,3 +69,15 @@
 **Rationale:** Allows testing with mock implementations. The compactor has no direct DB access — all reads/writes go through `memory.Store`.
 
 **Consequence:** The compactor is a pure orchestration layer. This simplifies testing significantly.
+
+---
+
+## 7. L5 Cluster Size Cap (Token Budget)
+
+*Added: 2026-06-11*
+
+**Decision:** `summarizeCluster` enforces a character-budget cap (`L5MaxClusterChars`, default 80,000 ≈ 20k tokens) on the cluster content fed to the LLM. When a cluster exceeds the budget, memories are sampled evenly across the cluster (preserving first and last to span the time range), and a note is added to the prompt indicating that sampling occurred. All original L5 memories are still soft-deleted on success.
+
+**Rationale:** Cosine-similarity clustering produces unbounded cluster sizes. A single long Claude Code session can generate thousands of near-duplicate observations that all cluster together at any reasonable threshold. Before this cap, such clusters produced 200k+ token prompts that exceeded both local model context windows (32k) and even Anthropic Haiku's 200k limit, causing every L5→L4 compaction run to fail with no L5 memories ever being archived. The threshold knob alone cannot fix this because the offending memories ARE highly similar by design.
+
+**Consequence:** L5→L4 compaction no longer silently fails on huge clusters. The resulting L4 summary is necessarily coarser when sampled (e.g. 80 of 5,000 observations), but a coarse summary is strictly better than a missing one. The minimum of 2 retained memories means a pathological budget setting can still produce valid input; real context-overflow on truly small clusters still surfaces via the LLM chain's error path. Users can disable the cap entirely with `l5_max_cluster_chars: 0` for the original unbounded behavior.

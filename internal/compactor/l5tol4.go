@@ -122,6 +122,40 @@ func (c *Compactor) compactL5toL4(ctx context.Context) (int, error) {
 	return promoted, nil
 }
 
+// selectForPrompt returns the memories whose content should be included in the
+// summarization prompt, downsampled to fit budgetChars. If budgetChars <= 0
+// (config not set) or the total fits, the full cluster is returned unchanged.
+//
+// When sampling, evenly-spaced indices are chosen so the result still spans the
+// time range of the cluster (assumes the input is in chronological order, as
+// produced by ListLayer + the clustering pass). At least L5MinClusterSize
+// memories are always retained, even if it nominally exceeds the budget; the
+// LLM call itself surfaces real context-overflow errors via the chain.
+func selectForPrompt(cluster []*memory.Memory, budgetChars int) (picked []*memory.Memory, totalChars int, sampled bool) {
+	for _, m := range cluster {
+		totalChars += len(m.Content)
+	}
+	if budgetChars <= 0 || totalChars <= budgetChars {
+		return cluster, totalChars, false
+	}
+	// Number of memories to keep, proportional to budget vs total. Floor at 2.
+	n := budgetChars * len(cluster) / totalChars
+	if n < 2 {
+		n = 2
+	}
+	if n >= len(cluster) {
+		return cluster, totalChars, false
+	}
+	picked = make([]*memory.Memory, 0, n)
+	// Evenly-spaced indices including endpoints: 0, step, 2*step, ..., len-1.
+	// Using float math for spacing avoids gnarly off-by-one with integer steps.
+	for i := 0; i < n; i++ {
+		idx := i * (len(cluster) - 1) / (n - 1)
+		picked = append(picked, cluster[idx])
+	}
+	return picked, totalChars, true
+}
+
 // findL5Clusters clusters L5 memories by pairwise cosine similarity.
 // Uses greedy expansion with full pairwise validation: same algorithm as
 // findClusters in l4tol3.go but with configurable threshold and min size.
@@ -163,9 +197,24 @@ func findL5Clusters(memories []*memory.Memory, threshold float32, minSize int) [
 }
 
 // summarizeCluster calls LLM to summarize a cluster of L5 memories and stores the result as L4.
+//
+// If the cluster's total content size exceeds L5MaxClusterChars, the cluster is
+// down-sampled to evenly-spaced representatives before prompt assembly. This
+// prevents huge near-duplicate clusters (e.g. thousands of turns from one long
+// Claude Code session) from producing prompts that exceed model context limits.
+// All original L5 memories are still soft-deleted on success; the resulting L4
+// summary represents the entire cluster window, just with sampled detail.
 func (c *Compactor) summarizeCluster(ctx context.Context, cluster []*memory.Memory) (int, error) {
 	if len(cluster) == 0 {
 		return 0, nil
+	}
+
+	// Pick which memories' content goes into the prompt, sampling if oversized.
+	picked, totalChars, sampled := selectForPrompt(cluster, c.cfg.Compaction.L5MaxClusterChars)
+	if sampled {
+		c.logger.Warn("L5→L4 cluster oversized, sampling",
+			"cluster_size", len(cluster), "sampled_to", len(picked),
+			"total_chars", totalChars, "budget", c.cfg.Compaction.L5MaxClusterChars)
 	}
 
 	// Build prompt.
@@ -173,8 +222,12 @@ func (c *Compactor) summarizeCluster(ctx context.Context, cluster []*memory.Memo
 	sb.WriteString("Summarize these raw observations into 1-3 key insights for future reference.\n")
 	sb.WriteString("Focus on decisions made, problems encountered, and solutions found.\n")
 	sb.WriteString("Each insight must be one sentence. No headers, no bullet points, no markdown.\n")
+	if sampled {
+		fmt.Fprintf(&sb, "(Cluster of %d related observations; %d evenly-spaced samples shown.)\n",
+			len(cluster), len(picked))
+	}
 	sb.WriteString("Observations:\n")
-	for _, m := range cluster {
+	for _, m := range picked {
 		sb.WriteString("- ")
 		sb.WriteString(m.Content)
 		sb.WriteByte('\n')

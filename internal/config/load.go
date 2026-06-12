@@ -59,6 +59,7 @@ func Default() *Config {
 	cfg.Compaction.L5MaxAgeH = 24
 	cfg.Compaction.L5ClusterThreshold = 0.75
 	cfg.Compaction.L5MinClusterSize = 2
+	cfg.Compaction.L5MaxClusterChars = 80_000
 	cfg.Compaction.L4ClusterSize = 5
 	cfg.Compaction.L3EpisodesMin = 10
 	cfg.Compaction.L3ImportanceMin = 7.0
@@ -140,6 +141,10 @@ compaction:
   l5_max_age_h: 24
   l5_cluster_threshold: 0.75
   l5_min_cluster_size: 2
+  # Prompt-content character budget per L5 cluster sent to the LLM. Oversized
+  # clusters are downsampled to evenly-spaced representatives. 0 disables the
+  # cap (original unbounded behaviour). 80000 ~= 20k tokens.
+  l5_max_cluster_chars: 80000
   l4_cluster_size: 5
   l3_episodes_min: 10
   l3_importance_min: 7.0
@@ -262,6 +267,9 @@ func applyCompactionDefaults(cfg, def *Config) {
 	}
 	if cfg.Compaction.L5MinClusterSize == 0 {
 		cfg.Compaction.L5MinClusterSize = def.Compaction.L5MinClusterSize
+	}
+	if cfg.Compaction.L5MaxClusterChars == 0 {
+		cfg.Compaction.L5MaxClusterChars = def.Compaction.L5MaxClusterChars
 	}
 	if cfg.Compaction.L4ClusterSize == 0 {
 		cfg.Compaction.L4ClusterSize = def.Compaction.L4ClusterSize

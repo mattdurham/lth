@@ -61,6 +61,7 @@ type Config struct {
 		L5MaxAgeH            int     `yaml:"l_5_max_age_h"`
 		L5ClusterThreshold   float32 `yaml:"l_5_cluster_threshold"`
 		L5MinClusterSize     int     `yaml:"l_5_min_cluster_size"`
+		L5MaxClusterChars    int     `yaml:"l_5_max_cluster_chars"` // sample down to this prompt-content budget before summarizing (default: 80000 ~= 20k tokens)
 		L4ClusterSize        int     `yaml:"l_4_cluster_size"`
 		L3EpisodesMin        int     `yaml:"l_3_episodes_min"`
 		L3ImportanceMin      float32 `yaml:"l_3_importance_min"`
