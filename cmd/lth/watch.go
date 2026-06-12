@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/mattdurham/lth/internal/compactor"
 	"github.com/mattdurham/lth/internal/config"
+	"github.com/mattdurham/lth/internal/daemonlog"
 	"github.com/mattdurham/lth/internal/issueswatcher"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
@@ -205,6 +207,27 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 		slog.Info("daemon already running", "pid", pid)
 		return nil
 	}
+
+	// Set up rotating log file. The parent (forkDaemon) opened daemon.log and
+	// piped this child's stdout/stderr into it; we now take ownership via the
+	// rotator, which dup2's its current fd over both std fds so any direct
+	// writes (including panics) follow rotation. Any pre-rotator output
+	// already went to the parent-supplied file, which is the same path.
+	logPath := filepath.Join(filepath.Dir(globalCfg.DB.Path), "daemon.log")
+	rotator, err := daemonlog.New(daemonlog.Options{
+		Path:           logPath,
+		RetainDays:     globalCfg.Watcher.LogRetainDays,
+		RedirectStdFDs: true,
+	})
+	if err != nil {
+		return fmt.Errorf("open daemon log: %w", err)
+	}
+	defer rotator.Close() //nolint:errcheck
+	level := slog.LevelInfo
+	if flagVerbose {
+		level = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(rotator, &slog.HandlerOptions{Level: level})))
 
 	// Write PID file immediately.
 	if err := writePIDFile(pidFile, os.Getpid()); err != nil {

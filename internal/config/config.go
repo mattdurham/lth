@@ -79,8 +79,9 @@ type Config struct {
 	} `yaml:"search"`
 
 	Watcher struct {
-		Paths     []string `yaml:"paths"`
-		StateFile string   `yaml:"state_file"`
+		Paths         []string `yaml:"paths"`
+		StateFile     string   `yaml:"state_file"`
+		LogRetainDays int      `yaml:"log_retain_days"` // daemon.log rotation retention (default 3)
 	} `yaml:"watcher"`
 	Issues struct {
 		Repos     []string `yaml:"repos"`      // e.g. ["grafana/tempo", "owner/repo"]

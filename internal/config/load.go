@@ -81,6 +81,7 @@ func Default() *Config {
 		filepath.Join(home, ".pi", "agent", "sessions"),
 	}
 	cfg.Watcher.StateFile = filepath.Join(lthDir, "watcher-state.json")
+	cfg.Watcher.LogRetainDays = 3
 
 	return cfg
 }
@@ -163,6 +164,7 @@ search:
 #   paths:
 #     - "~/.claude/projects"
 #     - "~/.pi/agent/sessions"
+#   log_retain_days: 3   # daemon.log rotates daily; this many archives kept
 
 # sync:
 #   server_url: ""
@@ -195,6 +197,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Watcher.StateFile == "" {
 		cfg.Watcher.StateFile = def.Watcher.StateFile
+	}
+	if cfg.Watcher.LogRetainDays == 0 {
+		cfg.Watcher.LogRetainDays = def.Watcher.LogRetainDays
 	}
 	if cfg.Issues.IntervalS == 0 {
 		cfg.Issues.IntervalS = def.Issues.IntervalS
