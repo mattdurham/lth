@@ -119,6 +119,72 @@ func TestWatcherInitialScan(t *testing.T) {
 	}
 }
 
+// TestWatcher_PicksUpNewSubdirectory exercises the regression where the
+// fsnotify event loop ignored directory creation events. New project
+// transcript dirs (e.g. ~/.claude/projects/-new-proj/) appearing after
+// daemon start used to be invisible to the watcher; this test asserts the
+// loop now subscribes to them and ingests files inside.
+func TestWatcher_PicksUpNewSubdirectory(t *testing.T) {
+	root := t.TempDir()
+	cfg := config.Default()
+	cfg.Watcher.StateFile = filepath.Join(root, "state.json")
+	cfg.Watcher.Paths = []string{root}
+
+	store := &mockStore{}
+	w, err := New(store, cfg, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- w.Start(ctx) }()
+
+	// Give Start() a beat to settle the initial recursive subscribe.
+	time.Sleep(100 * time.Millisecond)
+
+	// Create a new subdirectory AFTER the watcher started.
+	newDir := filepath.Join(root, "new-project")
+	if err := os.Mkdir(newDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Brief gap for the dir-create event to be processed.
+	time.Sleep(150 * time.Millisecond)
+
+	// Now drop a .jsonl file inside it -- this only ingests if the watcher
+	// successfully subscribed to the new dir.
+	jsonlFile := filepath.Join(newDir, "conv.jsonl")
+	line := `{"type":"user","message":{"role":"user","content":"hello from new dir"},"sessionId":"s1","cwd":"/"}` + "\n"
+	if err := os.WriteFile(jsonlFile, []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait up to 2s for the Store call.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		n := len(store.calls)
+		store.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	cancel()
+	<-done
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.calls) == 0 {
+		t.Fatal("watcher did not ingest file from new subdirectory created after start")
+	}
+	if !strings.Contains(store.calls[0], "hello from new dir") {
+		t.Errorf("unexpected stored content: %q", store.calls[0])
+	}
+}
+
 func TestWatcherIngestFileStoreError(t *testing.T) {
 	dir := t.TempDir()
 	cfg := config.Default()

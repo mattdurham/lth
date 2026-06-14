@@ -85,6 +85,22 @@ func (w *Watcher) Start(ctx context.Context) error {
 				return nil
 			}
 			if event.Op&(fsnotify.Write|fsnotify.Create) != 0 {
+				// New directory created (e.g. user cd'd into a new project,
+				// creating ~/.claude/projects/-new-proj/). fsnotify on Linux
+				// does not propagate watches to subdirs; subscribe explicitly
+				// then scan once to catch any .jsonl already created in the
+				// race window between mkdir and our subscription.
+				if event.Op&fsnotify.Create != 0 {
+					if info, statErr := os.Stat(event.Name); statErr == nil && info.IsDir() {
+						if err := addPathRecursive(w.watcher, event.Name); err != nil {
+							w.logger.Warn("watch new dir", "dir", event.Name, "err", err)
+						} else {
+							w.logger.Info("watching new directory", "dir", event.Name)
+						}
+						w.scanExisting(ctx, event.Name)
+						continue
+					}
+				}
 				if strings.HasSuffix(event.Name, ".jsonl") {
 					if err := w.IngestFile(ctx, event.Name); err != nil {
 						w.logger.Warn("ingest error", "file", event.Name, "err", err)
