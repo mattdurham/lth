@@ -64,7 +64,7 @@ func New(store *memory.MemoryStore, l llm.LLM, cfg *config.Config, m *metrics.Me
 
 // Run scans on startup and then on a ticker until ctx is cancelled.
 func (w *MDWatcher) Run(ctx context.Context) {
-	if len(w.cfg.Markdown.Dirs) == 0 {
+	if len(w.cfg.Markdown.Dirs) == 0 && len(w.cfg.Markdown.GitHub.Repos) == 0 {
 		return
 	}
 	w.loadState()
@@ -86,10 +86,12 @@ func (w *MDWatcher) Run(ctx context.Context) {
 	}
 }
 
-// ScanOnce performs a single scan of all configured markdown directories.
+// ScanOnce performs a single scan of all configured markdown directories
+// and configured GitHub repos.
 func (w *MDWatcher) ScanOnce(ctx context.Context) error {
 	found := map[string]struct{}{}
 
+	// Local dirs: scan the entire tree.
 	for _, dir := range w.cfg.Markdown.Dirs {
 		dir = expandHome(dir)
 		w.maybeGitPull(dir)
@@ -106,6 +108,11 @@ func (w *MDWatcher) ScanOnce(ctx context.Context) error {
 			}
 			return nil
 		})
+	}
+
+	// GitHub repos: clone/refresh, then scan with include/exclude filtering.
+	if len(w.cfg.Markdown.GitHub.Repos) > 0 {
+		w.scanGitHubRepos(ctx, found)
 	}
 
 	// Soft-delete memories for files that no longer exist.
@@ -148,9 +155,10 @@ func (w *MDWatcher) processFile(ctx context.Context, path string) error {
 	content := string(data)
 	var allIDs []string
 
-	// Chunk large files by top-level heading.
+	// Chunk large files using a format-aware splitter (markdown headings,
+	// YAML document separators, or size-windowed lines for everything else).
 	if len(data) > maxFileSizeBytes {
-		chunks := splitByHeading(content)
+		chunks := splitForLLM(path, content, maxFileSizeBytes)
 		for i, chunk := range chunks {
 			ids, err := w.ingestChunk(ctx, path, fmt.Sprintf("part %d/%d", i+1, len(chunks)), chunk)
 			if err != nil {
@@ -229,7 +237,7 @@ func (w *MDWatcher) softDeleteIDs(ctx context.Context, ids []string) {
 
 func buildPrompt(path, part, content string) string {
 	var sb strings.Builder
-	sb.WriteString("Extract ALL distinct facts, insights, decisions, rules, procedures, and knowledge from this markdown document.\n\n")
+	sb.WriteString("Extract ALL distinct facts, insights, decisions, rules, procedures, and knowledge from this document.\n\n")
 	sb.WriteString("Requirements:\n")
 	sb.WriteString("- Write each item as a clear, standalone sentence or short paragraph\n")
 	sb.WriteString("- Each item must be fully self-contained and understandable without the source document\n")
@@ -261,10 +269,45 @@ func parseFacts(resp string) ([]string, error) {
 	return facts, nil
 }
 
+// splitForLLM breaks content into LLM-sized chunks using a strategy chosen
+// by file extension. After the format-aware first pass, any chunk still
+// larger than maxBytes is line-windowed so no single chunk exceeds the LLM
+// context budget.
+//
+//	.md, .markdown   split at top-level "# " headings
+//	.yaml, .yml      split at YAML document separator "---"
+//	anything else    size-windowed at line boundaries
+//
+// A single line longer than maxBytes is emitted as its own (oversized)
+// chunk; the LLM call will return a context-overflow error which the chain
+// surfaces normally rather than silently truncating content.
+func splitForLLM(path, content string, maxBytes int) []string {
+	var raw []string
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".md", ".markdown":
+		raw = splitByHeading(content)
+	case ".yaml", ".yml":
+		raw = splitByYAMLDocs(content)
+	default:
+		raw = []string{content}
+	}
+	var out []string
+	for _, c := range raw {
+		if len(c) <= maxBytes {
+			out = append(out, c)
+			continue
+		}
+		out = append(out, windowByLines(c, maxBytes)...)
+	}
+	return out
+}
+
+// splitByHeading splits markdown content at lines beginning with "# "
+// (top-level H1 headings). The heading line stays at the top of its chunk.
 func splitByHeading(content string) []string {
 	var chunks []string
 	var current strings.Builder
-	for _, line := range strings.Split(content, "\n") {
+	for _, line := range splitLines(content) {
 		if strings.HasPrefix(line, "# ") && current.Len() > 0 {
 			chunks = append(chunks, current.String())
 			current.Reset()
@@ -276,6 +319,64 @@ func splitByHeading(content string) []string {
 		chunks = append(chunks, current.String())
 	}
 	return chunks
+}
+
+// splitByYAMLDocs splits content at lines containing only "---", the YAML
+// document separator. The separator itself is discarded. Files without a
+// separator are returned as a single chunk.
+func splitByYAMLDocs(content string) []string {
+	var chunks []string
+	var current strings.Builder
+	for _, line := range splitLines(content) {
+		if strings.TrimRight(line, " \t") == "---" && current.Len() > 0 {
+			chunks = append(chunks, current.String())
+			current.Reset()
+			continue
+		}
+		current.WriteString(line)
+		current.WriteByte('\n')
+	}
+	if current.Len() > 0 {
+		chunks = append(chunks, current.String())
+	}
+	if len(chunks) == 0 {
+		return []string{content}
+	}
+	return chunks
+}
+
+// windowByLines splits content into chunks of at most maxBytes by accumulating
+// lines. A line is appended to the current chunk if it fits; otherwise the
+// current chunk is flushed and the line starts a new one. A single line
+// longer than maxBytes is emitted as its own oversized chunk -- callers see
+// the resulting LLM error rather than silent mid-line truncation.
+func windowByLines(content string, maxBytes int) []string {
+	var chunks []string
+	var current strings.Builder
+	for _, line := range splitLines(content) {
+		cost := len(line) + 1 // +1 for the trailing newline we add
+		if current.Len() > 0 && current.Len()+cost > maxBytes {
+			chunks = append(chunks, current.String())
+			current.Reset()
+		}
+		current.WriteString(line)
+		current.WriteByte('\n')
+	}
+	if current.Len() > 0 {
+		chunks = append(chunks, current.String())
+	}
+	return chunks
+}
+
+// splitLines is like strings.Split(s, "\n") but drops the trailing empty
+// element that results from a string ending in "\n". This keeps the chunking
+// helpers from emitting a phantom empty line at the end of well-formed input.
+func splitLines(s string) []string {
+	lines := strings.Split(s, "\n")
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		lines = lines[:n-1]
+	}
+	return lines
 }
 
 func fileHash(data []byte) string {
@@ -338,4 +439,87 @@ func (w *MDWatcher) maybeGitPull(dir string) {
 	w.mu.Lock()
 	w.lastPull[dir] = time.Now()
 	w.mu.Unlock()
+}
+
+// scanGitHubRepos resolves the configured GitHub repos (clone/fetch as
+// needed) and walks each one, honouring per-repo include/exclude prefix
+// filters. Files that pass the filter and end in .md are processed; their
+// paths are recorded in `found` so the global stale-file cleanup logic
+// (which soft-deletes memories for vanished files) applies to them.
+//
+// Throttling: EnsureRepo runs at most once per Markdown.GitPullIntervalS
+// (the same knob that controls existing local-dir git pulls), so a tight
+// scan ticker does not hammer GitHub.
+func (w *MDWatcher) scanGitHubRepos(ctx context.Context, found map[string]struct{}) {
+	w.mu.Lock()
+	interval := time.Duration(w.cfg.Markdown.GitPullIntervalS) * time.Second
+	gh := w.cfg.Markdown.GitHub
+	// Expand any leading ~/ in the cache dir -- the YAML loader does not do
+	// this, so a config like `cache_dir: ~/.lth/repos-cache` would otherwise
+	// be treated as a literal relative path.
+	gh.CacheDir = expandHome(gh.CacheDir)
+	repos := make([]config.MarkdownGitHubRepo, 0, len(gh.Repos))
+	// Build the subset due for refresh; the rest we reuse from the previous
+	// scan via their well-known on-disk paths.
+	dueRefresh := make(map[string]bool, len(gh.Repos))
+	for _, spec := range gh.Repos {
+		if time.Since(w.lastPull["github:"+spec.Repo]) >= interval {
+			dueRefresh[spec.Repo] = true
+		}
+		repos = append(repos, spec)
+	}
+	w.mu.Unlock()
+
+	for _, spec := range repos {
+		var root string
+		if dueRefresh[spec.Repo] {
+			r, err := EnsureRepo(ctx, gh.CacheDir, gh.CloneDepth, spec)
+			if err != nil {
+				slog.Warn("mdwatcher: github repo sync failed", "repo", spec.Repo, "err", err)
+				continue
+			}
+			root = r.RootDir
+			w.mu.Lock()
+			w.lastPull["github:"+spec.Repo] = time.Now()
+			w.mu.Unlock()
+		} else {
+			// Reuse on-disk path; skip refresh this cycle.
+			org, name, _ := strings.Cut(spec.Repo, "/")
+			root = filepath.Join(gh.CacheDir, org, name)
+			if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
+				// Cache dir missing -- force a clone next cycle.
+				w.mu.Lock()
+				w.lastPull["github:"+spec.Repo] = time.Time{}
+				w.mu.Unlock()
+				continue
+			}
+		}
+
+		_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil //nolint:nilerr // tolerate permission errors in cached clones
+			}
+			if d.IsDir() {
+				if d.Name() == ".git" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !extensionMatches(path, spec.FileTypes) {
+				return nil
+			}
+			rel, relErr := filepath.Rel(root, path)
+			if relErr != nil {
+				return nil
+			}
+			if !pathAccepted(rel, spec.Include, spec.Exclude) {
+				return nil
+			}
+			found[path] = struct{}{}
+			if err := w.processFile(ctx, path); err != nil {
+				slog.Warn("mdwatcher: file error", "path", path, "err", err)
+			}
+			return nil
+		})
+	}
 }

@@ -76,6 +76,8 @@ func Default() *Config {
 	cfg.Markdown.IntervalS = 300
 	cfg.Markdown.GitPull = true
 	cfg.Markdown.GitPullIntervalS = 3600
+	cfg.Markdown.GitHub.CacheDir = filepath.Join(lthDir, "repos-cache")
+	cfg.Markdown.GitHub.CloneDepth = 1
 	cfg.Watcher.Paths = []string{
 		filepath.Join(home, ".claude", "projects"),
 		filepath.Join(home, ".pi", "agent", "sessions"),
@@ -166,6 +168,26 @@ search:
 #     - "~/.pi/agent/sessions"
 #   log_retain_days: 3   # daemon.log rotates daily; this many archives kept
 
+# markdown:
+#   # Scan local directories for files and extract facts via LLM.
+#   dirs: [~/source/some-local-repo]
+#   layer: 3
+#   interval_s: 300
+#   git_pull: true
+#   git_pull_interval_s: 3600
+#
+#   # Optional: GitHub repos auto-cloned and refreshed by lth into cache_dir.
+#   # Auth is delegated to local git (SSH keys, credential helpers).
+#   github:
+#     cache_dir: ~/.lth/repos-cache
+#     clone_depth: 1                          # shallow clones (0 = full history)
+#     repos:
+#       - repo: example-org/some-monorepo
+#         include: ["**/tempo/**"]            # any path with a 'tempo' directory
+#         exclude: ["**/vendor/**"]
+#         file_types: [".md", ".yaml", ".jsonnet"]
+#         # branch: main                      # optional; defaults to origin/HEAD
+
 # sync:
 #   server_url: ""
 #   account: ""
@@ -212,6 +234,12 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Markdown.GitPullIntervalS == 0 {
 		cfg.Markdown.GitPullIntervalS = def.Markdown.GitPullIntervalS
+	}
+	if cfg.Markdown.GitHub.CacheDir == "" {
+		cfg.Markdown.GitHub.CacheDir = def.Markdown.GitHub.CacheDir
+	}
+	if cfg.Markdown.GitHub.CloneDepth == 0 {
+		cfg.Markdown.GitHub.CloneDepth = def.Markdown.GitHub.CloneDepth
 	}
 }
 

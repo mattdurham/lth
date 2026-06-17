@@ -39,6 +39,45 @@ type LLMConfig struct {
 	Chain      LLMChainConfig `yaml:"chain"`
 }
 
+// MarkdownGitHubRepo is one GitHub repo to clone and scan.
+//
+// Repo is "<org>/<name>". Include and Exclude are lists of slash-style globs
+// matched against the file path relative to the repo root. Supported syntax:
+// `*` (single path segment), `?` (single char in a segment), and `**` (zero
+// or more path segments). Examples:
+//
+//	**/foo/**             any path with a "foo" directory component
+//	component/sub/**      only that subtree
+//	docs/**/*.md          any .md under docs/, at any depth
+//
+// FileTypes is the list of file extensions to ingest (e.g. ".md", ".yaml",
+// ".jsonnet"). Matched case-insensitively. Empty defaults to [".md"] for
+// back-compat with the original markdown-only watcher. Branch is the branch
+// to track; empty means the repo's default branch.
+//
+// Example:
+//
+//	repo: acme/widgets
+//	include: ["**/tempo/**"]
+//	exclude: ["**/vendor/**"]
+//	file_types: [".md", ".yaml", ".jsonnet"]
+type MarkdownGitHubRepo struct {
+	Repo      string   `yaml:"repo"`
+	Include   []string `yaml:"include"`
+	Exclude   []string `yaml:"exclude"`
+	FileTypes []string `yaml:"file_types"`
+	Branch    string   `yaml:"branch"`
+}
+
+// MarkdownGitHub configures the optional GitHub-repo source for the markdown
+// watcher. CacheDir defaults to ~/.lth/repos-cache; CloneDepth defaults to 1
+// (shallow). Auth is delegated to local git (SSH keys, credential helpers).
+type MarkdownGitHub struct {
+	CacheDir    string               `yaml:"cache_dir"`
+	CloneDepth  int                  `yaml:"clone_depth"`
+	Repos       []MarkdownGitHubRepo `yaml:"repos"`
+}
+
 // Config holds all lth configuration loaded from ~/.lth/config.yaml.
 type Config struct {
 	DB struct {
@@ -89,11 +128,12 @@ type Config struct {
 	} `yaml:"issues"`
 
 	Markdown struct {
-		Dirs             []string `yaml:"dirs"`
-		Layer            int      `yaml:"layer"`              // default 3
-		IntervalS        int      `yaml:"interval_s"`         // default 300
-		GitPull          bool     `yaml:"git_pull"`           // run git pull before rescanning; default true
-		GitPullIntervalS int      `yaml:"git_pull_interval_s"` // default 3600
+		Dirs             []string         `yaml:"dirs"`
+		Layer            int              `yaml:"layer"`              // default 3
+		IntervalS        int              `yaml:"interval_s"`         // default 300
+		GitPull          bool             `yaml:"git_pull"`           // run git pull before rescanning; default true
+		GitPullIntervalS int              `yaml:"git_pull_interval_s"` // default 3600
+		GitHub           MarkdownGitHub   `yaml:"github"`             // optional auto-cloned GitHub repos
 	} `yaml:"markdown"`
 
 	Sync struct {
