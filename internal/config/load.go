@@ -82,6 +82,10 @@ func Default() *Config {
 		filepath.Join(home, ".claude", "projects"),
 		filepath.Join(home, ".pi", "agent", "sessions"),
 	}
+	cfg.GWS.IntervalH = 3
+	cfg.GWS.LookbackDays = 14
+	cfg.GWS.OutputDir = filepath.Join(lthDir, "gws-imports")
+	cfg.GWS.NamePatterns = []string{"Notes by Gemini", "Transcript"}
 	cfg.Watcher.StateFile = filepath.Join(lthDir, "watcher-state.json")
 	cfg.Watcher.LogRetainDays = 3
 
@@ -188,6 +192,19 @@ search:
 #         file_types: [".md", ".yaml", ".jsonnet"]
 #         # branch: main                      # optional; defaults to origin/HEAD
 
+# gws:
+#   # Google Workspace meeting-notes / transcripts watcher. Requires the gws
+#   # CLI (npm: google-workspace-cli) to be installed and authenticated.
+#   # lth never handles Google credentials directly.
+#   enabled: false
+#   interval_h: 3                       # poll cadence (default: 3)
+#   lookback_days: 14                   # window of recent docs to consider
+#   output_dir: ~/.lth/gws-imports      # written to, then auto-added to markdown.dirs
+#   name_patterns:                      # OR'd; Drive 'name contains' clauses
+#     - "Notes by Gemini"
+#     - "Transcript"
+#   exclude_patterns: []                # optional NAND'd skip list
+
 # sync:
 #   server_url: ""
 #   account: ""
@@ -222,6 +239,18 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Watcher.LogRetainDays == 0 {
 		cfg.Watcher.LogRetainDays = def.Watcher.LogRetainDays
+	}
+	if cfg.GWS.IntervalH == 0 {
+		cfg.GWS.IntervalH = def.GWS.IntervalH
+	}
+	if cfg.GWS.LookbackDays == 0 {
+		cfg.GWS.LookbackDays = def.GWS.LookbackDays
+	}
+	if cfg.GWS.OutputDir == "" {
+		cfg.GWS.OutputDir = def.GWS.OutputDir
+	}
+	if len(cfg.GWS.NamePatterns) == 0 {
+		cfg.GWS.NamePatterns = def.GWS.NamePatterns
 	}
 	if cfg.Issues.IntervalS == 0 {
 		cfg.Issues.IntervalS = def.Issues.IntervalS

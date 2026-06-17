@@ -78,6 +78,25 @@ type MarkdownGitHub struct {
 	Repos       []MarkdownGitHubRepo `yaml:"repos"`
 }
 
+// GWSConfig configures the Google Workspace watcher. Disabled by default.
+// Requires the `gws` CLI (Google Workspace CLI from npm) to be installed and
+// authenticated; lth never handles credentials directly.
+//
+// On each tick, the watcher queries Drive for documents matching any of the
+// configured name patterns modified within the lookback window, downloads
+// their content via the Docs API, and writes one markdown file per document
+// into OutputDir. The markdown watcher then picks them up on its normal scan
+// cycle.
+type GWSConfig struct {
+	Enabled       bool     `yaml:"enabled"`        // master switch; default false
+	IntervalH     int      `yaml:"interval_h"`     // poll cadence in hours; default 3
+	LookbackDays  int      `yaml:"lookback_days"`  // only fetch docs modified within this window; default 14
+	OutputDir     string   `yaml:"output_dir"`     // where to write the .md files; default ~/.lth/gws-imports
+	NamePatterns  []string `yaml:"name_patterns"`  // Drive name `contains` patterns (OR'd together); default ["Notes by Gemini", "Transcript"]
+	ExcludePatterns []string `yaml:"exclude_patterns"` // optional name patterns to skip
+	GWSBinary     string   `yaml:"gws_binary"`     // override path to the gws executable; default looks up $PATH
+}
+
 // Config holds all lth configuration loaded from ~/.lth/config.yaml.
 type Config struct {
 	DB struct {
@@ -135,6 +154,8 @@ type Config struct {
 		GitPullIntervalS int              `yaml:"git_pull_interval_s"` // default 3600
 		GitHub           MarkdownGitHub   `yaml:"github"`             // optional auto-cloned GitHub repos
 	} `yaml:"markdown"`
+
+	GWS GWSConfig `yaml:"gws"`
 
 	Sync struct {
 		ServerURL     string `yaml:"server_url"`

@@ -17,6 +17,7 @@ import (
 	"github.com/mattdurham/lth/internal/compactor"
 	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/daemonlog"
+	"github.com/mattdurham/lth/internal/gwswatcher"
 	"github.com/mattdurham/lth/internal/issueswatcher"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
@@ -300,9 +301,21 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	if globalCfg.Sync.ServerURL != "" {
 		go autoSync(ctx, globalCfg, m)
 	}
+	// If the gws watcher is enabled, auto-append its output dir to the markdown
+	// watcher's scan list so anything it writes is picked up automatically.
+	if globalCfg.GWS.Enabled {
+		appendMarkdownDir(globalCfg, globalCfg.GWS.OutputDir)
+	}
 	if len(globalCfg.Markdown.Dirs) > 0 {
 		mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg, m)
 		go mw.Run(ctx)
+	}
+	if globalCfg.GWS.Enabled {
+		if gw, err := gwswatcher.New(globalCfg); err != nil {
+			slog.Warn("gwswatcher disabled", "err", err)
+		} else {
+			go gw.Run(ctx)
+		}
 	}
 	if len(globalCfg.Issues.Repos) > 0 {
 		iw := issueswatcher.New(daemon.ms, globalCfg, m)
@@ -381,4 +394,19 @@ func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 		llm:       l,
 		emb:       emb,
 	}, nil
+}
+
+// appendMarkdownDir adds dir to cfg.Markdown.Dirs if not already present.
+// Used by the daemon to auto-include a watcher's output directory in the
+// markdown scan list.
+func appendMarkdownDir(cfg *config.Config, dir string) {
+	if dir == "" {
+		return
+	}
+	for _, existing := range cfg.Markdown.Dirs {
+		if existing == dir {
+			return
+		}
+	}
+	cfg.Markdown.Dirs = append(cfg.Markdown.Dirs, dir)
 }
