@@ -298,29 +298,22 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, config.EmbeddingModel, 50, 2*time.Second)
 	go walCheckpointLoop(ctx, daemon.d, 5*time.Minute)
 	go configReloadLoop(ctx, effectiveConfigPath(), globalCfg, 1*time.Minute)
-	if globalCfg.Sync.ServerURL != "" {
-		go autoSync(ctx, globalCfg, m)
-	}
-	// If the gws watcher is enabled, auto-append its output dir to the markdown
-	// watcher's scan list so anything it writes is picked up automatically.
-	if globalCfg.GWS.Enabled {
-		appendMarkdownDir(globalCfg, globalCfg.GWS.OutputDir)
-	}
-	if len(globalCfg.Markdown.Dirs) > 0 {
-		mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg, m)
-		go mw.Run(ctx)
-	}
-	if globalCfg.GWS.Enabled {
-		if gw, err := gwswatcher.New(globalCfg); err != nil {
-			slog.Warn("gwswatcher disabled", "err", err)
-		} else {
-			go gw.Run(ctx)
-		}
-	}
-	if len(globalCfg.Issues.Repos) > 0 {
-		iw := issueswatcher.New(daemon.ms, globalCfg, m)
-		go iw.Run(ctx)
-	}
+	// Spawn all hot-reload-friendly watchers unconditionally. Each one self-gates
+	// on its config block (Sync.ServerURL, Markdown.Dirs/.GitHub.Repos,
+	// GWS.Enabled, Issues.Repos) and sleeps cheaply when disabled, so enabling
+	// a watcher via config hot-reload takes effect on the next poll without a
+	// daemon restart.
+	go autoSync(ctx, globalCfg, m)
+	// gws output dir is auto-appended to markdown.dirs so anything the watcher
+	// writes is picked up by the mdwatcher. Safe to do unconditionally -- it is
+	// an idempotent no-op when the dir is already present.
+	appendMarkdownDir(globalCfg, globalCfg.GWS.OutputDir)
+	mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg, m)
+	go mw.Run(ctx)
+	gw := gwswatcher.New(globalCfg)
+	go gw.Run(ctx)
+	iw := issueswatcher.New(daemon.ms, globalCfg, m)
+	go iw.Run(ctx)
 	if !flagNoUI {
 		uiClient, uiClientErr := lth.NewClient(globalCfg)
 		if uiClientErr != nil {

@@ -625,26 +625,50 @@ func importMemoriesServerSource(ctx context.Context, d *db.DB, rc interface{ Rea
 	}
 	return imported, skipped, nil
 }
+// autoSync is hot-reload friendly: it loops forever, checking cfg.Sync.ServerURL
+// on each iteration. When unset, it sleeps for 60s and re-checks; when set,
+// it runs a sync and sleeps for cfg.Sync.AutoIntervalS seconds. Returns only
+// on ctx cancellation.
 func autoSync(ctx context.Context, cfg *config.Config, m *metrics.Metrics) {
-	interval := time.Duration(cfg.Sync.AutoIntervalS) * time.Second
-	if interval <= 0 {
-		interval = 10 * time.Minute
-	}
-	slog.Info("auto-sync enabled", "server", cfg.Sync.ServerURL, "interval", interval)
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	const disabledPoll = 60 * time.Second
+	lastServer := ""
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case _ = <-ticker.C:
-			start := time.Now()
-			if err := syncBoth(ctx, m); err != nil {
-				slog.Warn("auto-sync failed", "err", err)
+		if cfg.Sync.ServerURL == "" {
+			if !syncSleep(ctx, disabledPoll) {
+				return
 			}
-			if m != nil {
-				m.SyncDurationSeconds.WithLabelValues("auto").Observe(time.Since(start).Seconds())
-			}
+			continue
 		}
+		if cfg.Sync.ServerURL != lastServer {
+			interval := time.Duration(cfg.Sync.AutoIntervalS) * time.Second
+			if interval <= 0 {
+				interval = 10 * time.Minute
+			}
+			slog.Info("auto-sync enabled", "server", cfg.Sync.ServerURL, "interval", interval)
+			lastServer = cfg.Sync.ServerURL
+		}
+		start := time.Now()
+		if err := syncBoth(ctx, m); err != nil {
+			slog.Warn("auto-sync failed", "err", err)
+		}
+		if m != nil {
+			m.SyncDurationSeconds.WithLabelValues("auto").Observe(time.Since(start).Seconds())
+		}
+		interval := time.Duration(cfg.Sync.AutoIntervalS) * time.Second
+		if interval <= 0 {
+			interval = 10 * time.Minute
+		}
+		if !syncSleep(ctx, interval) {
+			return
+		}
+	}
+}
+
+func syncSleep(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
 	}
 }

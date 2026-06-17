@@ -29,41 +29,72 @@ type Watcher struct {
 	logger *slog.Logger
 }
 
-// New constructs a Watcher. Returns nil and an error if the gws binary cannot
-// be located; the caller should log the error and skip starting the watcher.
-func New(cfg *config.Config) (*Watcher, error) {
-	r, err := newExecRunner(cfg.GWS.GWSBinary, defaultRunTimeout)
-	if err != nil {
-		return nil, err
-	}
-	return &Watcher{cfg: cfg, runner: r, logger: slog.Default()}, nil
+// New constructs a Watcher. The gws binary is resolved lazily on first scan
+// so the daemon can start the watcher unconditionally; if gws is missing or
+// the watcher is disabled, no resolution happens and no error is raised.
+func New(cfg *config.Config) *Watcher {
+	return &Watcher{cfg: cfg, logger: slog.Default()}
 }
 
-// Run starts the watcher loop: an immediate scan on entry, then a ticker at
-// cfg.GWS.IntervalH hours. Returns when ctx is cancelled.
-func (w *Watcher) Run(ctx context.Context) {
-	if !w.cfg.GWS.Enabled {
-		return
+// ensureRunner resolves the gws binary on demand and caches the runner on
+// the Watcher. Called from ScanOnce when the watcher is enabled.
+func (w *Watcher) ensureRunner() error {
+	if w.runner != nil {
+		return nil
 	}
-	interval := time.Duration(w.cfg.GWS.IntervalH) * time.Hour
-	if interval <= 0 {
-		interval = 3 * time.Hour
+	r, err := newExecRunner(w.cfg.GWS.GWSBinary, defaultRunTimeout)
+	if err != nil {
+		return err
 	}
+	w.runner = r
+	return nil
+}
 
-	if err := w.ScanOnce(ctx); err != nil {
-		w.logger.Warn("gwswatcher initial scan", "err", err)
-	}
-	t := time.NewTicker(interval)
-	defer t.Stop()
+// Run is hot-reload friendly: it loops forever, checking cfg.GWS.Enabled
+// on each iteration. When disabled, it sleeps for 60s and re-checks; when
+// enabled, it runs ScanOnce, then sleeps for cfg.GWS.IntervalH hours.
+// Toggling Enabled at runtime (via config hot-reload) takes effect on the
+// next poll without a daemon restart. Returns only on ctx cancellation.
+func (w *Watcher) Run(ctx context.Context) {
+	const disabledPoll = 60 * time.Second
+	loggedNoBinary := false
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if err := w.ScanOnce(ctx); err != nil {
-				w.logger.Warn("gwswatcher scan", "err", err)
+		if !w.cfg.GWS.Enabled {
+			if !sleepCtx(ctx, disabledPoll) {
+				return
 			}
+			continue
 		}
+		if err := w.ensureRunner(); err != nil {
+			if !loggedNoBinary {
+				w.logger.Warn("gwswatcher: gws binary not available", "err", err)
+				loggedNoBinary = true
+			}
+			if !sleepCtx(ctx, disabledPoll) {
+				return
+			}
+			continue
+		}
+		if err := w.ScanOnce(ctx); err != nil {
+			w.logger.Warn("gwswatcher scan", "err", err)
+		}
+		interval := time.Duration(w.cfg.GWS.IntervalH) * time.Hour
+		if interval <= 0 {
+			interval = 3 * time.Hour
+		}
+		if !sleepCtx(ctx, interval) {
+			return
+		}
+	}
+}
+
+// sleepCtx blocks for d or returns false if ctx is cancelled.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
 	}
 }
 

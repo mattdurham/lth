@@ -58,22 +58,43 @@ func New(store *memory.MemoryStore, cfg *config.Config, m *metrics.Metrics) *Wat
 }
 
 // Run polls on startup then on a ticker until ctx is cancelled.
+// Run is hot-reload friendly: it loops forever, checking cfg.Issues.Repos
+// on each iteration. When the repo list is empty, it sleeps for 60s and
+// re-checks; when populated, it polls each repo at cfg.Issues.IntervalS.
+// New repos added via config hot-reload are picked up on the next tick
+// without requiring a daemon restart. Returns only on ctx cancellation.
 func (w *Watcher) Run(ctx context.Context) {
-	if len(w.cfg.Issues.Repos) == 0 {
-		return
-	}
-	w.loadState()
-	w.syncAll(ctx)
-	interval := time.Duration(w.cfg.Issues.IntervalS) * time.Second
-	t := time.NewTicker(interval)
-	defer t.Stop()
+	const disabledPoll = 60 * time.Second
+	stateLoaded := false
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			w.syncAll(ctx)
+		if len(w.cfg.Issues.Repos) == 0 {
+			if !sleepCtx(ctx, disabledPoll) {
+				return
+			}
+			continue
 		}
+		if !stateLoaded {
+			w.loadState()
+			stateLoaded = true
+		}
+		w.syncAll(ctx)
+		interval := time.Duration(w.cfg.Issues.IntervalS) * time.Second
+		if interval <= 0 {
+			interval = 1 * time.Hour
+		}
+		if !sleepCtx(ctx, interval) {
+			return
+		}
+	}
+}
+
+// sleepCtx blocks for d or returns false if ctx is cancelled.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
 	}
 }
 

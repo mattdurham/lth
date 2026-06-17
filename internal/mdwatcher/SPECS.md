@@ -30,3 +30,7 @@
     - any other extension (e.g. `.json`, `.jsonnet`, `.libsonnet`) -> size-windowed at line boundaries
 13. After the format-aware first pass, any single chunk still larger than `maxBytes` is further size-windowed at line boundaries by `windowByLines`. A single line longer than `maxBytes` is emitted as one oversized chunk; the resulting LLM context-overflow error surfaces through the chain rather than being silently truncated mid-line.
 14. `splitLines` is used by all three chunking helpers to split content into lines while dropping the trailing empty element that `strings.Split` returns when input ends with `"\n"`. This prevents phantom empty chunks at file ends.
+
+## Hot-reload
+
+15. `Run` is hot-reload friendly: it loops forever, re-checking `cfg.Markdown.Dirs` and `cfg.Markdown.GitHub.Repos` on each iteration. While both are empty it sleeps 60s between checks; otherwise it scans then sleeps for `cfg.Markdown.IntervalS`. Dirs or GitHub repos added via in-place config reload are picked up on the next scan without restarting the goroutine.

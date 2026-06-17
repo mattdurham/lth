@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/mattdurham/lth/internal/config"
@@ -24,13 +25,14 @@ import (
 
 // Watcher watches JSONL files and ingests new messages as L5 memories.
 type Watcher struct {
-	store   memory.Store
-	cfg     *config.Config
-	watcher *fsnotify.Watcher
-	offsets map[string]int64
-	mu      sync.Mutex
-	logger  *slog.Logger
-	metrics *metrics.Metrics
+	store        memory.Store
+	cfg          *config.Config
+	watcher      *fsnotify.Watcher
+	offsets      map[string]int64
+	watchedPaths map[string]bool // top-level paths already subscribed; protects against duplicate Adds during hot-reload reconcile
+	mu           sync.Mutex
+	logger       *slog.Logger
+	metrics      *metrics.Metrics
 }
 
 // New creates a new Watcher. Call Start to begin watching.
@@ -61,19 +63,26 @@ func New(store memory.Store, cfg *config.Config, m *metrics.Metrics) (*Watcher, 
 func (w *Watcher) Start(ctx context.Context) error {
 	defer w.watcher.Close() //nolint:errcheck
 
-	// Add watch paths.
-	for _, watchPath := range w.cfg.Watcher.Paths {
-		expanded := expandHome(watchPath)
-		if err := addPathRecursive(w.watcher, expanded); err != nil {
-			w.logger.Warn("could not watch path", "path", expanded, "err", err)
-		}
-	}
+	// Subscribe to currently-configured paths and run an initial scan.
+	w.reconcilePaths(ctx)
 
-	// Initial scan of all existing JSONL files.
-	for _, watchPath := range w.cfg.Watcher.Paths {
-		expanded := expandHome(watchPath)
-		w.scanExisting(ctx, expanded)
-	}
+	// Reconcile loop: every 60s, check cfg.Watcher.Paths and subscribe to any
+	// newly-added top-level paths. fsnotify.Add is effectively idempotent for
+	// paths already in the watch set, so re-adding existing ones is a cheap
+	// no-op. Makes cfg.Watcher.Paths hot-reloadable -- a config edit + 60s
+	// later, the new path is watched without a daemon restart.
+	go func() {
+		t := time.NewTicker(60 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				w.reconcilePaths(ctx)
+			}
+		}
+	}()
 
 	// Event loop.
 	for {
@@ -113,6 +122,34 @@ func (w *Watcher) Start(ctx context.Context) error {
 			}
 			w.logger.Warn("watcher error", "err", err)
 		}
+	}
+}
+
+// reconcilePaths subscribes to every path in cfg.Watcher.Paths that is not
+// already watched, and runs scanExisting on each newly-watched path so any
+// .jsonl files that pre-existed the subscription are still ingested. Safe
+// to call repeatedly; fsnotify deduplicates Adds internally.
+func (w *Watcher) reconcilePaths(ctx context.Context) {
+	for _, watchPath := range w.cfg.Watcher.Paths {
+		expanded := expandHome(watchPath)
+		w.mu.Lock()
+		alreadySeen := w.watchedPaths[expanded]
+		if !alreadySeen {
+			if w.watchedPaths == nil {
+				w.watchedPaths = make(map[string]bool)
+			}
+			w.watchedPaths[expanded] = true
+		}
+		w.mu.Unlock()
+		if alreadySeen {
+			continue
+		}
+		if err := addPathRecursive(w.watcher, expanded); err != nil {
+			w.logger.Warn("could not watch path", "path", expanded, "err", err)
+			continue
+		}
+		w.scanExisting(ctx, expanded)
+		w.logger.Info("watcher: subscribed to new top-level path", "path", expanded)
 	}
 }
 

@@ -46,7 +46,29 @@ on top of this watcher's hourly cadence; for meeting notes that's fine.
 
 ---
 
-## 3. Doc-ID-Embedded Filenames for Stable Dedup
+## 3. Hot-Reload via Loop-and-Recheck Run Loop
+
+*Added: 2026-06-17*
+
+**Decision:** `Run` does not early-return when `cfg.GWS.Enabled` is false.
+Instead, it loops forever, checking `Enabled` on each iteration. When
+false, it sleeps 60 seconds and re-checks. When true, it scans then sleeps
+for `IntervalH` hours.
+
+**Rationale:** The daemon's config hot-reload (cmd/lth/watch.go:configReloadLoop)
+reloads `globalCfg` in place every 60 seconds. If the watcher captured
+`Enabled` once at startup and returned on false, enabling it mid-run would
+require a daemon restart -- defeating the point of hot-reload. With the
+loop-and-recheck pattern, the watcher is always running as a cheap idle
+goroutine and self-activates on the next poll after the flip.
+
+**Consequence:** The daemon spawns this watcher unconditionally at startup.
+The `gws` binary lookup also moves into the (deferred) first-scan path so
+an install-gws-then-flip-enabled sequence works without daemon restart.
+
+---
+
+## 4. Doc-ID-Embedded Filenames for Stable Dedup
 
 *Added: 2026-06-17*
 

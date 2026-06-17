@@ -62,27 +62,45 @@ func New(store *memory.MemoryStore, l llm.LLM, cfg *config.Config, m *metrics.Me
 	}
 }
 
-// Run scans on startup and then on a ticker until ctx is cancelled.
+// Run is hot-reload friendly: it loops forever, checking cfg.Markdown.Dirs
+// and cfg.Markdown.GitHub.Repos on each iteration. When both are empty, it
+// sleeps for 60s and re-checks; otherwise it runs ScanOnce and sleeps for
+// cfg.Markdown.IntervalS seconds. Repos and dirs added via config hot-reload
+// are picked up on the next scan without requiring a daemon restart.
 func (w *MDWatcher) Run(ctx context.Context) {
-	if len(w.cfg.Markdown.Dirs) == 0 && len(w.cfg.Markdown.GitHub.Repos) == 0 {
-		return
-	}
-	w.loadState()
-	if err := w.ScanOnce(ctx); err != nil {
-		slog.Error("mdwatcher initial scan", "err", err)
-	}
-	interval := time.Duration(w.cfg.Markdown.IntervalS) * time.Second
-	t := time.NewTicker(interval)
-	defer t.Stop()
+	const disabledPoll = 60 * time.Second
+	stateLoaded := false
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if err := w.ScanOnce(ctx); err != nil {
-				slog.Error("mdwatcher scan", "err", err)
+		if len(w.cfg.Markdown.Dirs) == 0 && len(w.cfg.Markdown.GitHub.Repos) == 0 {
+			if !sleepCtx(ctx, disabledPoll) {
+				return
 			}
+			continue
 		}
+		if !stateLoaded {
+			w.loadState()
+			stateLoaded = true
+		}
+		if err := w.ScanOnce(ctx); err != nil {
+			slog.Error("mdwatcher scan", "err", err)
+		}
+		interval := time.Duration(w.cfg.Markdown.IntervalS) * time.Second
+		if interval <= 0 {
+			interval = 5 * time.Minute
+		}
+		if !sleepCtx(ctx, interval) {
+			return
+		}
+	}
+}
+
+// sleepCtx blocks for d or returns false if ctx is cancelled.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
 	}
 }
 
