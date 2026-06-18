@@ -40,11 +40,23 @@ func New(cfg *config.Config) LLM {
 		})
 	}
 
-	return NewChain(ChainConfig{
+	chain := NewChain(ChainConfig{
 		CircuitWindow:     cfg.LLM.Chain.CircuitWindow,
 		CircuitFailurePct: cfg.LLM.Chain.CircuitFailurePct,
 		CircuitCooldown:   time.Duration(cfg.LLM.Chain.CircuitCooldownS) * time.Second,
 	}, entries...)
+	// Hot-reloadable per-backend timeouts: index 0 = primary, 1+ = fallbacks.
+	chain.SetTimeoutLookup(func(i int) time.Duration {
+		if i == 0 {
+			return backendTimeout(cfg.LLM.LLMBackend)
+		}
+		j := i - 1
+		if j < 0 || j >= len(cfg.LLM.Fallbacks) {
+			return 0
+		}
+		return backendTimeout(cfg.LLM.Fallbacks[j])
+	})
+	return chain
 }
 
 // buildBackend constructs a single LLM client from a backend spec. The label

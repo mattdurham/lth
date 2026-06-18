@@ -55,6 +55,18 @@ type ChainEntry struct {
 type Chain struct {
 	entries []chainSlot
 	cfg     ChainConfig
+	// timeoutLookup, if non-nil, is consulted on each Complete call to find
+	// the current per-backend timeout by index. Lets timeouts hot-reload
+	// from the live config without rebuilding the chain.
+	timeoutLookup func(i int) time.Duration
+}
+
+// SetTimeoutLookup registers a function the chain calls on every Complete
+// to discover the current Timeout for backend at index i. When set, its
+// non-zero result overrides ChainEntry.Timeout. Lets timeouts hot-reload
+// from the live config without rebuilding the chain.
+func (c *Chain) SetTimeoutLookup(f func(i int) time.Duration) {
+	c.timeoutLookup = f
 }
 
 type chainSlot struct {
@@ -109,8 +121,14 @@ func (c *Chain) Complete(ctx context.Context, prompt string) (string, error) {
 
 		callCtx := ctx
 		var cancel context.CancelFunc
-		if slot.Timeout > 0 {
-			callCtx, cancel = context.WithTimeout(ctx, slot.Timeout)
+		timeout := slot.Timeout
+		if c.timeoutLookup != nil {
+			if live := c.timeoutLookup(i); live > 0 {
+				timeout = live
+			}
+		}
+		if timeout > 0 {
+			callCtx, cancel = context.WithTimeout(ctx, timeout)
 		}
 
 		// Admission control: if this backend is concurrency-limited, acquire a

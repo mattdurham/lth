@@ -241,6 +241,40 @@ func TestChain_SemaphoreSaturationFallsOver(t *testing.T) {
 	close(holdReleased)
 }
 
+// TestChain_TimeoutLookupOverrides verifies that SetTimeoutLookup's return
+// value, when non-zero, overrides the static ChainEntry.Timeout on every
+// call. Enables hot-reloading timeouts from the live config without
+// rebuilding the chain.
+func TestChain_TimeoutLookupOverrides(t *testing.T) {
+	slow := &stubLLM{out: "primary-ok", delay: 200 * time.Millisecond}
+	fallback := &stubLLM{out: "fallback-ok"}
+
+	c := NewChain(ChainConfig{},
+		ChainEntry{Name: "primary", LLM: slow, Timeout: 5 * time.Second},
+		ChainEntry{Name: "fallback", LLM: fallback, Timeout: 5 * time.Second},
+	)
+
+	// Override primary timeout to 50ms via lookup -- primary will be killed
+	// mid-call by its 200ms delay vs 50ms timeout. Fallback gets a normal
+	// 5s timeout (lookup returns 0 for index 1 -> static used).
+	c.SetTimeoutLookup(func(i int) time.Duration {
+		if i == 0 {
+			return 50 * time.Millisecond
+		}
+		return 0 // use static
+	})
+
+	start := time.Now()
+	got, err := c.Complete(context.Background(), "hi")
+	elapsed := time.Since(start)
+	if err != nil || got != "fallback-ok" {
+		t.Fatalf("got (%q, %v); want fallback to take over after primary times out", got, err)
+	}
+	if elapsed > 200*time.Millisecond {
+		t.Errorf("failover took %v; timeoutLookup not honoured", elapsed)
+	}
+}
+
 func TestChain_FastFailover_TimingBudget(t *testing.T) {
 	// Demonstrates the headline performance claim: a dead primary with a tight
 	// timeout falls over to a healthy backup well under one "primary timeout"
