@@ -22,6 +22,11 @@ type LLMBackend struct {
 	BaseURL              string `yaml:"base_url"`
 	Model                string `yaml:"model"`
 	TimeoutS             int    `yaml:"timeout_s"`
+	// MaxConcurrent caps in-flight LLM calls to this backend. 0 (default) is
+	// unbounded -- preserves prior behaviour. Set to 1 for a serial local
+	// model so concurrent backfill workers queue cleanly client-side rather
+	// than piling up inside the inference server.
+	MaxConcurrent int `yaml:"max_concurrent"`
 }
 
 // LLMChainConfig tunes the fallback chain. All fields optional.

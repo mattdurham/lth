@@ -71,3 +71,38 @@ existing config breaks.
   persisting the rotated refresh token back to disk under a mutex.
 - Use of claude.ai OAuth tokens from a non-Anthropic tool is a gray area
   w.r.t. Anthropic's ToS; users opt in explicitly via `auth_mode: oauth`.
+
+---
+
+## 5. Client-Side Admission Control for Concurrency-Limited Backends
+
+*Added: 2026-06-17*
+
+**Decision:** Add `MaxConcurrent` to each chain `ChainEntry`. When set,
+`Chain.Complete` acquires a slot in a buffered channel semaphore before
+invoking that backend's underlying client; callers beyond the cap wait on
+the channel, bounded by the entry's `Timeout`.
+
+**Rationale:** Background workers (tags / valence / importance backfill,
+mdwatcher fact extraction, issueswatcher, gwswatcher) fire LLM calls from
+independent goroutines, all sharing the same `Chain.Complete`. A consumer-
+hardware local model (e.g. Qwen3-4B in LM Studio) serves one inference at a
+time; multiple concurrent client requests pile up inside the inference
+server's own queue, where the wait time is invisible to the chain and
+often exceeds the per-backend `Timeout`. The result was a flapping
+circuit breaker, mass fallback to the cloud backend, and elevated cost
+for no quality benefit.
+
+Client-side semaphores let lth admit just enough concurrent calls for what
+the backend can actually handle (typically 1 for a single-GPU local model),
+so each in-flight call sees an idle server and returns promptly. Excess
+callers wait their turn rather than racing into timeouts.
+
+**Consequence:**
+- Semaphore-wait timeout is treated as congestion, not a fault: the breaker
+  is not incremented and the chain falls through to the next backend. This
+  preserves smooth degradation under bursts without thrashing the breaker.
+- `MaxConcurrent == 0` keeps the pre-semaphore unbounded behaviour, so the
+  change is backwards compatible.
+- Recommended pattern: set primary `max_concurrent: 1` for a serial local
+  model and leave the cloud fallback at `0` (unbounded).

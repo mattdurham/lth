@@ -41,6 +41,13 @@ type ChainEntry struct {
 	Name    string        // for logging (e.g. "primary:openai", "fallback:anthropic")
 	LLM     LLM           // the underlying client
 	Timeout time.Duration // per-request timeout (0 = no extra timeout beyond caller ctx)
+	// MaxConcurrent caps the number of in-flight Complete calls to this
+	// backend. Calls beyond the limit wait on a Go-channel semaphore (bounded
+	// by the per-backend Timeout) before the underlying client is invoked.
+	// 0 (default) means unbounded -- behaviour identical to the pre-semaphore
+	// chain. Use 1 for a serial local model so concurrent backfill workers
+	// don't pile up inside the inference server's own queue.
+	MaxConcurrent int
 }
 
 // Chain wraps an ordered list of LLM backends. Complete tries each in order
@@ -53,6 +60,7 @@ type Chain struct {
 type chainSlot struct {
 	ChainEntry
 	breaker *circuitBreaker
+	sem     chan struct{} // nil = unbounded; otherwise cap == MaxConcurrent
 }
 
 // NewChain constructs a fallback chain from an ordered list of backends.
@@ -61,9 +69,14 @@ func NewChain(cfg ChainConfig, entries ...ChainEntry) *Chain {
 	cfg.applyDefaults()
 	slots := make([]chainSlot, len(entries))
 	for i, e := range entries {
+		var sem chan struct{}
+		if e.MaxConcurrent > 0 {
+			sem = make(chan struct{}, e.MaxConcurrent)
+		}
 		slots[i] = chainSlot{
 			ChainEntry: e,
 			breaker:    newCircuitBreaker(cfg.CircuitWindow, cfg.CircuitFailurePct, cfg.CircuitCooldown),
+			sem:        sem,
 		}
 	}
 	return &Chain{entries: slots, cfg: cfg}
@@ -100,8 +113,41 @@ func (c *Chain) Complete(ctx context.Context, prompt string) (string, error) {
 			callCtx, cancel = context.WithTimeout(ctx, slot.Timeout)
 		}
 
+		// Admission control: if this backend is concurrency-limited, acquire a
+		// slot in the semaphore before calling the underlying client. The wait
+		// is bounded by callCtx, so a long queue eventually falls over to the
+		// next backend rather than blocking indefinitely.
+		if slot.sem != nil {
+			queueStart := time.Now()
+			select {
+			case slot.sem <- struct{}{}:
+				if wait := time.Since(queueStart); wait > 50*time.Millisecond {
+					slog.Debug("llm chain: waited on backend semaphore",
+						"name", slot.Name, "wait_ms", wait.Milliseconds())
+				}
+			case <-callCtx.Done():
+				if cancel != nil {
+					cancel()
+				}
+				// Treat queue starvation as a non-fatal failure: don't count it
+				// against the circuit breaker (it's congestion, not a backend
+				// fault) but do fall through to the next backend so the caller
+				// isn't blocked.
+				slog.Debug("llm chain: backend queue saturated, falling back",
+					"name", slot.Name, "elapsed_ms", time.Since(queueStart).Milliseconds())
+				if firstErr == nil {
+					firstErr = fmt.Errorf("backend %s: queue saturated: %w", slot.Name, callCtx.Err())
+				}
+				tried++
+				continue
+			}
+		}
+
 		start := time.Now()
 		out, err := slot.LLM.Complete(callCtx, prompt)
+		if slot.sem != nil {
+			<-slot.sem
+		}
 		if cancel != nil {
 			cancel()
 		}

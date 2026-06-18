@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -157,6 +158,87 @@ func TestChain_CircuitBreakerSkipsDeadBackend(t *testing.T) {
 	if got := atomic.LoadInt64(&deadCalls); got != 3 {
 		t.Errorf("circuit did not block subsequent calls: deadCalls=%d, want 3", got)
 	}
+}
+
+// TestChain_SemaphoreSerializes verifies that a MaxConcurrent=1 backend
+// processes calls strictly one at a time. We fire N concurrent Complete
+// calls and observe that the stub's in-flight count never exceeds 1.
+func TestChain_SemaphoreSerializes(t *testing.T) {
+	var inFlight, maxObserved int64
+	slow := &stubLLM{out: "ok", delay: 30 * time.Millisecond, onCall: func() {
+		n := atomic.AddInt64(&inFlight, 1)
+		defer atomic.AddInt64(&inFlight, -1)
+		for {
+			old := atomic.LoadInt64(&maxObserved)
+			if n <= old || atomic.CompareAndSwapInt64(&maxObserved, old, n) {
+				break
+			}
+		}
+	}}
+	c := NewChain(ChainConfig{},
+		ChainEntry{Name: "primary", LLM: slow, Timeout: 5 * time.Second, MaxConcurrent: 1},
+	)
+
+	var wg sync.WaitGroup
+	for range 6 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.Complete(context.Background(), "hi"); err != nil {
+				t.Errorf("Complete: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt64(&maxObserved); got > 1 {
+		t.Errorf("max in-flight = %d, want <= 1 (semaphore not serialising)", got)
+	}
+	if got := atomic.LoadInt64(&slow.calls); got != 6 {
+		t.Errorf("slow.calls = %d, want 6", got)
+	}
+}
+
+// TestChain_SemaphoreSaturationFallsOver: when the primary semaphore is
+// already full and the per-backend timeout expires while the caller is in
+// the queue, the chain should fall through to the next backend instead of
+// blocking forever.
+func TestChain_SemaphoreSaturationFallsOver(t *testing.T) {
+	holdReleased := make(chan struct{})
+	primary := &stubLLM{out: "primary-ok", onCall: func() {
+		<-holdReleased // first call holds the sem until released
+	}}
+	fallback := &stubLLM{out: "fallback-ok"}
+
+	c := NewChain(ChainConfig{},
+		ChainEntry{Name: "primary", LLM: primary, Timeout: 100 * time.Millisecond, MaxConcurrent: 1},
+		ChainEntry{Name: "fallback", LLM: fallback, Timeout: 5 * time.Second},
+	)
+
+	// Kick off a holder that will occupy the semaphore.
+	go func() {
+		_, _ = c.Complete(context.Background(), "holder")
+	}()
+	// Give the holder time to acquire the sem and start its (blocking) call.
+	time.Sleep(30 * time.Millisecond)
+
+	// Second call must wait for the sem, time out, and fall over to fallback.
+	start := time.Now()
+	got, err := c.Complete(context.Background(), "queued")
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if got != "fallback-ok" {
+		t.Errorf("got %q, want fallback to handle it", got)
+	}
+	// Should fall over close to the primary timeout (100ms), not block until holder releases.
+	if elapsed > 250*time.Millisecond {
+		t.Errorf("fallback took %v; sem wait did not respect per-backend timeout", elapsed)
+	}
+
+	// Release the holder so it can exit cleanly.
+	close(holdReleased)
 }
 
 func TestChain_FastFailover_TimingBudget(t *testing.T) {

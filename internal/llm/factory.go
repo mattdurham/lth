@@ -26,15 +26,17 @@ func New(cfg *config.Config) LLM {
 	}
 
 	entries := []ChainEntry{{
-		Name:    "primary:" + nonEmpty(cfg.LLM.Provider, "anthropic"),
-		LLM:     primary,
-		Timeout: backendTimeout(cfg.LLM.LLMBackend),
+		Name:          "primary:" + nonEmpty(cfg.LLM.Provider, "anthropic"),
+		LLM:           primary,
+		Timeout:       backendTimeout(cfg.LLM.LLMBackend),
+		MaxConcurrent: cfg.LLM.MaxConcurrent,
 	}}
 	for i, fb := range cfg.LLM.Fallbacks {
 		entries = append(entries, ChainEntry{
-			Name:    fmt.Sprintf("fallback%d:%s", i+1, nonEmpty(fb.Provider, "ollama")),
-			LLM:     buildBackend(fmt.Sprintf("fallback%d", i+1), fb),
-			Timeout: backendTimeout(fb),
+			Name:          fmt.Sprintf("fallback%d:%s", i+1, nonEmpty(fb.Provider, "ollama")),
+			LLM:           buildBackend(fmt.Sprintf("fallback%d", i+1), fb),
+			Timeout:       backendTimeout(fb),
+			MaxConcurrent: fb.MaxConcurrent,
 		})
 	}
 
