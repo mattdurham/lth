@@ -49,6 +49,13 @@ You will receive a list of candidate memories retrieved by vector search. Some w
 
 Be specific — cite details, names, metrics, and decisions from the memories. If the relevant memories don't contain enough to answer confidently, say so clearly and share what is available.
 
+Provenance and source files
+- Each memory's source_file attribute is provenance metadata. You CANNOT read those files directly, but every meaningful fact has already been extracted into the visible memories. Do not say you cannot access a document when you can see memories carrying that document's source_file -- those memories ARE its content.
+- When the user's question is clearly about a single document or project that you have memories from, call the list_from_source tool with that source_file path to gather every fact extracted from it, not just whatever the top-K search returned.
+
+Avoiding cross-contamination
+- The retrieval may return memories from multiple unrelated projects in the same result set. When citing specific numbers, metrics, or named decisions, they MUST come from memories directly about the question's topic. Do not mix metrics from different projects or contexts. If a memory's content or source_file doesn't tie it to the question topic, exclude it.
+
 Do not fabricate information not present in the memories.`
 
 func runChat(cmd *cobra.Command, args []string) error {
@@ -109,7 +116,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 var chatTools = []llm.Tool{
 	{
 		Name:        "search",
-		Description: "Search the knowledge base for memories relevant to a query. Use this to find more context on any topic.",
+		Description: "Search the knowledge base for memories relevant to a query. Use this to find more context on any topic. Each result includes its tags so you can spot topical clusters in the result set.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -118,6 +125,18 @@ var chatTools = []llm.Tool{
 				"top":    {"type": "integer", "description": "Number of results (default 20)"}
 			},
 			"required": ["query"]
+		}`),
+	},
+	{
+		Name: "list_from_source",
+		Description: "List every memory extracted from a specific source file. Use when the user's question is clearly about a single document or project AND you have already seen its source_file path in a search result. Returns up to `limit` memories carrying that source_file attribute. Much more reliable than re-querying with search when you want everything from one document.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"source_file": {"type": "string", "description": "Exact source_file attribute value (e.g. /home/u/.lth/gws-imports/2026-06-04_team-sync-notes-by-gemini__abc123.md)"},
+				"limit":       {"type": "integer", "description": "Max memories to return (default 100, max 500)"}
+			},
+			"required": ["source_file"]
 		}`),
 	},
 	{
@@ -167,7 +186,16 @@ func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string,
 		if r.Source != "" && r.Source != "server" {
 			fmt.Fprintf(&sb, " (%s)", r.Source)
 		}
-		fmt.Fprintf(&sb, " id=%s\n%s\n\n", r.ID[:8], r.Content)
+		fmt.Fprintf(&sb, " id=%s", r.ID[:8])
+		if r.Attrs != nil {
+			if tags := r.Attrs["tags"]; tags != "" {
+				fmt.Fprintf(&sb, " tags=[%s]", tags)
+			}
+			if src := r.Attrs["source_file"]; src != "" {
+				fmt.Fprintf(&sb, " source_file=%s", src)
+			}
+		}
+		fmt.Fprintf(&sb, "\n%s\n\n", r.Content)
 	}
 
 	if len(history) > 0 {
@@ -209,7 +237,44 @@ func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string,
 			}
 			var out strings.Builder
 			for i, r := range res {
-				fmt.Fprintf(&out, "[%d] L%d id=%s score=%.3f\n%s\n\n", i+1, r.Layer, r.ID[:8], r.Score, r.Content)
+				fmt.Fprintf(&out, "[%d] L%d id=%s score=%.3f", i+1, r.Layer, r.ID[:8], r.Score)
+				if r.Attrs != nil {
+					if tags := r.Attrs["tags"]; tags != "" {
+						fmt.Fprintf(&out, " tags=[%s]", tags)
+					}
+					if src := r.Attrs["source_file"]; src != "" {
+						fmt.Fprintf(&out, " source_file=%s", src)
+					}
+				}
+				fmt.Fprintf(&out, "\n%s\n\n", r.Content)
+			}
+			return out.String(), nil
+
+		case "list_from_source":
+			var args struct {
+				SourceFile string `json:"source_file"`
+				Limit      int    `json:"limit"`
+			}
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", err
+			}
+			if args.Limit <= 0 {
+				args.Limit = 100
+			}
+			if args.Limit > 500 {
+				args.Limit = 500
+			}
+			mems, err := client.ListByAttribute(ctx, "source_file", args.SourceFile, args.Limit)
+			if err != nil {
+				return "", err
+			}
+			if len(mems) == 0 {
+				return fmt.Sprintf("No memories found with source_file=%s. The path must match exactly. Use the search tool to find the exact path string from a candidate memory's source_file attribute.", args.SourceFile), nil
+			}
+			var out strings.Builder
+			fmt.Fprintf(&out, "%d memories from %s:\n\n", len(mems), args.SourceFile)
+			for i, m := range mems {
+				fmt.Fprintf(&out, "[%d] L%d id=%s\n%s\n\n", i+1, m.Layer, m.ID[:8], m.Content)
 			}
 			return out.String(), nil
 

@@ -86,6 +86,35 @@ func (c *Client) DistinctAttrValues(ctx context.Context, key string) ([]string, 
 	return c.store.DistinctAttrValues(ctx, key)
 }
 
+// ListByAttribute returns up to limit active memories that carry the given
+// key=value attribute pair, newest first. limit <=0 means no cap.
+//
+// Intended for callers that have already identified a source (e.g. a
+// specific source_file path returned by Search) and want the full set of
+// memories derived from it, not just the ones that ranked highest in
+// semantic search. Soft-deleted memories are excluded.
+func (c *Client) ListByAttribute(ctx context.Context, key, value string, limit int) ([]*Memory, error) {
+	ids, err := c.db.GetMemIDsByAttr(ctx, key, value)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*Memory, 0, len(ids))
+	for _, id := range ids {
+		m, err := c.store.Get(ctx, id)
+		if err != nil || m == nil {
+			continue
+		}
+		if m.CompactedAt != nil {
+			continue // exclude soft-deleted
+		}
+		out = append(out, m)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
 // MergeAttr upserts a single attribute key=value on an existing memory.
 // If the key already exists it is overwritten; other attrs are unchanged.
 func (c *Client) MergeAttr(ctx context.Context, id, key, value string) error {
