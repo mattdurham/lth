@@ -109,8 +109,29 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 func (w *MDWatcher) ScanOnce(ctx context.Context) error {
 	found := map[string]struct{}{}
 
+	// Build the effective dir list: cfg.Markdown.Dirs plus, if enabled, the
+	// GWS watcher's output directory. The gws-imports dir is added
+	// dynamically per scan rather than persisted into Markdown.Dirs, so a
+	// config hot-reload that re-reads the YAML cannot accidentally drop it
+	// and trigger a wave of "file removed" soft-deletes on the gws-derived
+	// memories.
+	dirs := append([]string(nil), w.cfg.Markdown.Dirs...)
+	if w.cfg.GWS.Enabled && w.cfg.GWS.OutputDir != "" {
+		gwsDir := expandHome(w.cfg.GWS.OutputDir)
+		alreadyIn := false
+		for _, d := range dirs {
+			if expandHome(d) == gwsDir {
+				alreadyIn = true
+				break
+			}
+		}
+		if !alreadyIn {
+			dirs = append(dirs, gwsDir)
+		}
+	}
+
 	// Local dirs: scan the entire tree.
-	for _, dir := range w.cfg.Markdown.Dirs {
+	for _, dir := range dirs {
 		dir = expandHome(dir)
 		w.maybeGitPull(dir)
 		_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {

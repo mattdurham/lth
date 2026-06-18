@@ -9,24 +9,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 )
 
 // OllamaLLM implements the LLM interface via the OpenAI-compatible /v1/chat/completions endpoint.
 
 // NewOllamaLLM creates a new OpenAI-compatible chat completions client.
 // apiKey may be empty for unauthenticated endpoints (e.g. Ollama, local servers).
+//
+// timeoutS is ignored: the http.Client uses no built-in timeout and relies
+// entirely on the context.Context passed to Complete for cancellation. This
+// lets the surrounding Chain hot-reload per-backend timeouts via the
+// timeoutLookup without the client baking the construction-time value in.
 func NewOllamaLLM(baseURL, model, apiKey string, timeoutS int) *OllamaLLM {
 	// Compile-time interface check.
 	var _ LLM = (*OllamaLLM)(nil)
+	_ = timeoutS // intentionally unused; see ctx-based timeout above
 
 	return &OllamaLLM{
 		baseURL: baseURL,
 		model:   model,
 		apiKey:  apiKey,
-		client: &http.Client{
-			Timeout: time.Duration(timeoutS) * time.Second,
-		},
+		client:  &http.Client{},
 	}
 }
 

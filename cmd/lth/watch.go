@@ -304,10 +304,11 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	// a watcher via config hot-reload takes effect on the next poll without a
 	// daemon restart.
 	go autoSync(ctx, globalCfg, m)
-	// gws output dir is auto-appended to markdown.dirs so anything the watcher
-	// writes is picked up by the mdwatcher. Safe to do unconditionally -- it is
-	// an idempotent no-op when the dir is already present.
-	appendMarkdownDir(globalCfg, globalCfg.GWS.OutputDir)
+	// The mdwatcher itself includes globalCfg.GWS.OutputDir in its scan list
+	// when GWS.Enabled, so we no longer mutate Markdown.Dirs at startup.
+	// Mutating Markdown.Dirs here was reverted by the next config hot-reload,
+	// which then triggered "file removed" soft-deletes on the gws-derived
+	// memories.
 	mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg, m)
 	go mw.Run(ctx)
 	gw := gwswatcher.New(globalCfg)
@@ -389,17 +390,4 @@ func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 	}, nil
 }
 
-// appendMarkdownDir adds dir to cfg.Markdown.Dirs if not already present.
-// Used by the daemon to auto-include a watcher's output directory in the
-// markdown scan list.
-func appendMarkdownDir(cfg *config.Config, dir string) {
-	if dir == "" {
-		return
-	}
-	for _, existing := range cfg.Markdown.Dirs {
-		if existing == dir {
-			return
-		}
-	}
-	cfg.Markdown.Dirs = append(cfg.Markdown.Dirs, dir)
-}
+

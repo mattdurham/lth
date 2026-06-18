@@ -8,12 +8,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 )
 
 const anthropicAPIURL = "https://api.anthropic.com"
 const anthropicVersion = "2023-06-01"
-const anthropicMaxTokens = 8192
+// anthropicMaxTokens caps the output tokens per request. Set to 32k -- well
+// below Haiku 4.5's 64k ceiling but 4x the previous 8k value, which was
+// truncating fact-extraction responses on large libsonnet/yaml inputs and
+// causing the resulting JSON to fail to unmarshal. Output is pay-per-use:
+// raising the cap only costs more when the model actually generates more,
+// not on every call.
+const anthropicMaxTokens = 32768
 
 // AnthropicLLM calls the Anthropic Messages API.
 
@@ -24,11 +29,17 @@ var _ LLM = (*AnthropicLLM)(nil)
 
 // NewAnthropicLLM creates a new AnthropicLLM. If apiKey is empty, the
 // ANTHROPIC_API_KEY environment variable is read at call time.
+//
+// timeoutS is ignored: the http.Client uses no built-in timeout and relies
+// entirely on the context.Context passed to Complete for cancellation. This
+// lets the surrounding Chain hot-reload per-backend timeouts via the
+// timeoutLookup without the client baking the construction-time value in.
 func NewAnthropicLLM(apiKey, model string, timeoutS int) *AnthropicLLM {
+	_ = timeoutS // intentionally unused; see ctx-based timeout above
 	return &AnthropicLLM{
 		apiKey:  apiKey,
 		model:   model,
-		client:  &http.Client{Timeout: time.Duration(timeoutS) * time.Second},
+		client:  &http.Client{},
 		baseURL: anthropicAPIURL,
 	}
 }
