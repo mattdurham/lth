@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -247,12 +248,16 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	m := metrics.New(reg)
 
-	// Resolve metrics listen address from flag.
-	metricsPort, err := cmd.Flags().GetInt("metrics-port")
-	if err != nil {
-		metricsPort = 10010
+	// Resolve metrics listen address: config api.listen_addr takes precedence;
+	// --metrics-port flag overrides the port portion only (for back-compat).
+	metricsAddr := globalCfg.API.ListenAddr
+	if metricsPort, err := cmd.Flags().GetInt("metrics-port"); err == nil {
+		// Only override when the flag was explicitly set (non-default).
+		if cmd.Flags().Changed("metrics-port") {
+			host, _, _ := net.SplitHostPort(metricsAddr)
+			metricsAddr = fmt.Sprintf("%s:%d", host, metricsPort)
+		}
 	}
-	metricsAddr := fmt.Sprintf("localhost:%d", metricsPort)
 
 	// Ensure embedding server (Docker) is running before creating components.
 	if err := vector.EnsureEmbeddingServer(globalCfg); err != nil {

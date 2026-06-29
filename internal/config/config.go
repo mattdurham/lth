@@ -178,6 +178,10 @@ type Config struct {
 		// Enabled controls whether the daemon registers the /api/v1/ route set
 		// on startup. Default: false. Requires daemon restart to change.
 		Enabled bool `yaml:"enabled"`
+		// ListenAddr is the host:port the metrics+API HTTP server binds to.
+		// Default: "localhost:10010". Set to "0.0.0.0:10010" to accept
+		// connections from other machines. Requires daemon restart to change.
+		ListenAddr string `yaml:"listen_addr"`
 		// ProxyURL, when non-empty, causes every CLI command to proxy its
 		// request to the lth daemon at this URL instead of opening a local DB
 		// connection. Example: "http://localhost:10010". No local daemon is

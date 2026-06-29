@@ -88,6 +88,7 @@ func Default() *Config {
 	cfg.GWS.NamePatterns = []string{"Notes by Gemini", "Transcript"}
 	cfg.Watcher.StateFile = filepath.Join(lthDir, "watcher-state.json")
 	cfg.Watcher.LogRetainDays = 3
+	cfg.API.ListenAddr = "localhost:10010"
 
 	return cfg
 }
@@ -269,6 +270,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Markdown.GitHub.CloneDepth == 0 {
 		cfg.Markdown.GitHub.CloneDepth = def.Markdown.GitHub.CloneDepth
+	}
+	if cfg.API.ListenAddr == "" {
+		cfg.API.ListenAddr = def.API.ListenAddr
 	}
 }
 
