@@ -26,7 +26,7 @@ func init() {
 func runGet(cmd *cobra.Command, args []string) error {
 	id := args[0]
 
-	client, err := lth.NewClient(globalCfg)
+	client, err := newClientFromGlobalCfg()
 	if err != nil {
 		return fmt.Errorf("create client: %w", err)
 	}

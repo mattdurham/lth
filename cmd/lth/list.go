@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mattdurham/lth/internal/config"
-	"github.com/mattdurham/lth/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -36,22 +34,13 @@ func runList(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("--layer must be 1-5, got %d", listLayer)
 	}
 
-	cfgPath, err := config.ConfigPath()
+	client, err := newClientFromGlobalCfg()
 	if err != nil {
-		return fmt.Errorf("config path: %w", err)
+		return fmt.Errorf("create client: %w", err)
 	}
-	cfg, err := config.Load(cfgPath)
-	if err != nil {
-		cfg = config.Default()
-	}
+	defer client.Close() //nolint:errcheck
 
-	d, err := db.Open(cfg.DB.Path, 0)
-	if err != nil {
-		return fmt.Errorf("open db: %w", err)
-	}
-	defer d.Close() //nolint:errcheck
-
-	rows, err := d.ListLayer(cmd.Context(), listLayer, true)
+	rows, err := client.ListLayer(cmd.Context(), listLayer)
 	if err != nil {
 		return fmt.Errorf("list layer: %w", err)
 	}

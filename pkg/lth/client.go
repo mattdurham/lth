@@ -115,6 +115,12 @@ func (c *Client) ListByAttribute(ctx context.Context, key, value string, limit i
 	return out, nil
 }
 
+// SoftDelete soft-deletes the memories with the given IDs.
+// It does not hard-delete any rows; compacted_at is set.
+func (c *Client) SoftDelete(ctx context.Context, ids []string, reason string) error {
+	return c.store.SoftDelete(ctx, ids, reason)
+}
+
 // MergeAttr upserts a single attribute key=value on an existing memory.
 // If the key already exists it is overwritten; other attrs are unchanged.
 func (c *Client) MergeAttr(ctx context.Context, id, key, value string) error {

@@ -60,7 +60,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := lth.NewClient(globalCfg)
+	client, err := newClientFromGlobalCfg()
 	if err != nil {
 		return fmt.Errorf("create client: %w", err)
 	}

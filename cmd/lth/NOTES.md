@@ -24,6 +24,22 @@ handles config loading and daemon auto-start.
 **Consequence:** The first invocation of any DB command may have a brief delay (< 1s) while
 the daemon starts. Subsequent invocations are instant (PID file probe is fast).
 
+## 4. REST API and Proxy Mode
+
+*Added: 2026-06-28*
+
+**Decision:** The daemon REST API (`/api/v1/`) reuses the existing metrics port (`:10010`)
+and is opt-in via `api.enabled: true` in `~/.lth/config.yaml`. Proxy mode is enabled by
+setting `api.proxy_url` to the URL of a remote daemon.
+
+**Rationale:** Avoids a second port and listener. `api.enabled` defaults to false to
+preserve existing behaviour for users who do not need the REST API. Proxy mode lets
+multiple machines share a single lth daemon without sharing the SQLite file.
+
+**Consequence:** All CLI commands that call `newClientFromGlobalCfg` transparently switch
+between local-DB and HTTP-proxy mode. Commands with hard-coded `lth.NewClient` calls
+(`lth ui`, `lth chat`, `lth compact`) always use a local client.
+
 ## 3. Web Chat: Client-Side History
 
 *Added: 2026-06-01*

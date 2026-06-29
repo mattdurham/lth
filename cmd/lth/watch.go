@@ -14,13 +14,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mattdurham/lth/internal/apiserver"
 	"github.com/mattdurham/lth/internal/compactor"
 	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/daemonlog"
-	"github.com/mattdurham/lth/internal/gwswatcher"
-	"github.com/mattdurham/lth/internal/issueswatcher"
 	"github.com/mattdurham/lth/internal/db"
 	"github.com/mattdurham/lth/internal/graph"
+	"github.com/mattdurham/lth/internal/gwswatcher"
+	"github.com/mattdurham/lth/internal/issueswatcher"
 	"github.com/mattdurham/lth/internal/llm"
 	"github.com/mattdurham/lth/internal/mdwatcher"
 	"github.com/mattdurham/lth/internal/memory"
@@ -275,6 +276,21 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 
 	// Start metrics HTTP server.
 	metricsSrv := metrics.NewServer(metricsAddr, reg, daemon.store)
+
+	// Optionally register the /api/v1/ REST API on the same port.
+	if globalCfg.API.Enabled {
+		apiClient, apiClientErr := lth.NewClient(globalCfg)
+		if apiClientErr != nil {
+			slog.Warn("REST API disabled: could not create client", "err", apiClientErr)
+		} else {
+			ah := apiserver.New(daemon.store, daemon.g, apiClient)
+			metricsSrv.SetAPIHandler(ah)
+			// apiClient is held open for the daemon lifetime; closed on daemon shutdown.
+			defer apiClient.Close() //nolint:errcheck
+			slog.Info("REST API enabled", "addr", "http://"+metricsAddr+"/api/v1/")
+		}
+	}
+
 	go func() {
 		if srvErr := metricsSrv.Start(ctx); srvErr != nil && srvErr != http.ErrServerClosed {
 			slog.Error("metrics server error", "err", srvErr)
@@ -389,5 +405,3 @@ func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
 		emb:       emb,
 	}, nil
 }
-
-

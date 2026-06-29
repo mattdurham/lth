@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mattdurham/lth/pkg/lth"
 	"github.com/spf13/cobra"
 )
 
@@ -54,7 +53,7 @@ func runStore(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	client, err := lth.NewClient(globalCfg)
+	client, err := newClientFromGlobalCfg()
 	if err != nil {
 		return fmt.Errorf("create client: %w", err)
 	}

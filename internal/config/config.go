@@ -6,9 +6,9 @@ package config
 // EmbeddingModel and EmbeddingDim are hard-coded to nomic-embed-text-v1.5.
 // Config fields for model/dim are ignored; change these constants to switch models.
 const (
-	EmbeddingModel  = "nomic-ai/nomic-embed-text-v1.5"
-	EmbeddingDim    = 768
-	EmbeddingImage  = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
+	EmbeddingModel = "nomic-ai/nomic-embed-text-v1.5"
+	EmbeddingDim   = 768
+	EmbeddingImage = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
 )
 
 // LLMBackend describes one LLM endpoint -- either the primary or a fallback.
@@ -23,7 +23,7 @@ type LLMBackend struct {
 	Model                string `yaml:"model"`
 	TimeoutS             int    `yaml:"timeout_s"`
 	// MaxConcurrent caps in-flight LLM calls to this backend. 0 (default) is
-	// unbounded -- preserves prior behaviour. Set to 1 for a serial local
+	// unbounded -- preserves prior behavior. Set to 1 for a serial local
 	// model so concurrent backfill workers queue cleanly client-side rather
 	// than piling up inside the inference server.
 	MaxConcurrent int `yaml:"max_concurrent"`
@@ -31,9 +31,9 @@ type LLMBackend struct {
 
 // LLMChainConfig tunes the fallback chain. All fields optional.
 type LLMChainConfig struct {
-	CircuitWindow      int     `yaml:"circuit_window"`       // rolling failure window (default 10)
-	CircuitFailurePct  float64 `yaml:"circuit_failure_pct"`  // open threshold 0-1 (default 0.5)
-	CircuitCooldownS   int     `yaml:"circuit_cooldown_s"`   // skip-duration on open (default 30)
+	CircuitWindow     int     `yaml:"circuit_window"`      // rolling failure window (default 10)
+	CircuitFailurePct float64 `yaml:"circuit_failure_pct"` // open threshold 0-1 (default 0.5)
+	CircuitCooldownS  int     `yaml:"circuit_cooldown_s"`  // skip-duration on open (default 30)
 }
 
 // LLMConfig is the llm: section. The top-level fields define the primary
@@ -78,9 +78,9 @@ type MarkdownGitHubRepo struct {
 // watcher. CacheDir defaults to ~/.lth/repos-cache; CloneDepth defaults to 1
 // (shallow). Auth is delegated to local git (SSH keys, credential helpers).
 type MarkdownGitHub struct {
-	CacheDir    string               `yaml:"cache_dir"`
-	CloneDepth  int                  `yaml:"clone_depth"`
-	Repos       []MarkdownGitHubRepo `yaml:"repos"`
+	CacheDir   string               `yaml:"cache_dir"`
+	CloneDepth int                  `yaml:"clone_depth"`
+	Repos      []MarkdownGitHubRepo `yaml:"repos"`
 }
 
 // GWSConfig configures the Google Workspace watcher. Disabled by default.
@@ -93,13 +93,13 @@ type MarkdownGitHub struct {
 // into OutputDir. The markdown watcher then picks them up on its normal scan
 // cycle.
 type GWSConfig struct {
-	Enabled       bool     `yaml:"enabled"`        // master switch; default false
-	IntervalH     int      `yaml:"interval_h"`     // poll cadence in hours; default 3
-	LookbackDays  int      `yaml:"lookback_days"`  // only fetch docs modified within this window; default 14
-	OutputDir     string   `yaml:"output_dir"`     // where to write the .md files; default ~/.lth/gws-imports
-	NamePatterns  []string `yaml:"name_patterns"`  // Drive name `contains` patterns (OR'd together); default ["Notes by Gemini", "Transcript"]
+	Enabled         bool     `yaml:"enabled"`          // master switch; default false
+	IntervalH       int      `yaml:"interval_h"`       // poll cadence in hours; default 3
+	LookbackDays    int      `yaml:"lookback_days"`    // only fetch docs modified within this window; default 14
+	OutputDir       string   `yaml:"output_dir"`       // where to write the .md files; default ~/.lth/gws-imports
+	NamePatterns    []string `yaml:"name_patterns"`    // Drive name `contains` patterns (OR'd together); default ["Notes by Gemini", "Transcript"]
 	ExcludePatterns []string `yaml:"exclude_patterns"` // optional name patterns to skip
-	GWSBinary     string   `yaml:"gws_binary"`     // override path to the gws executable; default looks up $PATH
+	GWSBinary       string   `yaml:"gws_binary"`       // override path to the gws executable; default looks up $PATH
 }
 
 // Config holds all lth configuration loaded from ~/.lth/config.yaml.
@@ -152,12 +152,12 @@ type Config struct {
 	} `yaml:"issues"`
 
 	Markdown struct {
-		Dirs             []string         `yaml:"dirs"`
-		Layer            int              `yaml:"layer"`              // default 3
-		IntervalS        int              `yaml:"interval_s"`         // default 300
-		GitPull          bool             `yaml:"git_pull"`           // run git pull before rescanning; default true
-		GitPullIntervalS int              `yaml:"git_pull_interval_s"` // default 3600
-		GitHub           MarkdownGitHub   `yaml:"github"`             // optional auto-cloned GitHub repos
+		Dirs             []string       `yaml:"dirs"`
+		Layer            int            `yaml:"layer"`               // default 3
+		IntervalS        int            `yaml:"interval_s"`          // default 300
+		GitPull          bool           `yaml:"git_pull"`            // run git pull before rescanning; default true
+		GitPullIntervalS int            `yaml:"git_pull_interval_s"` // default 3600
+		GitHub           MarkdownGitHub `yaml:"github"`              // optional auto-cloned GitHub repos
 	} `yaml:"markdown"`
 
 	GWS GWSConfig `yaml:"gws"`
@@ -170,4 +170,18 @@ type Config struct {
 		User          string `yaml:"user"`
 		AutoIntervalS int    `yaml:"auto_interval_s"`
 	} `yaml:"sync"`
+
+	// API controls the REST API exposed by the daemon on the metrics port and
+	// the optional proxy mode where CLI commands forward requests to a remote
+	// daemon instead of opening a local DB connection.
+	API struct {
+		// Enabled controls whether the daemon registers the /api/v1/ route set
+		// on startup. Default: false. Requires daemon restart to change.
+		Enabled bool `yaml:"enabled"`
+		// ProxyURL, when non-empty, causes every CLI command to proxy its
+		// request to the lth daemon at this URL instead of opening a local DB
+		// connection. Example: "http://localhost:10010". No local daemon is
+		// started when this is set.
+		ProxyURL string `yaml:"proxy_url"`
+	} `yaml:"api"`
 }
