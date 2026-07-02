@@ -27,6 +27,7 @@ import (
 	"github.com/mattdurham/lth/internal/mdwatcher"
 	"github.com/mattdurham/lth/internal/memory"
 	"github.com/mattdurham/lth/internal/metrics"
+	"github.com/mattdurham/lth/internal/proxyclient"
 	"github.com/mattdurham/lth/internal/traces"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/watcher"
@@ -259,9 +260,13 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Ensure embedding server (Docker) is running before creating components.
-	if err := vector.EnsureEmbeddingServer(globalCfg); err != nil {
-		slog.Warn("could not start embedding server", "err", err)
+	proxyMode := globalCfg.API.ProxyURL != ""
+
+	// Ensure embedding server (Docker) is running before creating local components.
+	if !proxyMode {
+		if err := vector.EnsureEmbeddingServer(globalCfg); err != nil {
+			slog.Warn("could not start embedding server", "err", err)
+		}
 	}
 
 	// Create daemon components, wrapping LLM and embedder with instrumentation.
@@ -284,15 +289,23 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 
 	// Optionally register the /api/v1/ REST API on the same port.
 	if globalCfg.API.Enabled {
-		apiClient, apiClientErr := lth.NewClient(globalCfg)
-		if apiClientErr != nil {
-			slog.Warn("REST API disabled: could not create client", "err", apiClientErr)
+		if proxyMode {
+			if pc, ok := daemon.store.(*proxyclient.Client); ok {
+				ah := apiserver.New(daemon.store, nil, pc)
+				metricsSrv.SetAPIHandler(ah)
+				slog.Info("REST API proxy enabled", "addr", "http://"+metricsAddr+"/api/v1/", "target", globalCfg.API.ProxyURL)
+			}
 		} else {
-			ah := apiserver.New(daemon.store, daemon.g, apiClient)
-			metricsSrv.SetAPIHandler(ah)
-			// apiClient is held open for the daemon lifetime; closed on daemon shutdown.
-			defer apiClient.Close() //nolint:errcheck
-			slog.Info("REST API enabled", "addr", "http://"+metricsAddr+"/api/v1/")
+			apiClient, apiClientErr := lth.NewClient(globalCfg)
+			if apiClientErr != nil {
+				slog.Warn("REST API disabled: could not create client", "err", apiClientErr)
+			} else {
+				ah := apiserver.New(daemon.store, daemon.g, apiClient)
+				metricsSrv.SetAPIHandler(ah)
+				// apiClient is held open for the daemon lifetime; closed on daemon shutdown.
+				defer apiClient.Close() //nolint:errcheck
+				slog.Info("REST API enabled", "addr", "http://"+metricsAddr+"/api/v1/")
+			}
 		}
 	}
 
@@ -312,31 +325,37 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 
 	errCh := make(chan error, 2)
 	go func() { errCh <- w.Start(ctx) }()
-	go func() { errCh <- daemon.compactor.Run(ctx, interval) }()
-	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 5, 10*time.Second)
-	go memory.BackfillImportance(ctx, daemon.d, daemon.llm, 5, 15*time.Second)
-	go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
-	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, config.EmbeddingModel, 50, 2*time.Second)
-	go walCheckpointLoop(ctx, daemon.d, 5*time.Minute)
+	if daemon.compactor != nil {
+		go func() { errCh <- daemon.compactor.Run(ctx, interval) }()
+	}
+	if daemon.d != nil {
+		go memory.BackfillValence(ctx, daemon.d, daemon.llm, 5, 10*time.Second)
+		go memory.BackfillImportance(ctx, daemon.d, daemon.llm, 5, 15*time.Second)
+		go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
+		go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, config.EmbeddingModel, 50, 2*time.Second)
+		go walCheckpointLoop(ctx, daemon.d, 5*time.Minute)
+	}
 	go configReloadLoop(ctx, effectiveConfigPath(), globalCfg, 1*time.Minute)
 	// Spawn all hot-reload-friendly watchers unconditionally. Each one self-gates
 	// on its config block (Sync.ServerURL, Markdown.Dirs/.GitHub.Repos,
 	// GWS.Enabled, Issues.Repos) and sleeps cheaply when disabled, so enabling
 	// a watcher via config hot-reload takes effect on the next poll without a
 	// daemon restart.
-	go autoSync(ctx, globalCfg, m)
+	if !proxyMode {
+		go autoSync(ctx, globalCfg, m)
+	}
 	// The mdwatcher itself includes globalCfg.GWS.OutputDir in its scan list
 	// when GWS.Enabled, so we no longer mutate Markdown.Dirs at startup.
 	// Mutating Markdown.Dirs here was reverted by the next config hot-reload,
 	// which then triggered "file removed" soft-deletes on the gws-derived
 	// memories.
-	mw := mdwatcher.New(daemon.ms, daemon.llm, globalCfg, m)
+	mw := mdwatcher.New(daemon.store, daemon.llm, globalCfg, m)
 	go mw.Run(ctx)
 	gw := gwswatcher.New(globalCfg)
 	go gw.Run(ctx)
-	iw := issueswatcher.New(daemon.ms, globalCfg, m)
+	iw := issueswatcher.New(daemon.store, globalCfg, m)
 	go iw.Run(ctx)
-	if !flagNoUI {
+	if !flagNoUI && !proxyMode {
 		uiClient, uiClientErr := lth.NewClient(globalCfg)
 		if uiClientErr != nil {
 			slog.Warn("web UI disabled: could not create client", "err", uiClientErr)
@@ -347,6 +366,8 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 			}()
 			slog.Info("web UI running", "addr", fmt.Sprintf("http://localhost:%d", flagUIPort))
 		}
+	} else if proxyMode {
+		slog.Info("web UI disabled in proxy daemon mode")
 	}
 
 	slog.Info("daemon started", "pid", os.Getpid(), "metrics", metricsAddr)
@@ -368,14 +389,29 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 // concrete handle for Close (waits for async goroutines)
 
 func (dc *daemonComponents) close() {
-	dc.ms.Close() // wait for all scoreImportanceAsync goroutines before closing DB
-	_ = dc.d.Close()
+	if dc.ms != nil {
+		dc.ms.Close() // wait for all scoreImportanceAsync goroutines before closing DB
+	}
+	if dc.d != nil {
+		_ = dc.d.Close()
+	}
 }
 
 // newDaemonComponents creates the internal components for the daemon process.
 // m may be nil (metrics disabled); if non-nil, LLM and embedder are wrapped
 // with instrumentation wrappers before being passed to the memory store.
 func newDaemonComponents(m *metrics.Metrics) (*daemonComponents, error) {
+	if globalCfg.API.ProxyURL != "" {
+		l := llm.New(globalCfg)
+		if m != nil {
+			l = metrics.NewInstrumentedLLM(l, globalCfg.LLM.Provider, m)
+		}
+		return &daemonComponents{
+			store: proxyclient.New(globalCfg.API.ProxyURL),
+			llm:   l,
+		}, nil
+	}
+
 	dbPath := globalCfg.DB.Path
 	d, err := db.Open(dbPath, config.EmbeddingDim)
 	if err != nil {

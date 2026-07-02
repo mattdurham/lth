@@ -16,7 +16,7 @@ handles config loading and daemon auto-start.
 
 *Added: 2026-05-14*
 
-**Decision:** Every DB-touching command calls `ensureDaemon(cfg)` in `PersistentPreRunE`.
+**Decision:** Every memory-touching command calls `ensureDaemon(cfg)` in `PersistentPreRunE`.
 
 **Rationale:** Agents shouldn't need to manually start the daemon before using `lth store` or
 `lth search`. Auto-start makes the CLI ergonomic for both humans and agents.
@@ -30,15 +30,19 @@ the daemon starts. Subsequent invocations are instant (PID file probe is fast).
 
 **Decision:** The daemon REST API (`/api/v1/`) reuses the existing metrics port (`:10010`)
 and is opt-in via `api.enabled: true` in `~/.lth/config.yaml`. Proxy mode is enabled by
-setting `api.proxy_url` to the URL of a remote daemon.
+setting `api.proxy_url` to the URL of a daemon.
 
 **Rationale:** Avoids a second port and listener. `api.enabled` defaults to false to
 preserve existing behaviour for users who do not need the REST API. Proxy mode lets
-multiple machines share a single lth daemon without sharing the SQLite file.
+multiple machines share a single lth daemon without sharing the SQLite file. A machine can
+still run a local watcher daemon in proxy mode; local transcript/markdown/issues ingestion is
+forwarded to the configured proxy instead of being written to a local DB.
 
 **Consequence:** All CLI commands that call `newClientFromGlobalCfg` transparently switch
-between local-DB and HTTP-proxy mode. Commands with hard-coded `lth.NewClient` calls
-(`lth ui`, `lth chat`, `lth compact`) always use a local client.
+between local-DB and HTTP-proxy mode. The daemon also switches its watcher/service store to
+the proxy client when `api.proxy_url` is set, while local DB-only daemon jobs are skipped.
+Commands with hard-coded `lth.NewClient` calls (`lth ui`, `lth chat`, `lth compact`) always
+use a local client.
 
 ## 3. Web Chat: Client-Side History
 

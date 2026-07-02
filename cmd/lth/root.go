@@ -55,9 +55,10 @@ var rootCmd = &cobra.Command{
 
 		globalCfg = cfg
 
-		// Auto-start daemon unless this is a watch or config command, or proxy
-		// mode is active (the remote daemon is already running).
-		if !isDaemonExempt(cmd) && cfg.API.ProxyURL == "" {
+		// Auto-start daemon unless this is a command that manages its own
+		// process/DB lifecycle. In proxy mode the daemon runs local watchers and
+		// forwards ingested memories to the configured proxy.
+		if !isDaemonExempt(cmd) {
 			if err := ensureDaemon(cfg); err != nil {
 				// Non-fatal: log warning but continue (daemon may already be running).
 				slog.Warn("could not ensure daemon is running", "err", err)
