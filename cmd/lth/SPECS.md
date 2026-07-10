@@ -1,6 +1,6 @@
 # cmd/lth -- Invariants
 
-1. Every command that touches the DB calls `ensureDaemon` before executing (except `watch` and `config` subcommands, and when `api.proxy_url` is set — in proxy mode the remote daemon is already running).
+1. Every command that touches memory calls `ensureDaemon` before executing (except `watch` and `config` subcommands). In proxy mode this starts a local watcher daemon that forwards ingested memories to `api.proxy_url`.
 2. `--json` always produces valid JSON to stdout even on partial errors.
 3. All error messages go to stderr (never stdout).
 4. A non-zero exit code is returned on any error.
@@ -9,7 +9,7 @@
 7. The daemon exposes Prometheus metrics at `localhost:10010/metrics` (default port, overridable via `--metrics-port`) and a status dashboard at `localhost:10010/`. The port is daemon-only; all other subcommands ignore this flag.
 8. The daemon exposes a search web UI at `localhost:10010/ui` and a JSON API at `localhost:10010/api/search` (POST) and `localhost:10010/api/stats` (GET). These endpoints require a live store; they return 503 if the store is unavailable.
 9. When `api.enabled: true` in config, the daemon registers a full REST API under `/api/v1/` on the metrics port (same port, no second listener). Default: false.
-10. When `api.proxy_url` is set in config, CLI commands forward all memory operations to the remote daemon at that URL via `proxyclient.Client`. No local DB connection is opened. `lth ui`, `lth chat`, and `lth compact` are exempt — they always use a local client.
+10. When `api.proxy_url` is set in config, CLI commands forward all memory operations to the daemon at that URL via `proxyclient.Client`. The local daemon uses the same proxy client for watcher/service ingestion instead of opening the local DB for those writes. Local DB-only jobs (compaction, enrichment backfills, WAL checkpointing, local web UI, auto-sync) are disabled in proxy daemon mode. `lth ui`, `lth chat`, and `lth compact` are exempt — they always use a local client.
 11. `newClientFromGlobalCfg` returns a `*proxyclient.Client` when `api.proxy_url` is set, or a `*lth.Client` otherwise. Both satisfy the `MemClient` interface.
 12. `lth prompt` outputs a structured markdown block to stdout. Empty sections are omitted. `--cwd` filters L4 results to memories whose `cwd` attribute matches the current working directory. `--follow-edges` traverses graph edges from L4 results into connected L5 nodes.
 13. `lth export` only exports active memories (compacted_at IS NULL). Embeddings serialized as JSON float32 arrays. Layer order in zip: L5 first -> L1, then edges.

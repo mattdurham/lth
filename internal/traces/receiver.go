@@ -95,6 +95,9 @@ func (r *Receiver) processSpan(ctx context.Context, job spanJob) {
 		r.log.Warn("failed to store span memory", "err", err)
 		return
 	}
+	if r.d == nil || r.g == nil {
+		return
+	}
 	ids, _ := r.d.GetMemIDsByAttr(ctx, "trace_id", s.TraceID)
 	count := 0
 	for _, sibID := range ids {

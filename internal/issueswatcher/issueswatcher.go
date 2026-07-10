@@ -38,7 +38,7 @@ type state struct {
 
 // Watcher polls GitHub issues and stores them as L5 memories.
 type Watcher struct {
-	store     *memory.MemoryStore
+	store     memory.Store
 	cfg       *config.Config
 	stateFile string
 	mu        sync.Mutex
@@ -47,7 +47,7 @@ type Watcher struct {
 }
 
 // New creates a new issues Watcher.
-func New(store *memory.MemoryStore, cfg *config.Config, m *metrics.Metrics) *Watcher {
+func New(store memory.Store, cfg *config.Config, m *metrics.Metrics) *Watcher {
 	home, _ := os.UserHomeDir()
 	return &Watcher{
 		store:     store,

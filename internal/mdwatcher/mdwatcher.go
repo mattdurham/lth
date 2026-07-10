@@ -1,3 +1,5 @@
+// NOTE: Any changes to this file must be reflected in the corresponding SPECS.md or NOTES.md.
+
 // Package mdwatcher watches directories for markdown files and ingests them
 // as memories using an LLM to extract all meaningful facts.
 package mdwatcher
@@ -38,18 +40,18 @@ type state struct {
 
 // MDWatcher scans configured dirs for markdown files and ingests them.
 type MDWatcher struct {
-	store       *memory.MemoryStore
-	llm         llm.LLM
-	cfg         *config.Config
-	stateFile   string
-	mu          sync.Mutex
-	st          state
-	lastPull    map[string]time.Time // dir → last git pull time
-	metrics     *metrics.Metrics
+	store     memory.Store
+	llm       llm.LLM
+	cfg       *config.Config
+	stateFile string
+	mu        sync.Mutex
+	st        state
+	lastPull  map[string]time.Time // dir → last git pull time
+	metrics   *metrics.Metrics
 }
 
 // New creates an MDWatcher. stateFile is where ingestion state is persisted.
-func New(store *memory.MemoryStore, l llm.LLM, cfg *config.Config, m *metrics.Metrics) *MDWatcher {
+func New(store memory.Store, l llm.LLM, cfg *config.Config, m *metrics.Metrics) *MDWatcher {
 	home, _ := os.UserHomeDir()
 	stateFile := filepath.Join(home, ".lth", "mdwatcher-state.json")
 	return &MDWatcher{

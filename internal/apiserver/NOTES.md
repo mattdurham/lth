@@ -37,12 +37,14 @@ via `renderXxxMD`). The `writeResponse` helper encapsulates the content-negotiat
 returns a `*proxyclient.Client` instead of a `*lth.Client`. All CLI commands use the
 `MemClient` interface and are unaware of the switch.
 
-**Rationale:** Enables a remote-daemon workflow: a central lth daemon running on one machine
-(or in a container) serves multiple CLI clients over HTTP without any DB file sharing.
+**Rationale:** Enables a proxy workflow: a central lth daemon running on one machine
+(or in a container) serves multiple CLI clients over HTTP without any DB file sharing, while
+local watcher daemons can still ingest local files and forward those memories to the proxy.
 
 **Consequence:**
 
-- No local daemon is started when `proxy_url` is set (`isDaemonExempt` short-circuits).
+- A local daemon may still be started when `proxy_url` is set. In that mode it uses
+  `proxyclient.Client` for watcher/service writes and disables local DB-only jobs.
 - `*lth.Client`-specific methods not in `MemClient` (e.g. `MemoryStore()`, `Graph()`) are
   not available in proxy mode — only commands using `MemClient` are proxied.
 - Commands that bypass `newClientFromGlobalCfg` and call `lth.NewClient` directly (e.g.
