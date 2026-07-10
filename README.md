@@ -32,7 +32,7 @@ cd lth
 make install
 ```
 
-This installs `lth` to `~/bin/lth` and copies Claude Code skills to `~/.claude/skills/`.
+This installs `lth` to `~/bin/lth`, copies Claude Code skills to `~/.claude/skills/`, and installs the daemon service for the current OS. On macOS this uses a launchd agent in `~/Library/LaunchAgents/`; on Linux this uses a systemd user service.
 
 ## Quick Start
 
