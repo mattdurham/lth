@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mattdurham/lth/internal/apiserver"
+	"github.com/mattdurham/lth/internal/backupwatcher"
 	"github.com/mattdurham/lth/internal/compactor"
 	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/daemonlog"
@@ -27,6 +28,7 @@ import (
 	"github.com/mattdurham/lth/internal/mdwatcher"
 	"github.com/mattdurham/lth/internal/memory"
 	"github.com/mattdurham/lth/internal/metrics"
+	"github.com/mattdurham/lth/internal/prwatcher"
 	"github.com/mattdurham/lth/internal/traces"
 	"github.com/mattdurham/lth/internal/vector"
 	"github.com/mattdurham/lth/internal/watcher"
@@ -336,6 +338,10 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go gw.Run(ctx)
 	iw := issueswatcher.New(daemon.ms, globalCfg, m)
 	go iw.Run(ctx)
+	pw := prwatcher.New(daemon.ms, daemon.llm, globalCfg, m)
+	go pw.Run(ctx)
+	bkw := backupwatcher.New(daemon.d, globalCfg, m)
+	go bkw.Run(ctx)
 	if !flagNoUI {
 		uiClient, uiClientErr := lth.NewClient(globalCfg)
 		if uiClientErr != nil {

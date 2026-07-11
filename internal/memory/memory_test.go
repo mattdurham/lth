@@ -10,6 +10,7 @@ import (
 	"math"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/mattdurham/lth/internal/config"
 	"github.com/mattdurham/lth/internal/db"
@@ -132,6 +133,43 @@ func TestStoreBasic(t *testing.T) {
 	}
 	if m.Content != "L1 axiom: never give up" {
 		t.Errorf("Content = %q, want original", m.Content)
+	}
+}
+
+func TestStoreCreatedAtOverride(t *testing.T) {
+	ctx := context.Background()
+	s := testMemoryStore(t)
+
+	backdate := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+	m, err := s.Store(ctx, 5, "PR merged a year ago", map[string]string{
+		"created_at": backdate.Format(time.RFC3339),
+		"source":     "github_pr",
+	})
+	if err != nil {
+		t.Fatalf("Store: %v", err)
+	}
+
+	if !m.CreatedAt.Equal(backdate) {
+		t.Errorf("CreatedAt = %v, want %v", m.CreatedAt, backdate)
+	}
+	if m.UpdatedAt.Equal(backdate) {
+		t.Errorf("UpdatedAt should reflect real insert time, not the backdate")
+	}
+	if _, ok := m.Attrs["created_at"]; ok {
+		t.Errorf("created_at should be stripped from persisted attrs, got %v", m.Attrs)
+	}
+	if m.Attrs["source"] != "github_pr" {
+		t.Errorf("other attrs should be preserved, got %v", m.Attrs)
+	}
+}
+
+func TestStoreCreatedAtOverrideInvalid(t *testing.T) {
+	ctx := context.Background()
+	s := testMemoryStore(t)
+
+	_, err := s.Store(ctx, 5, "bad timestamp", map[string]string{"created_at": "not-a-date"})
+	if err == nil {
+		t.Fatal("expected error for unparseable created_at attr")
 	}
 }
 

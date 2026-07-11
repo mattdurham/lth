@@ -71,11 +71,14 @@ var rootCmd = &cobra.Command{
 // isDaemonExempt returns true for commands that should not auto-start the daemon.
 // "compact" is exempt because it opens its own DB connection and runs compaction
 // directly — starting the daemon would cause double compaction on the same DB.
+// "backup" is exempt because `backup restore` requires the daemon NOT running
+// (it replaces the database file the daemon would otherwise hold open), and
+// `backup list` only reads a directory — neither needs the daemon at all.
 func isDaemonExempt(cmd *cobra.Command) bool {
 	path := cmd.CommandPath()
 	words := strings.Fields(path)
 	for _, w := range words {
-		if w == "watch" || w == "config" || w == "compact" || w == "export" || w == "import" || w == "sync" || w == "auth" {
+		if w == "watch" || w == "config" || w == "compact" || w == "export" || w == "import" || w == "sync" || w == "auth" || w == "backup" {
 			return true
 		}
 	}

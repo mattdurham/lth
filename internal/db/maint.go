@@ -97,3 +97,17 @@ func (d *DB) Vacuum(ctx context.Context) (beforeBytes, afterBytes int64, err err
 	}
 	return beforeBytes, afterBytes, nil
 }
+
+// VacuumInto runs `VACUUM INTO path`, writing a fully consistent, compacted
+// copy of the database to a new file at path. Unlike Vacuum, this does not
+// modify the source database and does not require an exclusive lock -- it is
+// safe to call against a live WAL-mode database with concurrent readers and
+// writers, making it suitable for online backups. path must not already
+// exist; VACUUM INTO refuses to overwrite a file, so callers should target a
+// fresh or freshly-removed path.
+func (d *DB) VacuumInto(ctx context.Context, path string) error {
+	if _, err := d.db.ExecContext(ctx, `VACUUM INTO ?`, path); err != nil {
+		return fmt.Errorf("vacuum into %s: %w", path, err)
+	}
+	return nil
+}

@@ -32,3 +32,8 @@ automatically promotes memories through layers using LLM-based compaction.
 
 9. **NOTE invariant on all .go files**: Every `.go` file begins with:
    `// NOTE: Any changes to this file must be reflected in the corresponding SPECS.md or NOTES.md.`
+
+10. **`created_at` is a reserved attrs key**: Any `Store` call (CLI, REST API, or watcher) may set
+    `attrs["created_at"]` (RFC3339) to backdate a memory's `CreatedAt` to when the event it describes
+    actually happened, instead of insertion time. The key is stripped before the memory's other attrs
+    are persisted. An unparseable value is an error, never a silent fallback to now.

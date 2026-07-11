@@ -86,6 +86,13 @@ func Default() *Config {
 	cfg.GWS.LookbackDays = 14
 	cfg.GWS.OutputDir = filepath.Join(lthDir, "gws-imports")
 	cfg.GWS.NamePatterns = []string{"Notes by Gemini", "Transcript"}
+	cfg.PR.IntervalS = 21600
+	cfg.PR.Layer = 5
+	cfg.PR.LookbackDays = 0 // unbounded -- mine full history, gradually, across scans
+	cfg.PR.MaxPerScan = 10
+	cfg.PR.SkipAuthors = []string{"renovate[bot]", "dependabot[bot]", "github-actions[bot]"}
+	cfg.Backup.IntervalH = 24
+	cfg.Backup.Keep = 7
 	cfg.Watcher.StateFile = filepath.Join(lthDir, "watcher-state.json")
 	cfg.Watcher.LogRetainDays = 3
 	cfg.API.ListenAddr = "localhost:10010"
@@ -206,6 +213,36 @@ search:
 #     - "Transcript"
 #   exclude_patterns: []                # optional NAND'd skip list
 
+# pr:
+#   # Mines merged PR history for configured repos and stores an LLM-written
+#   # summary of each new PR, backdated to its merge time so old PRs decay in
+#   # search like old memories instead of scoring as fresh.
+#   interval_s: 21600           # poll cadence; default 6h -- PR history changes slowly
+#   layer: 5
+#   lookback_days: 0            # 0 = unbounded (mine full history, gradually, across scans)
+#   max_per_scan: 10            # cap new PRs resolved+attempted per scan, across all sources
+#   skip_authors:                # bot logins excluded from summarization
+#     - "renovate[bot]"
+#     - "dependabot[bot]"
+#     - "github-actions[bot]"
+#   sources:
+#     - repo: grafana/deployment_tools
+#       dir: ksonnet/environments/tempo
+#       # path: ~/source/deployment_tools  # optional: use an existing local
+#       #   checkout as-is instead of having lth clone/manage it. Omit path
+#       #   (as above) to have lth clone into markdown.github.cache_dir --
+#       #   the same ~/.lth/repos-cache/<org>/<name>/ the markdown watcher's
+#       #   GitHub-repos feature uses -- always as a full clone.
+
+# backup:
+#   # Daily VACUUM INTO snapshot of the database, gzipped, into dir. Disabled
+#   # until dir is set -- point it at a different disk/mount than db.path,
+#   # or the backup can't survive the disk failure it exists to protect
+#   # against.
+#   dir: ""             # e.g. /mnt/backup-drive/lth-snapshots
+#   interval_h: 24
+#   keep: 7              # most recent snapshots retained; older ones pruned
+
 # sync:
 #   server_url: ""
 #   account: ""
@@ -255,6 +292,27 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Issues.IntervalS == 0 {
 		cfg.Issues.IntervalS = def.Issues.IntervalS
+	}
+	if cfg.PR.IntervalS == 0 {
+		cfg.PR.IntervalS = def.PR.IntervalS
+	}
+	if cfg.PR.Layer == 0 {
+		cfg.PR.Layer = def.PR.Layer
+	}
+	if cfg.PR.LookbackDays == 0 {
+		cfg.PR.LookbackDays = def.PR.LookbackDays
+	}
+	if cfg.PR.MaxPerScan == 0 {
+		cfg.PR.MaxPerScan = def.PR.MaxPerScan
+	}
+	if len(cfg.PR.SkipAuthors) == 0 {
+		cfg.PR.SkipAuthors = def.PR.SkipAuthors
+	}
+	if cfg.Backup.IntervalH == 0 {
+		cfg.Backup.IntervalH = def.Backup.IntervalH
+	}
+	if cfg.Backup.Keep == 0 {
+		cfg.Backup.Keep = def.Backup.Keep
 	}
 	if cfg.Markdown.Layer == 0 {
 		cfg.Markdown.Layer = def.Markdown.Layer

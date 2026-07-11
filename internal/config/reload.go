@@ -55,10 +55,23 @@ var HotFields = map[string]bool{
 	"Sync.User":      true,
 
 	// Markdown / Issues watchers — read per tick.
-	"Issues.Repos":        true,
-	"Markdown.Dirs":       true,
-	"Markdown.GitPull":    true,
-	"Markdown.Layer":      true,
+	"Issues.Repos":     true,
+	"Markdown.Dirs":    true,
+	"Markdown.GitPull": true,
+	"Markdown.Layer":   true,
+
+	// PR watcher — read per tick.
+	"PR.IntervalS":    true,
+	"PR.Layer":        true,
+	"PR.LookbackDays": true,
+	"PR.MaxPerScan":   true,
+	"PR.SkipAuthors":  true,
+	"PR.Sources":      true,
+
+	// Backup watcher — read per tick.
+	"Backup.Dir":       true,
+	"Backup.IntervalH": true,
+	"Backup.Keep":      true,
 }
 
 // ReloadInPlace re-reads path, validates the new config, and overwrites dst's

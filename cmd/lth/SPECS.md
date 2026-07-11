@@ -17,6 +17,7 @@
 15. `lth sync push` never pushes memories with source="server" to prevent sync loops.
     `lth sync pull` imports received memories, setting source="server" on all received records.
     `lth sync pull` with layers=5 returns an error (L5 has no pull endpoint).
+16. `lth backup` (and its `list`/`restore` subcommands) never auto-starts the daemon (added to the invariant-1 exemption list) — `list` only reads a directory and `restore` requires the daemon NOT running. `lth backup restore` stops the daemon first if it is running, and leaves it stopped afterward; the user must run `lth watch start` explicitly to resume ingestion after inspecting a restore.
 
 ## UI Server Routes (port 8765, `lth ui`)
 

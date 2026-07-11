@@ -83,6 +83,22 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 	}
 
 	now := time.Now().UTC()
+
+	// attrs["created_at"] lets callers backdate a memory to when the event it
+	// describes actually happened (e.g. a PR merged a year ago), so the
+	// exp-decay time score in search treats it as old rather than freshly
+	// created. Popped before SetAttributes so it isn't also persisted as a
+	// literal attribute — the value already lives in the CreatedAt column.
+	createdAt := now
+	if v, ok := attrs["created_at"]; ok {
+		delete(attrs, "created_at")
+		parsed, parseErr := time.Parse(time.RFC3339, v)
+		if parseErr != nil {
+			return nil, fmt.Errorf("parse created_at attr %q: %w", v, parseErr)
+		}
+		createdAt = parsed.UTC()
+	}
+
 	memID := uuid.New().String()
 	baseDecay := decayRates[layer]
 
@@ -93,7 +109,7 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 		ContentHash:    hash,
 		Importance:     5.0, // default until async LLM scores it
 		AccessCount:    0,
-		CreatedAt:      now,
+		CreatedAt:      createdAt,
 		UpdatedAt:      now,
 		LastAccessedAt: now,
 		DecayRate:      baseDecay,

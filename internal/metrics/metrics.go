@@ -27,6 +27,13 @@ type Metrics struct {
 	MarkdownIngestedTotal *prometheus.CounterVec // label: dir
 	IssuesIngestedTotal   *prometheus.CounterVec // label: repo
 	IssuesLastSync        *prometheus.GaugeVec   // label: repo — Unix timestamp of last successful sync
+	PRIngestedTotal       *prometheus.CounterVec // label: repo
+	PRLastSync            *prometheus.GaugeVec   // label: repo — Unix timestamp of last successful sync
+
+	// Backup watcher.
+	BackupSnapshotsTotal       *prometheus.CounterVec // label: status ("success"/"failure")
+	BackupLastSuccessTimestamp prometheus.Gauge       // Unix timestamp of the last successful snapshot
+	BackupSnapshotBytes        prometheus.Gauge       // size in bytes of the most recent snapshot file
 }
 
 // New creates and registers all lth metrics with the given registry.
@@ -125,6 +132,31 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "lth_issues_last_sync_timestamp",
 			Help: "Unix timestamp of the last successful issues sync, by repo.",
 		}, []string{"repo"}),
+
+		PRIngestedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "lth_pr_ingested_total",
+			Help: "PR summaries ingested by the PR watcher, by repo.",
+		}, []string{"repo"}),
+
+		PRLastSync: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "lth_pr_last_sync_timestamp",
+			Help: "Unix timestamp of the last successful PR scan, by repo.",
+		}, []string{"repo"}),
+
+		BackupSnapshotsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "lth_backup_snapshots_total",
+			Help: "Number of database backup snapshot attempts, by status.",
+		}, []string{"status"}),
+
+		BackupLastSuccessTimestamp: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "lth_backup_last_success_timestamp",
+			Help: "Unix timestamp of the last successful backup snapshot.",
+		}),
+
+		BackupSnapshotBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "lth_backup_snapshot_bytes",
+			Help: "Size in bytes of the most recent successful backup snapshot file.",
+		}),
 	}
 
 	reg.MustRegister(
@@ -146,6 +178,11 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.MarkdownIngestedTotal,
 		m.IssuesIngestedTotal,
 		m.IssuesLastSync,
+		m.PRIngestedTotal,
+		m.PRLastSync,
+		m.BackupSnapshotsTotal,
+		m.BackupLastSuccessTimestamp,
+		m.BackupSnapshotBytes,
 	)
 	return m
 }

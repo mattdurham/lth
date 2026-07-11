@@ -102,6 +102,69 @@ type GWSConfig struct {
 	GWSBinary       string   `yaml:"gws_binary"`       // override path to the gws executable; default looks up $PATH
 }
 
+// PRSource is one repo to mine for merged PR history. Repo is the GitHub
+// "<org>/<name>" slug, used for `gh` lookups, as the clone URL, and as the
+// project attribute on stored memories. Path, if set, points at an existing
+// local git checkout to use as-is (only fast-forward-pulled, never cloned or
+// reset). If empty, lth clones/updates the repo itself into
+// Markdown.GitHub.CacheDir (the same `~/.lth/repos-cache/<org>/<name>/`
+// directory the markdown watcher's GitHub-repos feature uses), always as a
+// full (non-shallow) clone regardless of any depth the markdown watcher may
+// have used for it, so history mining always sees the whole repo. Dir, if
+// set, scopes the git log walk to a subdirectory (e.g.
+// "ksonnet/environments/tempo"); empty means the whole repo.
+type PRSource struct {
+	Repo string `yaml:"repo"`
+	Path string `yaml:"path"`
+	Dir  string `yaml:"dir"`
+}
+
+// PRConfig configures the PR-history watcher: for each configured source, it
+// finds commits under Dir via `git log`, resolves the merged PR behind each
+// new commit via `gh`, and stores an LLM-written summary of each new PR as a
+// memory backdated to the PR's merge time (see memory.Store's "created_at"
+// attr) so old PRs decay in search like old memories instead of scoring as
+// freshly created.
+type PRConfig struct {
+	Sources []PRSource `yaml:"sources"`
+	// IntervalS is the poll cadence; default 21600 (6h) -- PR history changes slowly.
+	IntervalS int `yaml:"interval_s"`
+	// Layer is the memory layer summaries are stored at; default 5.
+	Layer int `yaml:"layer"`
+	// LookbackDays bounds how far back into history a source is mined. 0
+	// (the default) means unbounded -- mine the source's entire history.
+	// Regardless of this setting, MaxPerScan bounds how much work is done in
+	// any single scan, so even an unbounded source replays its full history
+	// gradually across many scans rather than bursting all at once.
+	LookbackDays int `yaml:"lookback_days"`
+	// MaxPerScan caps how many new PRs are resolved and attempted in a single
+	// scan, shared across all sources, spreading a large backlog (or an
+	// unbounded LookbackDays) over multiple ticks instead of bursting dozens
+	// of gh/LLM calls at once. Default 10.
+	MaxPerScan int `yaml:"max_per_scan"`
+	// SkipAuthors excludes commits/PRs authored by these GitHub logins (bots,
+	// automation) from being summarized. Default: common bot logins.
+	SkipAuthors []string `yaml:"skip_authors"`
+}
+
+// BackupConfig configures the daily database snapshot watcher. It takes a
+// consistent VACUUM INTO copy of the database, gzips it into Dir, and keeps
+// only the Keep most recent snapshots. Disabled until Dir is set -- there is
+// deliberately no default directory, since a default under lth's own data
+// dir would likely put backups on the same disk as the database they exist
+// to protect against.
+type BackupConfig struct {
+	// Dir is where snapshots are written. Required; empty disables the watcher.
+	Dir string `yaml:"dir"`
+	// IntervalH is the poll cadence in hours; default 24. A simple ticker, not
+	// a wall-clock schedule -- there is no "run at 3am" semantics.
+	IntervalH int `yaml:"interval_h"`
+	// Keep is how many of the most recent snapshots to retain; default 7.
+	// Count-based, not age-based: always keeps exactly this many files
+	// regardless of gaps (e.g. the daemon being down for a few days).
+	Keep int `yaml:"keep"`
+}
+
 // Config holds all lth configuration loaded from ~/.lth/config.yaml.
 type Config struct {
 	DB struct {
@@ -161,6 +224,10 @@ type Config struct {
 	} `yaml:"markdown"`
 
 	GWS GWSConfig `yaml:"gws"`
+
+	PR PRConfig `yaml:"pr"`
+
+	Backup BackupConfig `yaml:"backup"`
 
 	Sync struct {
 		ServerURL     string `yaml:"server_url"`
