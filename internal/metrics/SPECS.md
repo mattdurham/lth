@@ -43,11 +43,14 @@ wrappers for lth. It exposes an HTTP server at `localhost:10010` (configurable v
 | lth_search_duration_seconds | Histogram | — | Search latency |
 | lth_watcher_messages_ingested_total | Counter | — | JSONL messages ingested |
 | lth_watcher_files_watched_total | Gauge | — | Files currently watched |
+| lth_issues_ingested_total | Counter | repo | Issues/comments stored by the issues watcher |
+| lth_issues_last_sync_timestamp | Gauge | repo | Unix timestamp of the last completed issues sync attempt (not gated on per-issue success) |
 | lth_pr_ingested_total | Counter | repo | PR summaries stored by the PR watcher |
-| lth_pr_last_sync_timestamp | Gauge | repo | Unix timestamp of the last successful PR scan |
+| lth_pr_last_sync_timestamp | Gauge | repo | Unix timestamp of the last completed PR scan attempt (not gated on per-PR success) |
 | lth_backup_snapshots_total | Counter | status | Backup snapshot attempts by status |
 | lth_backup_last_success_timestamp | Gauge | — | Unix timestamp of the last successful backup snapshot |
 | lth_backup_snapshot_bytes | Gauge | — | Size in bytes of the most recent successful snapshot |
+| lth_embedding_backfill_giveup_total | Counter | — | Memories soft-deleted because they're too large to embed even after truncation |
 
 ## HTTP Endpoints
 

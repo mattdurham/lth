@@ -76,3 +76,33 @@ a separate health-check goroutine or a restart policy on the container.
 
 **Consequence:** A failing embed now incurs one extra `docker start` attempt and one retry before
 returning an error. The retry adds latency only on failure paths; the happy path is unchanged.
+
+---
+
+## 6. `ErrPayloadTooLarge` — Give Up Instead of Retrying Forever
+
+*Added: 2026-07-13*
+
+**Decision:** `OllamaEmbedder.Embed` returns a distinguishable sentinel error, `ErrPayloadTooLarge`,
+when the server responds HTTP 413 -- even after decision (invariant 16's) `MaxEmbedInputBytes`
+truncation. `ResilientEmbedder` skips its restart-and-retry for this specific error.
+`memory.BackfillEmbeddings` treats it as permanent and soft-deletes the memory instead of
+re-attempting it every batch.
+
+**Rationale:** In production, three specific memories hit this 413 loop continuously for over a
+day: `MaxEmbedInputBytes` (30 KB) assumes ~4 bytes/token, but their content (dense JSON/libsonnet)
+tokenizes far more densely than that, so even the truncated input still exceeded the embedding
+server's real token limit. Every backfill cycle (every 2s) re-attempted the same 3 IDs forever --
+55,000+ log lines over ~13 hours, plus a wasted Docker container ping-restart-retry for each one --
+with zero chance of ever succeeding, since the content itself (not a transient server issue) was
+the problem. There is no way to shrink dense content further without lossy semantic truncation,
+which isn't worth building for 3 out-of-a-hundred-thousand memories.
+
+**Consequence:** A memory that permanently fails to embed becomes fully soft-deleted -- excluded
+from both vector and FTS search (root SPECS.md invariant 6's `compacted_at` mechanism), not just
+skipped from future embedding attempts. This trades losing that one memory's raw searchability
+for ending the infinite retry loop; given how rare this is (3 memories out of tens of thousands),
+that's the right trade. `lth_embedding_backfill_giveup_total` (a plain counter, no labels) tracks
+how often this fires, so a sudden increase (many memories suddenly too large, e.g. a config change
+to `MaxEmbedInputBytes` or a new high-density content source) is visible rather than silently
+eating memories one at a time in the log.

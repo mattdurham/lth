@@ -34,6 +34,9 @@ type Metrics struct {
 	BackupSnapshotsTotal       *prometheus.CounterVec // label: status ("success"/"failure")
 	BackupLastSuccessTimestamp prometheus.Gauge       // Unix timestamp of the last successful snapshot
 	BackupSnapshotBytes        prometheus.Gauge       // size in bytes of the most recent snapshot file
+
+	// Embedding backfill.
+	EmbeddingBackfillGiveUpTotal prometheus.Counter // memories soft-deleted because their content is too large to embed even after truncation
 }
 
 // New creates and registers all lth metrics with the given registry.
@@ -157,6 +160,11 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "lth_backup_snapshot_bytes",
 			Help: "Size in bytes of the most recent successful backup snapshot file.",
 		}),
+
+		EmbeddingBackfillGiveUpTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "lth_embedding_backfill_giveup_total",
+			Help: "Number of memories soft-deleted by the embedding backfill loop because their content is too large to embed even after truncation to vector.MaxEmbedInputBytes.",
+		}),
 	}
 
 	reg.MustRegister(
@@ -183,6 +191,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.BackupSnapshotsTotal,
 		m.BackupLastSuccessTimestamp,
 		m.BackupSnapshotBytes,
+		m.EmbeddingBackfillGiveUpTotal,
 	)
 	return m
 }

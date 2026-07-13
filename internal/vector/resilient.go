@@ -4,6 +4,7 @@ package vector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/mattdurham/lth/internal/config"
@@ -16,11 +17,17 @@ type ResilientEmbedder struct {
 	cfg   *config.Config
 }
 
-// Embed calls the inner embedder. On failure it calls EnsureEmbeddingServer and retries once.
+// Embed calls the inner embedder. On failure it calls EnsureEmbeddingServer and retries once --
+// unless the failure is ErrPayloadTooLarge, which a container restart cannot fix (the content
+// itself is the problem), so that error is returned immediately without the pointless
+// restart-and-retry round trip.
 func (r *ResilientEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
 	v, err := r.inner.Embed(ctx, text)
 	if err == nil {
 		return v, nil
+	}
+	if errors.Is(err, ErrPayloadTooLarge) {
+		return nil, err
 	}
 
 	if restartErr := EnsureEmbeddingServer(r.cfg); restartErr != nil {

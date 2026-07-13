@@ -320,7 +320,9 @@ func runWatchDaemon(cmd *cobra.Command, _ []string) error {
 	go memory.BackfillValence(ctx, daemon.d, daemon.llm, 5, 10*time.Second)
 	go memory.BackfillImportance(ctx, daemon.d, daemon.llm, 5, 15*time.Second)
 	go memory.BackfillTags(ctx, daemon.d, daemon.llm, 5, 20*time.Second)
-	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, config.EmbeddingModel, 50, 2*time.Second)
+	go memory.BackfillEmbeddings(ctx, daemon.d, daemon.emb, config.EmbeddingModel, 50, 2*time.Second, func() {
+		m.EmbeddingBackfillGiveUpTotal.Inc()
+	})
 	go walCheckpointLoop(ctx, daemon.d, 5*time.Minute)
 	go configReloadLoop(ctx, effectiveConfigPath(), globalCfg, 1*time.Minute)
 	// Spawn all hot-reload-friendly watchers unconditionally. Each one self-gates

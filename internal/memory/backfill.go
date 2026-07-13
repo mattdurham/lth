@@ -4,6 +4,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -66,7 +67,14 @@ func BackfillValence(ctx context.Context, d *db.DB, llmClient llm.LLM, batchSize
 // BackfillEmbeddings finds memories with null/empty embeddings and re-embeds them.
 // Runs as a background goroutine in the daemon so memories stored before the embedding
 // server was available become searchable without manual intervention.
-func BackfillEmbeddings(ctx context.Context, d *db.DB, emb vector.Embedder, model string, batchSize int, interval time.Duration) {
+//
+// A memory whose content is too large for the embedder even after truncation
+// (vector.ErrPayloadTooLarge) is given up on permanently: it is soft-deleted
+// (compacted_at set) rather than retried every batch forever, since the content
+// itself is the problem and a retry cannot succeed. onGiveUp, if non-nil, is
+// called once per such memory (for metrics); it takes no arguments since the
+// event itself, not the specific ID, is what's tracked.
+func BackfillEmbeddings(ctx context.Context, d *db.DB, emb vector.Embedder, model string, batchSize int, interval time.Duration, onGiveUp func()) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -96,6 +104,17 @@ func BackfillEmbeddings(ctx context.Context, d *db.DB, emb vector.Embedder, mode
 
 			embedding, err := emb.Embed(ctx, row.Content)
 			if err != nil {
+				if errors.Is(err, vector.ErrPayloadTooLarge) {
+					if softErr := d.SoftDelete(context.Background(), row.ID, time.Now().UTC()); softErr != nil {
+						slog.Warn("backfill embeddings: soft-delete of too-large memory failed, will retry next batch", "id", row.ID, "err", softErr)
+						continue
+					}
+					slog.Warn("backfill embeddings: content too large to embed even after truncation, soft-deleted (removed from active search)", "id", row.ID)
+					if onGiveUp != nil {
+						onGiveUp()
+					}
+					continue
+				}
 				slog.Warn("backfill embeddings: embed error", "id", row.ID, "err", err)
 				continue
 			}

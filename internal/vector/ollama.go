@@ -6,12 +6,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
 )
+
+// ErrPayloadTooLarge is returned by Embed when the embedding server rejects
+// the (already-truncated-to-MaxEmbedInputBytes) input with HTTP 413. Unlike
+// other non-200 responses, this is not transient -- retrying the identical
+// request (even after a container restart) will fail the same way, since the
+// content is fundamentally too dense for the server's real token limit even
+// after truncation (the 4-bytes/token assumption behind MaxEmbedInputBytes
+// doesn't hold for all content, e.g. dense JSON/libsonnet). Callers should
+// give up rather than retry indefinitely; see BackfillEmbeddings.
+var ErrPayloadTooLarge = errors.New("embedding server rejected payload as too large")
 
 // MaxEmbedInputBytes is the hard upper bound on text length sent to the embedding
 // endpoint. nomic-embed-text-v1.5 (the default) advertises an 8192-token context;
@@ -75,6 +86,9 @@ func (o *OllamaEmbedder) Embed(ctx context.Context, text string) ([]float32, err
 	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusRequestEntityTooLarge {
+			return nil, fmt.Errorf("%w (status 413) even after truncating to %d bytes", ErrPayloadTooLarge, len(text))
+		}
 		return nil, fmt.Errorf("embed request returned status %d", resp.StatusCode)
 	}
 

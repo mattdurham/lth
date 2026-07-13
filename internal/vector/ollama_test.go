@@ -5,6 +5,7 @@ package vector
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -59,6 +60,32 @@ func TestOllamaEmbedder(t *testing.T) {
 		_, err := emb.Embed(context.Background(), "test")
 		if err == nil {
 			t.Error("expected error on 500 response, got nil")
+		}
+	})
+
+	t.Run("payload_too_large", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
+		}))
+		defer srv.Close()
+
+		emb := NewOllamaEmbedder(srv.URL, "nomic-embed-text", 10)
+		_, err := emb.Embed(context.Background(), "test")
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Errorf("Embed on 413: err = %v, want errors.Is(err, ErrPayloadTooLarge)", err)
+		}
+	})
+
+	t.Run("other_status_is_not_ErrPayloadTooLarge", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		emb := NewOllamaEmbedder(srv.URL, "nomic-embed-text", 10)
+		_, err := emb.Embed(context.Background(), "test")
+		if errors.Is(err, ErrPayloadTooLarge) {
+			t.Errorf("Embed on 500 should not be ErrPayloadTooLarge (it's transient, should keep retrying), got: %v", err)
 		}
 	})
 
