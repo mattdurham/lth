@@ -3,6 +3,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -209,6 +210,80 @@ func TestInitDefault(t *testing.T) {
 			t.Fatalf("file should exist in nested dir: %v", err)
 		}
 	})
+}
+
+// TestDefaultPRCacheDirNotSharedWithMarkdownGitHub regression-tests the fix
+// for a real production incident: prwatcher and mdwatcher both auto-cloning
+// into the same cache directory caused git-reset races that made mdwatcher
+// misread transient file absence as permanent deletion, soft-deleting
+// hundreds of memories. PR.CacheDir must always default to its own
+// dedicated directory, never the one mdwatcher's GitHub-repos feature uses.
+func TestDefaultPRCacheDirNotSharedWithMarkdownGitHub(t *testing.T) {
+	cfg := Default()
+	if cfg.PR.CacheDir == "" {
+		t.Fatal("PR.CacheDir should have a non-empty default")
+	}
+	if cfg.PR.CacheDir == cfg.Markdown.GitHub.CacheDir {
+		t.Errorf("PR.CacheDir (%q) must not default to the same directory as Markdown.GitHub.CacheDir (%q)",
+			cfg.PR.CacheDir, cfg.Markdown.GitHub.CacheDir)
+	}
+}
+
+// TestInitDefaultTemplateMatchesDefaults guards against drift between
+// Default()'s Go values (both the DefaultPR*/DefaultBackup* constants and
+// the plain literals set directly in Default()) and InitDefault's template
+// string, which hand-retypes every one of them as YAML -- active for
+// embedding/llm/compaction/search, commented-out example text for the rest.
+// A generated config template can't reference the Go values directly, so
+// this is the only thing catching a future default change that forgets to
+// update the template text to match.
+func TestInitDefaultTemplateMatchesDefaults(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := InitDefault(path, false); err != nil {
+		t.Fatalf("InitDefault: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read generated config: %v", err)
+	}
+	content := string(data)
+	def := Default()
+
+	for _, want := range []string{
+		fmt.Sprintf("timeout_s: %d", def.Embedding.TimeoutS),
+		fmt.Sprintf("docker_port: %d", def.Embedding.DockerPort),
+		fmt.Sprintf("timeout_s: %d", def.LLM.TimeoutS),
+		fmt.Sprintf("interval_s: %d", def.Compaction.IntervalS),
+		fmt.Sprintf("l5_threshold: %d", def.Compaction.L5Threshold),
+		fmt.Sprintf("l5_max_age_h: %d", def.Compaction.L5MaxAgeH),
+		fmt.Sprintf("l5_cluster_threshold: %g", def.Compaction.L5ClusterThreshold),
+		fmt.Sprintf("l5_min_cluster_size: %d", def.Compaction.L5MinClusterSize),
+		fmt.Sprintf("l5_max_cluster_chars: %d", def.Compaction.L5MaxClusterChars),
+		fmt.Sprintf("l4_cluster_size: %d", def.Compaction.L4ClusterSize),
+		fmt.Sprintf("l3_episodes_min: %d", def.Compaction.L3EpisodesMin),
+		fmt.Sprintf("l3_importance_min: %g", def.Compaction.L3ImportanceMin),
+		fmt.Sprintf("seed_min_l2: %d", def.Compaction.SeedMinL2),
+		fmt.Sprintf("seed_min_l3: %d", def.Compaction.SeedMinL3),
+		fmt.Sprintf("seed_sample: %d", def.Compaction.SeedSample),
+		fmt.Sprintf("valence_compaction_min: %g", def.Compaction.ValenceCompactionMin),
+		fmt.Sprintf("default_top_k: %d", def.Search.DefaultTopK),
+		fmt.Sprintf("alpha: %g", def.Search.Alpha),
+		fmt.Sprintf("beta: %g", def.Search.Beta),
+		fmt.Sprintf("gamma: %g", def.Search.Gamma),
+		fmt.Sprintf("log_retain_days: %d", def.Watcher.LogRetainDays),
+		fmt.Sprintf("interval_h: %d", def.GWS.IntervalH),
+		fmt.Sprintf("lookback_days: %d", def.GWS.LookbackDays),
+		fmt.Sprintf("interval_s: %d", DefaultPRIntervalS),
+		fmt.Sprintf("layer: %d", DefaultPRLayer),
+		fmt.Sprintf("max_per_scan: %d", DefaultPRMaxPerScan),
+		fmt.Sprintf("interval_h: %d", DefaultBackupIntervalH),
+		fmt.Sprintf("keep: %d", DefaultBackupKeep),
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("generated config template missing/drifted from %q -- update InitDefault's template string in load.go to match", want)
+		}
+	}
 }
 
 func TestApplyDefaultsComplete(t *testing.T) {

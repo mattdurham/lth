@@ -5,6 +5,7 @@
 1. `ScanOnce` walks every directory in `cfg.Markdown.Dirs` recursively and ingests every `.md` file found.
 2. A file whose path was previously ingested but is absent on the current scan has its derived memories soft-deleted.
 3. `maybeGitPull` runs `git pull --ff-only` in a configured dir only if the dir is a git repo, `git_pull` is true, and at least `git_pull_interval_s` has elapsed since the last pull for that dir.
+3a. `processFile` calls `saveState` immediately after recording a file's `fileState` (hash + resulting memory IDs) -- not once at the end of `ScanOnce`'s full batch. A scan interrupted (daemon restart) between two files' `processFile` calls loses at most the in-flight file's progress, never files already ingested earlier in the same batch. This matters because ingested content is LLM-generated text: an unpersisted, re-ingested file would not be caught by `Store`'s content-hash dedup, since the LLM rarely regenerates byte-identical wording (see `internal/prwatcher/NOTES.md` decision #7, the analogous fix for the same failure class).
 
 ## GitHub repos
 

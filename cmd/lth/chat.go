@@ -1,3 +1,5 @@
+// NOTE: Any changes to this file must be reflected in the corresponding SPECS.md or NOTES.md.
+
 package main
 
 import (
@@ -128,7 +130,7 @@ var chatTools = []llm.Tool{
 		}`),
 	},
 	{
-		Name: "list_from_source",
+		Name:        "list_from_source",
 		Description: "List every memory extracted from a specific source file. Use when the user's question is clearly about a single document or project AND you have already seen its source_file path in a search result. Returns up to `limit` memories carrying that source_file attribute. Much more reliable than re-querying with search when you want everything from one document.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
@@ -349,4 +351,3 @@ func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string,
 func globalLLM() llm.LLM {
 	return llm.New(globalCfg)
 }
-

@@ -1,5 +1,7 @@
 // Package mdwatcher watches directories for markdown files and ingests them
 // as memories using an LLM to extract all meaningful facts.
+//
+// NOTE: Any changes to this file must be reflected in the corresponding SPECS.md or NOTES.md.
 package mdwatcher
 
 import (
@@ -38,14 +40,14 @@ type state struct {
 
 // MDWatcher scans configured dirs for markdown files and ingests them.
 type MDWatcher struct {
-	store       *memory.MemoryStore
-	llm         llm.LLM
-	cfg         *config.Config
-	stateFile   string
-	mu          sync.Mutex
-	st          state
-	lastPull    map[string]time.Time // dir → last git pull time
-	metrics     *metrics.Metrics
+	store     *memory.MemoryStore
+	llm       llm.LLM
+	cfg       *config.Config
+	stateFile string
+	mu        sync.Mutex
+	st        state
+	lastPull  map[string]time.Time // dir → last git pull time
+	metrics   *metrics.Metrics
 }
 
 // New creates an MDWatcher. stateFile is where ingestion state is persisted.
@@ -219,6 +221,14 @@ func (w *MDWatcher) processFile(ctx context.Context, path string) error {
 	}
 	w.st.Files[path] = fileState{Hash: hash, MemoryIDs: allIDs}
 	w.mu.Unlock()
+
+	// Persist immediately, not once at the end of ScanOnce's full batch: this
+	// file's facts are LLM-generated text, so a scan interrupted before the
+	// batch-level save (daemon restart mid-scan) would otherwise make the next
+	// scan re-recognize this file as unseen and re-ingest it -- content-hash
+	// dedup does not catch the duplicate, since the LLM rarely regenerates
+	// byte-identical wording. Same fix as prwatcher's persistSourceState.
+	w.saveState()
 
 	slog.Info("mdwatcher: ingested", "path", path, "memories", len(allIDs))
 	return nil

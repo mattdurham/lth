@@ -147,6 +147,33 @@ func TestVacuum_ShrinksAfterDeletion(t *testing.T) {
 	}
 }
 
+func TestVacuumInto_ErrorsWhenTargetExists(t *testing.T) {
+	d := openTempDB(t)
+	defer d.Close() //nolint:errcheck
+
+	dir := t.TempDir()
+	target := filepath.Join(dir, "already-exists.db")
+	if err := os.WriteFile(target, []byte("pre-existing content"), 0o600); err != nil {
+		t.Fatalf("write pre-existing target: %v", err)
+	}
+
+	// VACUUM INTO refuses to overwrite an existing file; callers must always
+	// target a fresh or freshly-removed path.
+	if err := d.VacuumInto(context.Background(), target); err == nil {
+		t.Fatal("VacuumInto onto a pre-existing file: expected error, got nil")
+	}
+}
+
+func TestVacuumInto_ErrorsOnUnwritableDestinationDir(t *testing.T) {
+	d := openTempDB(t)
+	defer d.Close() //nolint:errcheck
+
+	target := filepath.Join(t.TempDir(), "nonexistent-subdir", "snapshot.db")
+	if err := d.VacuumInto(context.Background(), target); err == nil {
+		t.Fatal("VacuumInto into a nonexistent directory: expected error, got nil")
+	}
+}
+
 // openTempDB creates a fresh DB in a temp directory and returns it.
 func openTempDB(t *testing.T) *DB {
 	t.Helper()

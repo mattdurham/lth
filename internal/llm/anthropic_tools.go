@@ -1,3 +1,5 @@
+// NOTE: Any changes to this file must be reflected in the corresponding SPECS.md or NOTES.md.
+
 package llm
 
 import (
@@ -162,9 +164,9 @@ type toolMsg struct {
 }
 
 type toolRequest struct {
-	Model     string   `json:"model"`
-	MaxTokens int      `json:"max_tokens"`
-	System    string   `json:"system,omitempty"`
+	Model     string    `json:"model"`
+	MaxTokens int       `json:"max_tokens"`
+	System    string    `json:"system,omitempty"`
 	Tools     []toolDef `json:"tools,omitempty"`
 	Messages  []toolMsg `json:"messages"`
 }

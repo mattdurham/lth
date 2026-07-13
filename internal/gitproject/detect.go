@@ -1,4 +1,6 @@
 // Package gitproject detects the GitHub owner/repo for a directory from its git remote.
+//
+// NOTE: Any changes to this file must be reflected in the corresponding SPECS.md or NOTES.md.
 package gitproject
 
 import (
@@ -30,9 +32,10 @@ func detect(dir string) string {
 }
 
 // parseRemote extracts "owner/repo" from common Git remote URL formats:
-//   https://github.com/owner/repo.git
-//   https://github.com/owner/repo
-//   git@github.com:owner/repo.git
+//
+//	https://github.com/owner/repo.git
+//	https://github.com/owner/repo
+//	git@github.com:owner/repo.git
 func parseRemote(url string) string {
 	// SSH: git@host:owner/repo.git
 	if idx := strings.Index(url, ":"); idx != -1 && !strings.HasPrefix(url, "http") {

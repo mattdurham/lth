@@ -98,6 +98,15 @@ recent history.
 
 *Added: 2026-07-10*
 
+**⚠️ SUPERSEDED by decision #8 (2026-07-11).** The directory-sharing choice below and its
+"safe because" claim are **incorrect** — decision #6 documents a ref-lock race and decision
+#8 documents a second, more damaging incident (447 false "file removed" soft-deletes) caused
+by exactly the gap this decision's safety argument missed: it only examined what each watcher
+*reads*, never what both watchers *write* (git reset/checkout) to the shared directory.
+`PR.CacheDir` is now dedicated to prwatcher; nothing shares a cache directory with mdwatcher
+today. The entry below is kept for historical record only — do not treat its "Consequence" as
+current behavior.
+
 **Decision:** When `PRSource.Path` is empty, prwatcher clones/updates the
 repo itself into `cfg.Markdown.GitHub.CacheDir` — the literal same
 config value (and therefore, by default, the literal same on-disk
@@ -161,3 +170,89 @@ whatever ref value is currently on disk, which is either already current
 (updated by the other watcher's fetch) or will catch up on the next scan.
 Only a genuinely stuck shallow clone (unshallow attempted and failed AND
 still shallow) is a real error worth surfacing.
+
+## 7. Persist State Per-PR, Not Once Per Batch
+
+*Added: 2026-07-11*
+
+**Decision:** `scanSource` now calls `persistSourceState` immediately after
+each PR's outcome is decided (inside the loop), instead of accumulating all
+outcomes in memory and calling `saveState` once after the whole `newPRs`
+loop finished.
+
+**Rationale:** Found in production, not in review: with `MaxPerScan=100`
+and a slow LLM backend, a single scan's batch can run long enough to still
+be in flight when the daemon is restarted (which we did several times while
+tuning `IntervalS`/`MaxPerScan` and swapping the LLM primary). The original
+once-at-the-end save meant every PR successfully summarized and stored
+*before* the interruption point was invisible to the persisted state --
+`SummarizedPRs` on disk still showed the previous batch's ending point. The
+next scan then re-discovered those same PRs (their `SeenCommits` markers
+were also never persisted) and re-summarized them from scratch. Since the
+LLM doesn't produce byte-identical text twice, `Store`'s content-hash dedup
+didn't catch it: the second summary got a different hash and became a
+second, independent memory for the same PR. This produced 12 real duplicate
+memories in `grafana/deployment_tools` before the fix -- confirmed by
+comparing `len(memories with source=github_pr)` against the count of
+distinct `pr_number` attribute values.
+
+**Consequence:** Every terminal PR outcome triggers its own JSON marshal +
+file write of the whole state map (not just a delta), which is more I/O
+than the previous once-per-batch save. At the scale this watcher operates
+at (tens of PRs per scan, not thousands), this is a non-issue; correctness
+under interruption matters more than shaving a few dozen small file writes
+per scan.
+
+## 8. Superseding Decision #5: Dedicated Cache Directory, Not Shared
+
+*Added: 2026-07-11*
+
+**Decision:** `PRConfig.CacheDir` (default `~/.lth/pr-repos-cache`) replaces
+`Markdown.GitHub.CacheDir` as the directory `ensureFullClone` clones/updates
+auto-managed `PRSource`s into. A repo configured under both
+`markdown.github.repos` and `pr.sources` is now cloned into two independent
+directories, not shared.
+
+**Rationale:** Decision #5 argued sharing the directory was safe because
+both watchers are "read-only consumers of repo content." That's true of the
+*data* each watcher reads, but not of the *filesystem operations* each
+watcher performs to get there: both run `git reset --hard`/checkout against
+their cache dir, and one watcher's reset mid-flight through another's
+`filepath.WalkDir` scan can make files transiently disappear to the
+scanner. `mdwatcher`'s file-tracking logic treats "not seen in this scan"
+as "deleted" and soft-deletes every memory derived from that file --
+found in production: 447 false "file removed" events in one day, each
+triggering a needless re-ingest-from-scratch of a file that was never
+actually gone. Decision #6 already fixed the analogous ref-lock race for
+prwatcher's own fetches; this is the second, more damaging shared-directory
+failure mode, and this time the fix is to stop sharing rather than tolerate
+the race.
+
+**Consequence:** A repo used by both features costs a second clone on disk
+(negligible compared to the value of eliminating an active-data-corruption
+race). Decision #6's fetch-failure tolerance in `ensureFullClone` remains in
+place regardless -- it's still correct defense against other transient
+fetch failures (network blips, GitHub-side hiccups), just no longer load
+-bearing for the specific mdwatcher-collision scenario that motivated it.
+
+## 9. Closed-Without-Merge PRs Are Terminal, Not "Still Open"
+
+*Added: 2026-07-11*
+
+**Decision:** `summarizePR` now classifies a fetched PR via a pure `classifyPR(state,
+mergedAt)` function into `prMerged` / `prRejected` / `prStillOpen`, instead of the original
+single check `if pr.State != "MERGED" || pr.MergedAt == "" { return non-terminal }`, which
+bucketed `CLOSED` (rejected without merging) together with `OPEN`.
+
+**Rationale:** Found by adversarial review: a closed-without-merge PR will never transition
+to `MERGED`, so treating it as "still open, recheck next scan" means it is re-resolved via
+`gh pr view` on every single scan forever. Since discovery in `discoverNewPRs` is
+oldest-commit-first and stops once `budget` new PRs are found, a repo with several old
+closed-without-merge PRs early in its mined history can permanently consume the entire
+`MaxPerScan` budget on PRs that can never resolve, starving discovery of genuinely new merged
+PRs behind them.
+
+**Consequence:** A closed PR is now recorded as a terminal, `Skipped` outcome (same treatment
+as a bot-authored PR) the first time it's resolved, and never re-checked again.
+`classifyPR` is a pure function specifically so this state-machine decision is unit-testable
+without a real `gh` call.

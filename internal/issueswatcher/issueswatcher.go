@@ -1,4 +1,6 @@
 // Package issueswatcher polls GitHub issues and ingests them as L5 memories.
+//
+// NOTE: Any changes to this file must be reflected in the corresponding SPECS.md or NOTES.md.
 package issueswatcher
 
 import (
@@ -234,6 +236,20 @@ func (w *Watcher) processIssue(ctx context.Context, repo string, issue ghIssue) 
 	rs.Issues[issue.NumberStr()] = is
 	w.st.Repos[repo] = rs
 	w.mu.Unlock()
+
+	// Persist immediately, not once at the end of syncRepo's whole batch: an
+	// interrupted sync (daemon restart mid-batch) must not lose track of
+	// issues already stored earlier in the same batch. Issue/comment content
+	// is deterministic (formatted GitHub API fields), so a re-processed issue
+	// usually hits content-hash dedup and returns the same memory ID rather
+	// than creating a duplicate row -- but this still avoids the residual
+	// damage of double-counted ingestion metrics and wasted `gh api` calls on
+	// every restart, and closes the gap for the case where the issue's
+	// content genuinely changed between the crash and the retry (which
+	// legitimately produces a new memory and would otherwise also lose that
+	// progress). Same fix as prwatcher's persistSourceState and mdwatcher's
+	// per-file save.
+	w.saveState()
 	return nil
 }
 

@@ -1,5 +1,7 @@
 // Package layers defines the canonical names for lth memory layers.
 // The underlying storage uses integers 1-5; these names are display-only.
+//
+// NOTE: Any changes to this file must be reflected in the corresponding SPECS.md or NOTES.md.
 package layers
 
 // Names maps layer number to its human-readable name.

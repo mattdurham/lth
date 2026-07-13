@@ -95,3 +95,31 @@ empty to `[".md"]` preserves exact back-compat for anyone using only
 **Rationale:** Before this, large JSON or Jsonnet files would walk straight through `splitByHeading` (which only knows `# ` lines), produce one chunk equal to the entire file, and fail the LLM call with a context-overflow error. The same bug applied to large YAML documents. With format-aware splitting, each chunk is bounded by both natural format boundaries and a hard byte cap, so big files get a sensible sequence of LLM calls instead of one failing call.
 
 **Consequence:** A single oversized line (e.g., minified JSON on one line) is emitted as one oversized chunk and the LLM rejection bubbles up through the chain. This is intentional: silently truncating mid-line would corrupt the extracted facts in subtle ways, while an explicit error in the daemon log is easy to diagnose.
+
+## 6. Persist State Per-File, Not Once Per Scan Batch
+
+*Added: 2026-07-11*
+
+**Decision:** `processFile` now calls `saveState` immediately after recording its result
+(`w.st.Files[path] = fileState{...}`), instead of relying solely on `ScanOnce`'s end-of-batch
+`saveState` call.
+
+**Rationale:** Found by an adversarial review of `internal/prwatcher`'s NOTES.md decision #7
+(the same bug, first found and fixed there): `ScanOnce` can walk hundreds of files across
+`Markdown.Dirs` and `Markdown.GitHub.Repos` in one call, each triggering an LLM extraction call
+via `processFile`. The old code only persisted `mdwatcher-state.json` once, after the entire
+walk finished. A daemon restart mid-scan lost every file's progress since the last save; the
+next scan's `prev.Hash != hash` check then failed to recognize those files as already-ingested
+(since the on-disk state still showed the old hash or no entry at all), triggering a full
+LLM re-extraction and a fresh `Store()` call for each. Because the stored content is LLM-
+generated ("facts" extracted from the file), it is **not** byte-identical between runs, so
+`Store`'s content-hash dedup never caught the duplicate -- unlike `issueswatcher`'s analogous
+gap, where deterministic GitHub API content usually saves it. This is architecturally identical
+to the incident that produced 31+ duplicate PR memories in `prwatcher`, just triggered by any of
+today's several daemon restarts hitting `mdwatcher` mid-scan instead.
+
+**Consequence:** Every successfully-ingested (or confirmed-unchanged) file's state hits disk
+before the next file is processed, so an interrupted scan loses at most the one file in flight,
+matching `prwatcher`'s guarantee. `ScanOnce`'s existing end-of-batch `saveState` call is kept
+(now effectively a redundant final flush covering the soft-delete-for-removed-files cleanup
+loop, which is idempotent and lower-risk since it only re-applies already-known soft-deletes).

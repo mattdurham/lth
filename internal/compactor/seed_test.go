@@ -407,6 +407,61 @@ func TestCompactSeedDoesNotDeleteL5(t *testing.T) {
 	}
 }
 
+// TestCompactSeedDoesNotReprocessConsumedL5Cluster regression-tests the fix
+// for a bug found by adversarial review: compactSeed had no entity-ID guard
+// (unlike compactL3toL2's derived_from Neighbors check) against re-selecting
+// the same L5 cluster on a later tick while SeedMinL2/SeedMinL3 remain
+// unmet -- producing duplicate-in-substance L2/L3 memories each time, since
+// the LLM's differently-worded output on each call defeats content-hash
+// dedup. With only one L5 cluster available and thresholds set so a single
+// batch never satisfies them, a second compactSeed call must find nothing
+// left to process.
+func TestCompactSeedDoesNotReprocessConsumedL5Cluster(t *testing.T) {
+	validJSON := `{"rules":["always handle errors explicitly","prefer composition over inheritance"],"skills":[{"content":"Go error wrapping","tags":"go,errors"},{"content":"Interface design","tags":"go,design"}]}`
+	c, store := seedTestSetup(t, validJSON, nil)
+	ctx := context.Background()
+
+	// Insert exactly enough L5 to form ONE cluster; similarEmbedder ensures
+	// they cluster together. seedTestSetup's SeedMinL2=3/SeedMinL3=5 are
+	// never satisfied by this response's 2 rules + 2 skills, so needsL2/
+	// needsL3 remain true after the first call -- if the same cluster were
+	// eligible again, a second call would reprocess it.
+	for i := 0; i < c.cfg.Compaction.L5Threshold+1; i++ {
+		if _, err := store.Store(ctx, 5, fmt.Sprintf("raw obs %d about go development", i), nil); err != nil {
+			t.Fatalf("Store L5: %v", err)
+		}
+	}
+
+	l2n1, l3n1, err := c.compactSeed(ctx)
+	if err != nil {
+		t.Fatalf("compactSeed[1]: %v", err)
+	}
+	if l2n1 == 0 && l3n1 == 0 {
+		t.Fatal("first compactSeed call should have seeded something (test setup issue, not the fix under test)")
+	}
+
+	l2n2, l3n2, err := c.compactSeed(ctx)
+	if err != nil {
+		t.Fatalf("compactSeed[2]: %v", err)
+	}
+	if l2n2 != 0 || l3n2 != 0 {
+		t.Errorf("second compactSeed call reprocessed the already-consumed L5 cluster, got l2=%d l3=%d, want 0 0", l2n2, l3n2)
+	}
+
+	// Verify the DB wasn't quietly given duplicate-in-substance memories --
+	// total L2/L3 counts must equal exactly what the first call produced.
+	stats, err := store.Stats(ctx)
+	if err != nil {
+		t.Fatalf("Stats: %v", err)
+	}
+	if stats.ByLayer[2] != l2n1 {
+		t.Errorf("L2 DB count = %d, want %d (from the first call only)", stats.ByLayer[2], l2n1)
+	}
+	if stats.ByLayer[3] != l3n1 {
+		t.Errorf("L3 DB count = %d, want %d (from the first call only)", stats.ByLayer[3], l3n1)
+	}
+}
+
 // TestCompactSeedNoL5Clusters verifies compactSeed is a no-op when no clusters form
 // (memories are all dissimilar under a high threshold).
 func TestCompactSeedNoL5Clusters(t *testing.T) {

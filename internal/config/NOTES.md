@@ -110,3 +110,30 @@ old value at construction time).
    new tunable field to a per-tick consumer is a two-step change: (a) make the
    consumer read from the shared `*Config` (not a captured value), (b) add the
    field path to `HotFields` in `reload.go`.
+
+## 8. Accepted: Inconsistent Field Naming Across Watcher Config Sections
+
+*Added: 2026-07-11*
+
+**Decision:** Do not rename config fields to normalize naming across sections, despite
+real inconsistencies flagged by adversarial review: `Markdown.GitHub.CacheDir` and
+`PR.CacheDir` both mean "directory this feature clones into," `GWS.OutputDir` means
+"directory this feature writes generated files into," and `Watcher.StateFile` /
+`PR`'s and `Issues`' state files aren't even a config field at all (hardcoded under
+`~/.lth/`) -- four different names for closely related concepts, added independently
+across separate days/commits with no shared convention. Similarly `PR.MaxPerScan` and
+`Backup.Keep` are both "a safety-bound count" with unrelated names.
+
+**Rationale:** Every one of these is a YAML key in a real, already-deployed
+`~/.lth/config.yaml` (see e.g. the user's own config, which sets `pr.cache_dir` and
+`pr.max_per_scan` today). Renaming any of them is a breaking config-format change for
+existing installs, and this codebase treats backwards compatibility as a hard
+constraint elsewhere (patch releases get cherry-picks only, no gratuitous breaking
+changes). A cosmetic consistency pass is not worth breaking every existing config file
+that references these keys.
+
+**Consequence:** New config sections added in the future should follow a consistent
+naming convention going forward (prefer `CacheDir`/`OutputDir` for "directory this
+feature owns," matching the majority precedent) even though the existing sections are
+left as-is. This note exists so a future reviewer doesn't re-flag the same inconsistency
+as an oversight -- it's a deliberate accept, not a miss.

@@ -1,7 +1,7 @@
 # internal/gwswatcher — Invariants
 
-1. The watcher only runs when `cfg.GWS.Enabled` is true. With it false, `Run` returns immediately and starts no goroutines.
-2. `New(cfg)` resolves the `gws` binary via `exec.LookPath` at construction. If `gws` is not on PATH (or at the `gws_binary` override), `New` returns an error and the caller must skip starting the watcher.
+1. The watcher only scans when `cfg.GWS.Enabled` is true, but `Run` itself always loops forever regardless -- see invariant 11 for the hot-reload-friendly loop-and-recheck shape. `Run` never returns early and never starts zero goroutines; disabling `Enabled` just idles the existing loop on a 60s recheck.
+2. `New(cfg)` never resolves the `gws` binary and never returns an error -- see invariant 12. Binary resolution is lazy, deferred to the first scan after the watcher is enabled.
 3. Each scan cycle calls the `gws` CLI exactly twice per new-or-updated doc: one `drive files list` and one `docs documents get`. No other Google APIs are invoked.
 4. The watcher delegates ALL authentication to the `gws` CLI. lth never reads, persists, or transmits Google credentials.
 5. `ScanOnce` writes one markdown file per matched doc into `cfg.GWS.OutputDir`, named `<YYYY-MM-DD>_<slug>__<docID>.md`. The filename embeds the doc ID so the same doc maps to the same file across cycles.

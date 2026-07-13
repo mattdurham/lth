@@ -59,7 +59,10 @@ the daemon checking for an existing live PID on startup and exiting if found.
 
 *Added: 2026-05-14*
 
-**Decision:** `score = α·exp(-λ·Δt) + β·importance/10 + γ·cosine(q,m)` where λ=0.995/hour.
+**Decision:** `score = α·exp(-λ·Δt) + β·importance/10 + γ·cosine(q,m)` where λ=0.9995/hour (changed
+from the original 0.995/hour in `607e70d`; half-life ~58 days, not ~6 days -- see
+`internal/memory`'s NOTES.md decision #1 and SPECS.md invariant 19 for the full detail, including
+why per-row `DecayRate`/`Stability` don't currently affect this).
 
 **Rationale:** Balances recency (exponential decay), curated importance (LLM-scored 1-10),
 and semantic relevance (cosine similarity with query embedding). Equal weighting (α=β=γ=1/3)
@@ -128,9 +131,11 @@ caller setting it is opting into backdating, and an unparseable value makes
 
 **Decision:** Added `internal/prwatcher`, a fifth watcher (alongside
 `watcher`, `mdwatcher`, `gwswatcher`, `issueswatcher`) that mines merged PR
-history for configured repos — auto-cloning them into the same cache
-directory `mdwatcher`'s GitHub-repos feature uses, unless pointed at an
-existing local checkout — and stores an LLM-written summary of each new PR,
+history for configured repos — auto-cloning them into their own dedicated
+cache directory (`PR.CacheDir`, separate from `mdwatcher`'s GitHub-repos
+cache — see `internal/prwatcher`'s NOTES.md decision #8 for why sharing one
+turned out to be actively harmful), unless pointed at an existing local
+checkout — and stores an LLM-written summary of each new PR,
 backdated via decision #8. `LookbackDays` defaults to unbounded (mine full
 history); `MaxPerScan` bounds how much resolve/summarize work happens per
 scan regardless of how much history there is, so a full-history replay

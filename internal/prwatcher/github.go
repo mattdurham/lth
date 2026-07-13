@@ -12,7 +12,9 @@ import (
 // ghPRRef is the minimal shape of an entry in the GitHub "list PRs
 // associated with a commit" response.
 type ghPRRef struct {
-	Number int `json:"number"`
+	Number   int    `json:"number"`
+	State    string `json:"state"`
+	MergedAt string `json:"merged_at"`
 }
 
 // resolvePRForCommit returns the PR number associated with sha in repo, if
@@ -29,7 +31,22 @@ func resolvePRForCommit(repo, sha string) (number int, ok bool, err error) {
 	if len(refs) == 0 {
 		return 0, false, nil
 	}
-	return refs[0].Number, true, nil
+	return pickPRRef(refs).Number, true, nil
+}
+
+// pickPRRef disambiguates when a commit is associated with more than one PR
+// (e.g. a cherry-pick or backport landed in several). It prefers a merged PR
+// -- the one that actually shipped -- since an open PR referencing the same
+// commit is speculative and may never merge. GitHub returns refs sorted
+// most-recently-updated first, so with no merged candidate (or several), the
+// first ref is used as-is, matching the pre-existing behavior.
+func pickPRRef(refs []ghPRRef) ghPRRef {
+	for _, r := range refs {
+		if r.State == "closed" && r.MergedAt != "" {
+			return r
+		}
+	}
+	return refs[0]
 }
 
 // ghAuthor is the author sub-object of a `gh pr view` JSON response.

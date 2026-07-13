@@ -81,3 +81,33 @@
 **Rationale:** Cosine-similarity clustering produces unbounded cluster sizes. A single long Claude Code session can generate thousands of near-duplicate observations that all cluster together at any reasonable threshold. Before this cap, such clusters produced 200k+ token prompts that exceeded both local model context windows (32k) and even Anthropic Haiku's 200k limit, causing every L5→L4 compaction run to fail with no L5 memories ever being archived. The threshold knob alone cannot fix this because the offending memories ARE highly similar by design.
 
 **Consequence:** L5→L4 compaction no longer silently fails on huge clusters. The resulting L4 summary is necessarily coarser when sampled (e.g. 80 of 5,000 observations), but a coarse summary is strictly better than a missing one. The minimum of 2 retained memories means a pathological budget setting can still produce valid input; real context-overflow on truly small clusters still surfaces via the LLM chain's error path. Users can disable the cap entirely with `l5_max_cluster_chars: 0` for the original unbounded behavior.
+
+---
+
+## 8. Exclude Already-Seeded L5 Memories from Re-Clustering
+
+*Added: 2026-07-11*
+
+**Decision:** `compactSeed` now filters the L5 pool, before clustering, to exclude any memory
+with an incoming `compacted_from` edge (checked via `graph.Neighbors(m.ID, []string{"compacted_from"})`)
+-- the same entity-ID guard `compactL3toL2` already uses (`derived_from` Neighbors) to avoid
+re-promoting an L3 memory that already has a derived L2.
+
+**Rationale:** Found by adversarial review, and architecturally identical to a real production
+incident already found and fixed the same day in `internal/prwatcher` (decision #3 there): any
+code that (a) calls a non-deterministic LLM to produce content for a specific source, and (b)
+relies on `Store`'s content-hash dedup as the only safeguard against reprocessing that source,
+will silently fail to dedup, because the LLM rarely regenerates byte-identical wording.
+`compactSeed` had exactly this gap -- unlike `compactL4toL3` (soft-deletes its sources) and
+`compactL3toL2` (has the Neighbors guard), it had neither, so the same L5 cluster could be
+re-selected and re-summarized on every `RunOnce` tick for as long as `SeedMinL2`/`SeedMinL3`
+remained unmet (easily true for a long time on a low-traffic install), each time producing a
+new, differently-worded, duplicate-in-substance L2/L3 memory describing the same underlying
+observations.
+
+**Consequence:** A given L5 cluster is seeded at most once, ever. `RunOnce`'s invariant 2
+(idempotency: re-running with the trigger condition still true produces no additional changes)
+now actually holds for this path -- before this fix it technically did not, since re-running
+while `SeedMinL2`/`SeedMinL3` stayed unmet kept adding memories. `TestCompactSeedDoesNotReprocessConsumedL5Cluster`
+regression-tests this by calling `compactSeed` twice against the same single-cluster L5 pool and
+asserting the second call is a no-op.

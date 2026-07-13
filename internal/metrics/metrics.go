@@ -26,9 +26,9 @@ type Metrics struct {
 	WatcherIngestedTotal  *prometheus.CounterVec // label: path
 	MarkdownIngestedTotal *prometheus.CounterVec // label: dir
 	IssuesIngestedTotal   *prometheus.CounterVec // label: repo
-	IssuesLastSync        *prometheus.GaugeVec   // label: repo — Unix timestamp of last successful sync
+	IssuesLastSync        *prometheus.GaugeVec   // label: repo — Unix timestamp of last completed sync attempt (see Help text: does not gate on per-issue success)
 	PRIngestedTotal       *prometheus.CounterVec // label: repo
-	PRLastSync            *prometheus.GaugeVec   // label: repo — Unix timestamp of last successful sync
+	PRLastSync            *prometheus.GaugeVec   // label: repo — Unix timestamp of last completed scan attempt (see Help text: does not gate on per-PR success)
 
 	// Backup watcher.
 	BackupSnapshotsTotal       *prometheus.CounterVec // label: status ("success"/"failure")
@@ -130,7 +130,7 @@ func New(reg prometheus.Registerer) *Metrics {
 
 		IssuesLastSync: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "lth_issues_last_sync_timestamp",
-			Help: "Unix timestamp of the last successful issues sync, by repo.",
+			Help: "Unix timestamp of the last completed issues sync attempt, by repo. Updates whether or not every fetched issue/comment was stored without error.",
 		}, []string{"repo"}),
 
 		PRIngestedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -140,7 +140,7 @@ func New(reg prometheus.Registerer) *Metrics {
 
 		PRLastSync: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "lth_pr_last_sync_timestamp",
-			Help: "Unix timestamp of the last successful PR scan, by repo.",
+			Help: "Unix timestamp of the last completed PR scan attempt, by repo. Updates whether or not every discovered PR was summarized without error -- it reflects that a scan finished, not that it fully succeeded.",
 		}, []string{"repo"}),
 
 		BackupSnapshotsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{

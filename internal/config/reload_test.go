@@ -61,6 +61,54 @@ func TestReloadInPlace_HotField(t *testing.T) {
 	}
 }
 
+// TestReloadInPlace_NewlyHotFields regression-tests the adversarial-review
+// finding that hotFields was missing several fields multiple watchers
+// demonstrably read fresh every tick (GWS.*, Markdown.IntervalS,
+// Markdown.GitHub.*, Markdown.GitPullIntervalS, Issues.IntervalS,
+// Watcher.Paths), causing a config edit to be reported as "requires restart"
+// even though the running watcher picks it up on its next tick without one.
+func TestReloadInPlace_NewlyHotFields(t *testing.T) {
+	path := writeTempConfig(t, "gws:\n  enabled: false\n")
+	cfg, _ := Load(path)
+
+	if err := os.WriteFile(path, []byte("gws:\n  enabled: true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	changed, restart, err := ReloadInPlace(path, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(changed, []string{"GWS.Enabled"}) {
+		t.Errorf("changed = %v, want [GWS.Enabled]", changed)
+	}
+	if len(restart) != 0 {
+		t.Errorf("GWS.Enabled is read fresh every Run() iteration; restart should be empty, got %v", restart)
+	}
+}
+
+// TestReloadInPlace_NewlyHotNestedField covers the trickiest part of the
+// same fix: a field nested two levels deep (Markdown.GitHub.CacheDir) must
+// diff and hot-reload as that exact dotted path, not just at the
+// Markdown.GitHub struct level.
+func TestReloadInPlace_NewlyHotNestedField(t *testing.T) {
+	path := writeTempConfig(t, "markdown:\n  github:\n    cache_dir: /tmp/a\n")
+	cfg, _ := Load(path)
+
+	if err := os.WriteFile(path, []byte("markdown:\n  github:\n    cache_dir: /tmp/b\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	changed, restart, err := ReloadInPlace(path, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(changed, []string{"Markdown.GitHub.CacheDir"}) {
+		t.Errorf("changed = %v, want [Markdown.GitHub.CacheDir]", changed)
+	}
+	if len(restart) != 0 {
+		t.Errorf("Markdown.GitHub.CacheDir is read fresh every scanGitHubRepos call; restart should be empty, got %v", restart)
+	}
+}
+
 func TestReloadInPlace_RequiresRestartField(t *testing.T) {
 	path := writeTempConfig(t, "db:\n  path: /tmp/orig.db\n")
 	cfg, _ := Load(path)

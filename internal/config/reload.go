@@ -17,7 +17,7 @@ import (
 // given iteration).
 var reloadMu sync.Mutex
 
-// HotFields enumerates configuration field paths whose new values are picked
+// hotFields enumerates configuration field paths whose new values are picked
 // up by the running daemon without a restart, because the consumer re-reads
 // them from the shared *Config on every iteration / per-request.
 //
@@ -27,7 +27,7 @@ var reloadMu sync.Mutex
 // argument). ReloadInPlace reports those in the requiresRestart return value.
 //
 // Keep this list ordered alphabetically and grouped by section for readability.
-var HotFields = map[string]bool{
+var hotFields = map[string]bool{
 	// Compaction tuning — read per tick by the compactor.
 	"Compaction.L3EpisodesMin":        true,
 	"Compaction.L3ImportanceMin":      true,
@@ -55,12 +55,32 @@ var HotFields = map[string]bool{
 	"Sync.User":      true,
 
 	// Markdown / Issues watchers — read per tick.
-	"Issues.Repos":     true,
-	"Markdown.Dirs":    true,
-	"Markdown.GitPull": true,
-	"Markdown.Layer":   true,
+	"Issues.IntervalS":           true,
+	"Issues.Repos":               true,
+	"Markdown.Dirs":              true,
+	"Markdown.GitHub.CacheDir":   true,
+	"Markdown.GitHub.CloneDepth": true,
+	"Markdown.GitHub.Repos":      true,
+	"Markdown.GitPull":           true,
+	"Markdown.GitPullIntervalS":  true,
+	"Markdown.IntervalS":         true,
+	"Markdown.Layer":             true,
+
+	// GWS watcher — read per tick (GWSBinary is deliberately excluded: it's
+	// resolved once and cached in ensureRunner, so a change requires a restart).
+	"GWS.Enabled":         true,
+	"GWS.ExcludePatterns": true,
+	"GWS.IntervalH":       true,
+	"GWS.LookbackDays":    true,
+	"GWS.NamePatterns":    true,
+	"GWS.OutputDir":       true,
+
+	// Session/JSONL watcher — Paths is reconciled every 60s (internal/watcher's
+	// own reconcile loop), independent of the daemon's 60s config-reload poll.
+	"Watcher.Paths": true,
 
 	// PR watcher — read per tick.
+	"PR.CacheDir":     true,
 	"PR.IntervalS":    true,
 	"PR.Layer":        true,
 	"PR.LookbackDays": true,
@@ -77,7 +97,7 @@ var HotFields = map[string]bool{
 // ReloadInPlace re-reads path, validates the new config, and overwrites dst's
 // fields with the new values under reloadMu. Returns the dotted field paths
 // that changed and, of those, the ones whose change requires a daemon restart
-// to fully take effect (per HotFields above).
+// to fully take effect (per hotFields above).
 //
 // If the file does not parse cleanly, dst is left untouched and an error is
 // returned. This is the policy that makes "poll and reload" safe: a broken
@@ -104,7 +124,7 @@ func ReloadInPlace(path string, dst *Config) (changed, requiresRestart []string,
 	*dst = *newCfg
 
 	for _, f := range changed {
-		if !HotFields[f] {
+		if !hotFields[f] {
 			requiresRestart = append(requiresRestart, f)
 		}
 	}

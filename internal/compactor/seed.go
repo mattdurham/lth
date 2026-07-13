@@ -40,7 +40,24 @@ func (c *Compactor) compactSeed(ctx context.Context) (l2Count, l3Count int, err 
 		return 0, 0, fmt.Errorf("list L5 for seed: %w", err)
 	}
 
-	clusters := findL5Clusters(l5, c.cfg.Compaction.L5ClusterThreshold, 2)
+	// Exclude L5 memories already consumed as a seed source in a previous
+	// run. Without this, the same L5 cluster gets re-selected and
+	// re-summarized by a non-deterministic LLM on every tick while
+	// SeedMinL2/SeedMinL3 remain unmet (easily true for a long time on a
+	// low-traffic install) -- and since the LLM rarely regenerates
+	// byte-identical wording, content-hash dedup in Store never fires,
+	// producing duplicate-in-substance L2/L3 memories describing the same
+	// underlying cluster. Mirrors compactL3toL2's derived_from Neighbors
+	// check -- the same entity-ID guard pattern, applied to this path too.
+	fresh := make([]*memory.Memory, 0, len(l5))
+	for _, m := range l5 {
+		if len(c.graph.Neighbors(m.ID, []string{"compacted_from"})) > 0 {
+			continue // already used as a seed source
+		}
+		fresh = append(fresh, m)
+	}
+
+	clusters := findL5Clusters(fresh, c.cfg.Compaction.L5ClusterThreshold, 2)
 
 	// Process at most SeedSample clusters per run.
 	processed := 0

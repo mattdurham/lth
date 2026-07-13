@@ -154,3 +154,43 @@ func TestListSnapshotsEmptyDir(t *testing.T) {
 		t.Errorf("snaps = %v, want empty", snaps)
 	}
 }
+
+func TestRestoreErrorsOnMissingSnapshot(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "memory.db")
+	_, err := Restore(dbPath, filepath.Join(t.TempDir(), "does-not-exist.db.gz"))
+	if err == nil {
+		t.Fatal("Restore with a nonexistent snapshot path: expected error, got nil")
+	}
+	if _, statErr := os.Stat(dbPath); !os.IsNotExist(statErr) {
+		t.Errorf("dbPath should not exist after a failed restore, stat err = %v", statErr)
+	}
+}
+
+func TestRestoreErrorsOnCorruptSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	badSnapshot := filepath.Join(dir, "corrupt.db.gz")
+	if err := os.WriteFile(badSnapshot, []byte("not a gzip file"), 0o600); err != nil {
+		t.Fatalf("write corrupt snapshot: %v", err)
+	}
+	dbPath := filepath.Join(dir, "memory.db")
+
+	_, err := Restore(dbPath, badSnapshot)
+	if err == nil {
+		t.Fatal("Restore with a non-gzip snapshot: expected error, got nil")
+	}
+	if _, statErr := os.Stat(dbPath + ".restoring"); !os.IsNotExist(statErr) {
+		t.Errorf("temp .restoring file should be cleaned up after a failed restore, stat err = %v", statErr)
+	}
+}
+
+func TestRestoreErrorsOnUnwritableDestination(t *testing.T) {
+	snapshot := makeSnapshot(t)
+	// dbPath's parent directory doesn't exist, so the .restoring temp file's
+	// os.OpenFile in gunzipFile must fail.
+	dbPath := filepath.Join(t.TempDir(), "nonexistent-subdir", "memory.db")
+
+	_, err := Restore(dbPath, snapshot)
+	if err == nil {
+		t.Fatal("Restore into a directory that doesn't exist: expected error, got nil")
+	}
+}

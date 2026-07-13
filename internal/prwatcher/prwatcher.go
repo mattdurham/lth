@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -102,7 +103,7 @@ func (w *Watcher) Run(ctx context.Context) {
 		w.scanAll(ctx)
 		interval := time.Duration(w.cfg.PR.IntervalS) * time.Second
 		if interval <= 0 {
-			interval = 6 * time.Hour
+			interval = time.Duration(config.DefaultPRIntervalS) * time.Second
 		}
 		if !sleepCtx(ctx, interval) {
 			return
@@ -128,7 +129,7 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 func (w *Watcher) scanAll(ctx context.Context) {
 	budget := w.cfg.PR.MaxPerScan
 	if budget <= 0 {
-		budget = 10
+		budget = config.DefaultPRMaxPerScan
 	}
 	for _, src := range w.cfg.PR.Sources {
 		if budget <= 0 {
@@ -146,14 +147,18 @@ func (w *Watcher) scanAll(ctx context.Context) {
 // resolveSourcePath returns the local git checkout to mine for src. If
 // src.Path is set, it is used as-is (fast-forward-pulled, never cloned or
 // reset -- the caller owns it). Otherwise lth clones/updates the repo itself
-// into Markdown.GitHub.CacheDir as a full clone.
+// into PR.CacheDir as a full clone -- a directory dedicated to prwatcher,
+// deliberately not shared with Markdown.GitHub.CacheDir (see NOTES.md
+// decision #8: sharing a directory that both watchers git-reset/checkout
+// against can make files transiently disappear to mdwatcher's concurrent
+// directory walk, which it misreads as permanent deletion).
 func (w *Watcher) resolveSourcePath(src config.PRSource) (string, error) {
 	if src.Path != "" {
 		path := expandHome(src.Path)
 		pullFastForward(path)
 		return path, nil
 	}
-	cacheDir := expandHome(w.cfg.Markdown.GitHub.CacheDir)
+	cacheDir := expandHome(w.cfg.PR.CacheDir)
 	return ensureFullClone(cacheDir, src.Repo)
 }
 
@@ -170,7 +175,7 @@ func (w *Watcher) scanSource(ctx context.Context, src config.PRSource, budget in
 
 	key := src.Repo + "|" + src.Dir
 	w.mu.Lock()
-	rs := w.st.Sources[key]
+	rs := cloneSourceState(w.st.Sources[key])
 	w.mu.Unlock()
 
 	var since time.Time // zero value = unbounded (LookbackDays <= 0)
@@ -187,31 +192,48 @@ func (w *Watcher) scanSource(ctx context.Context, src config.PRSource, budget in
 		return resolvePRForCommit(src.Repo, sha)
 	})
 
-	for _, num := range newPRs {
-		outcome, sumErr := w.summarizePR(ctx, src, num)
-		if sumErr != nil {
-			slog.Warn("prwatcher: summarize PR failed", "repo", src.Repo, "pr", num, "err", sumErr)
-			continue
-		}
-		if outcome.Terminal {
-			recordOutcome(&rs, num, outcome)
-			for _, sha := range prCommits[num] {
-				markSeen(&rs, sha)
-			}
-		}
-	}
+	processNewPRs(&rs, newPRs, prCommits, src.Repo,
+		func(num int) (prOutcome, error) { return w.summarizePR(ctx, src, num) },
+		func(snapshot sourceState) { w.persistSourceState(key, snapshot) },
+	)
 
-	w.mu.Lock()
-	if w.st.Sources == nil {
-		w.st.Sources = map[string]sourceState{}
-	}
-	w.st.Sources[key] = rs
-	w.mu.Unlock()
-	w.saveState()
 	if w.metrics != nil {
 		w.metrics.PRLastSync.WithLabelValues(src.Repo).SetToCurrentTime()
 	}
 	return len(newPRs), nil
+}
+
+// persistSourceState stores a deep copy of rs under key and saves state to
+// disk. A deep copy (not just the struct-by-value rs) matters because rs's
+// map fields (SummarizedPRs, SeenCommits) are reference types: scanSource
+// keeps mutating the same rs after this call returns, for the rest of the
+// scan, without holding w.mu. Storing rs's maps directly would alias them
+// into w.st.Sources[key], so any future reader of w.st (a status/debug
+// endpoint, say) taking w.mu could still observe a torn, concurrently-
+// mutating map. Cloning here means w.st.Sources[key] is a true snapshot,
+// independent of whatever scanSource does next.
+func (w *Watcher) persistSourceState(key string, rs sourceState) {
+	w.mu.Lock()
+	if w.st.Sources == nil {
+		w.st.Sources = map[string]sourceState{}
+	}
+	w.st.Sources[key] = cloneSourceState(rs)
+	w.mu.Unlock()
+	w.saveState()
+}
+
+// cloneSourceState returns a deep copy of rs, including its map fields.
+func cloneSourceState(rs sourceState) sourceState {
+	clone := sourceState{}
+	if rs.SummarizedPRs != nil {
+		clone.SummarizedPRs = make(map[string]prRecord, len(rs.SummarizedPRs))
+		maps.Copy(clone.SummarizedPRs, rs.SummarizedPRs)
+	}
+	if rs.SeenCommits != nil {
+		clone.SeenCommits = make(map[string]bool, len(rs.SeenCommits))
+		maps.Copy(clone.SeenCommits, rs.SeenCommits)
+	}
+	return clone
 }
 
 // discoverNewPRs walks shas (oldest first) and resolves each not-yet-seen
@@ -254,6 +276,32 @@ func discoverNewPRs(rs *sourceState, shas []string, budget int, resolve func(sha
 	return newPRs, prCommits
 }
 
+// processNewPRs summarizes each newly discovered PR via summarize, in order,
+// and calls persist with a snapshot of rs immediately after every terminal
+// outcome -- not once at the end of the whole list. This bounds data loss
+// from an interruption (daemon restart, context cancellation) between two
+// PRs to at most the PR currently in flight: everything already summarized
+// and recorded earlier in this call is already on disk by the time the next
+// PR's summarize call even starts. Extracted from scanSource as a pure-ish
+// function (summarize/persist injected) so this property is unit-testable
+// without a real gh/git call.
+func processNewPRs(rs *sourceState, newPRs []int, prCommits map[int][]string, repo string, summarize func(num int) (prOutcome, error), persist func(snapshot sourceState)) {
+	for _, num := range newPRs {
+		outcome, err := summarize(num)
+		if err != nil {
+			slog.Warn("prwatcher: summarize PR failed", "repo", repo, "pr", num, "err", err)
+			continue
+		}
+		if outcome.Terminal {
+			recordOutcome(rs, num, outcome)
+			for _, sha := range prCommits[num] {
+				markSeen(rs, sha)
+			}
+			persist(*rs)
+		}
+	}
+}
+
 // markSeen records sha as terminally resolved, initializing the map if needed.
 func markSeen(rs *sourceState, sha string) {
 	if rs.SeenCommits == nil {
@@ -274,16 +322,45 @@ func recordOutcome(rs *sourceState, number int, outcome prOutcome) {
 	}
 }
 
+// prDisposition classifies a fetched PR for scan-loop purposes.
+type prDisposition int
+
+const (
+	prStillOpen prDisposition = iota // fate undecided; recheck next scan
+	prRejected                       // closed without merging; terminal, never resolves
+	prMerged                         // merged; proceed to summarize
+)
+
+// classifyPR maps a GitHub PR's state to a scan-loop disposition. Extracted
+// as a pure function so the CLOSED-vs-OPEN distinction (see prwatcher.go's
+// summarizePR) is unit-testable without a real `gh` call.
+func classifyPR(state, mergedAt string) prDisposition {
+	if state == "MERGED" && mergedAt != "" {
+		return prMerged
+	}
+	if state == "CLOSED" {
+		return prRejected
+	}
+	return prStillOpen
+}
+
 // summarizePR fetches PR metadata and, if merged and not bot-authored,
 // summarizes its diff via the LLM and stores the result. A still-open PR
-// returns a non-terminal outcome so it is rechecked on the next scan.
+// returns a non-terminal outcome so it is rechecked on the next scan. A
+// closed-without-merge PR is terminal (skipped) -- it will never become
+// MERGED, so treating it like a still-open PR would re-resolve it via
+// `gh pr view` forever, permanently consuming a slot of the shared per-scan
+// budget (discovery is oldest-commit-first) on a PR that can never resolve.
 func (w *Watcher) summarizePR(ctx context.Context, src config.PRSource, number int) (prOutcome, error) {
 	pr, err := fetchPR(src.Repo, number)
 	if err != nil {
 		return prOutcome{}, fmt.Errorf("fetch pr: %w", err)
 	}
-	if pr.State != "MERGED" || pr.MergedAt == "" {
-		return prOutcome{}, nil // still open -- recheck next scan
+	switch classifyPR(pr.State, pr.MergedAt) {
+	case prStillOpen:
+		return prOutcome{}, nil
+	case prRejected:
+		return prOutcome{Terminal: true, MergedAt: pr.MergedAt}, nil
 	}
 	if isSkippedAuthor(pr.Author.Login, w.cfg.PR.SkipAuthors) {
 		return prOutcome{Terminal: true, MergedAt: pr.MergedAt}, nil
@@ -321,7 +398,7 @@ func (w *Watcher) summarizePR(ctx context.Context, src config.PRSource, number i
 
 	layer := w.cfg.PR.Layer
 	if layer < 1 || layer > 5 {
-		layer = 5
+		layer = config.DefaultPRLayer
 	}
 
 	mem, err := w.store.Store(ctx, layer, summary, attrs)
@@ -368,13 +445,23 @@ func (w *Watcher) loadState() {
 	}
 }
 
+// saveState persists w.st to disk. Called after every terminal PR outcome
+// (see persistSourceState) specifically so an interrupted scan loses at most
+// one PR's progress -- a silently-failed write here would defeat that
+// guarantee with no signal, so failures are logged rather than discarded.
 func (w *Watcher) saveState() {
 	w.mu.Lock()
 	data, err := json.Marshal(&w.st)
 	w.mu.Unlock()
 	if err != nil {
+		slog.Error("prwatcher: marshal state failed", "err", err)
 		return
 	}
-	_ = os.MkdirAll(filepath.Dir(w.stateFile), 0o755)
-	_ = os.WriteFile(w.stateFile, data, 0o600)
+	if err := os.MkdirAll(filepath.Dir(w.stateFile), 0o755); err != nil {
+		slog.Error("prwatcher: create state dir failed", "path", filepath.Dir(w.stateFile), "err", err)
+		return
+	}
+	if err := os.WriteFile(w.stateFile, data, 0o600); err != nil {
+		slog.Error("prwatcher: write state file failed", "path", w.stateFile, "err", err)
+	}
 }

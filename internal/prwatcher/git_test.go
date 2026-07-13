@@ -159,6 +159,38 @@ func TestEnsureFullCloneDeepensExistingShallowClone(t *testing.T) {
 	}
 }
 
+func TestEnsureFullCloneReportsFallbackErrorNotPrimaryError(t *testing.T) {
+	remoteDir := t.TempDir()
+	initTestRepo(t, remoteDir, []struct{ path, date string }{
+		{"README.md", "2020-01-01T00:00:00Z"},
+	})
+
+	cacheDir := t.TempDir()
+	localPath := filepath.Join(cacheDir, "acme", "widgets")
+	if out, err := exec.Command("git", "clone", remoteDir, localPath).CombinedOutput(); err != nil {
+		t.Fatalf("clone: %v\n%s", err, out)
+	}
+
+	// Break the primary branch's remote-tracking ref so `reset --hard origin/main`
+	// fails; initTestRepo always uses --initial-branch=main, so "master" was never
+	// created and the fallback reset fails too. Also break the remote URL so the
+	// upcoming tolerated `fetch origin` failure can't resurrect the deleted ref.
+	if out, err := exec.Command("git", "-C", localPath, "update-ref", "-d", "refs/remotes/origin/main").CombinedOutput(); err != nil {
+		t.Fatalf("break ref: %v\n%s", err, out)
+	}
+	if out, err := exec.Command("git", "-C", localPath, "remote", "set-url", "origin", "/nonexistent/path").CombinedOutput(); err != nil {
+		t.Fatalf("break remote: %v\n%s", err, out)
+	}
+
+	_, err := ensureFullClone(cacheDir, "acme/widgets")
+	if err == nil {
+		t.Fatal("expected an error when both the primary and fallback resets fail")
+	}
+	if !strings.Contains(err.Error(), "origin/master fallback also failed") {
+		t.Errorf("error should report that the fallback itself failed, not just the primary reset's error, got: %v", err)
+	}
+}
+
 func TestEnsureFullCloneToleratesFetchFailureOnAlreadyClonedRepo(t *testing.T) {
 	remoteDir := t.TempDir()
 	initTestRepo(t, remoteDir, []struct{ path, date string }{
@@ -175,12 +207,16 @@ func TestEnsureFullCloneToleratesFetchFailureOnAlreadyClonedRepo(t *testing.T) {
 		t.Fatalf("initial clone: %v\n%s", err, out)
 	}
 
-	// Simulate the real production failure: a concurrent watcher (mdwatcher)
-	// racing a fetch against the same shared clone. We can't reliably
-	// reproduce the exact ref-lock error deterministically, so instead we
-	// break the remote entirely -- from ensureFullClone's perspective, any
-	// fetch failure on an already-cloned, non-shallow repo must be tolerated
-	// the same way, since it always proceeds with whatever local refs exist.
+	// This guards general defense-in-depth against any transient fetch
+	// failure (network blip, GitHub outage), not a specific scenario --
+	// mdwatcher racing a fetch against this same clone was the original
+	// production trigger, but PR.CacheDir is now dedicated to prwatcher
+	// (NOTES.md decision #8), so that particular cause can no longer occur.
+	// We can't reliably reproduce a ref-lock error deterministically anyway,
+	// so instead we break the remote entirely -- from ensureFullClone's
+	// perspective, any fetch failure on an already-cloned, non-shallow repo
+	// must be tolerated the same way, since it always proceeds with
+	// whatever local refs exist.
 	if out, err := exec.Command("git", "-C", localPath, "remote", "set-url", "origin", "/nonexistent/path").CombinedOutput(); err != nil {
 		t.Fatalf("break remote: %v\n%s", err, out)
 	}

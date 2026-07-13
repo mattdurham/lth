@@ -3,8 +3,13 @@
 package prwatcher
 
 import (
+	"encoding/json"
+	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -145,6 +150,117 @@ func TestDiscoverNewPRsSkipsAlreadySeenCommits(t *testing.T) {
 	}
 	if len(newPRs) != 0 {
 		t.Errorf("newPRs = %v, want empty", newPRs)
+	}
+}
+
+func TestSaveStateLogsWriteFailure(t *testing.T) {
+	dir := t.TempDir()
+	// stateFile's parent path element is a regular file, not a directory, so
+	// os.MkdirAll(filepath.Dir(stateFile)) is guaranteed to fail.
+	blocker := filepath.Join(dir, "blocker")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatalf("write blocker: %v", err)
+	}
+
+	var logBuf strings.Builder
+	prevLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logBuf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prevLogger) })
+
+	w := &Watcher{stateFile: filepath.Join(blocker, "state.json")}
+	w.st = state{Sources: map[string]sourceState{"repo|dir": {}}}
+	w.saveState()
+
+	if !strings.Contains(logBuf.String(), "prwatcher: create state dir failed") {
+		t.Errorf("saveState should log the MkdirAll failure, got log output: %q", logBuf.String())
+	}
+}
+
+// TestProcessNewPRsPersistsAfterEachTerminalOutcome regression-tests the
+// CRITICAL fix for prwatcher's original bug: state must be persisted after
+// EVERY terminal PR outcome, not once at the end of the whole batch, so an
+// interruption between two PRs can lose at most the one in flight. It
+// simulates exactly that interruption: the fake summarizer errors on the
+// third PR, and the test asserts the persisted snapshots already reflect
+// PRs 1 and 2 by the time that happens -- proving their progress was never
+// dependent on the batch finishing.
+func TestProcessNewPRsPersistsAfterEachTerminalOutcome(t *testing.T) {
+	rs := &sourceState{}
+	newPRs := []int{101, 102, 103}
+	prCommits := map[int][]string{
+		101: {"sha1"},
+		102: {"sha2"},
+		103: {"sha3"},
+	}
+
+	// persistedSnapshots holds a JSON-marshaled copy taken at the moment of
+	// each persist call -- matching what saveState actually does on disk
+	// (marshal immediately). sourceState's fields are maps (reference
+	// types), so collecting the struct itself instead of marshaling it would
+	// alias later mutations back into "earlier" snapshots and defeat the
+	// point of this test.
+	var persistedSnapshots []sourceState
+	summarize := func(num int) (prOutcome, error) {
+		if num == 103 {
+			return prOutcome{}, errors.New("simulated interruption on PR 3")
+		}
+		return prOutcome{Stored: true, Terminal: true, MemoryID: "mem-" + strconv.Itoa(num), MergedAt: "2026-01-01T00:00:00Z"}, nil
+	}
+	persist := func(snapshot sourceState) {
+		data, err := json.Marshal(snapshot)
+		if err != nil {
+			t.Fatalf("marshal snapshot: %v", err)
+		}
+		var dup sourceState
+		if err := json.Unmarshal(data, &dup); err != nil {
+			t.Fatalf("unmarshal snapshot: %v", err)
+		}
+		persistedSnapshots = append(persistedSnapshots, dup)
+	}
+
+	processNewPRs(rs, newPRs, prCommits, "acme/widgets", summarize, persist)
+
+	if len(persistedSnapshots) != 2 {
+		t.Fatalf("persist called %d times, want 2 (once per terminal PR, before the 3rd PR's error)", len(persistedSnapshots))
+	}
+	// The FIRST persisted snapshot must already contain PR 101's outcome --
+	// proving it was saved immediately, not batched until PR 102 also finished.
+	if _, ok := persistedSnapshots[0].SummarizedPRs["101"]; !ok {
+		t.Errorf("first persist call should already reflect PR 101, got %+v", persistedSnapshots[0].SummarizedPRs)
+	}
+	if _, ok := persistedSnapshots[0].SummarizedPRs["102"]; ok {
+		t.Errorf("first persist call should NOT yet reflect PR 102 (it hasn't been summarized yet), got %+v", persistedSnapshots[0].SummarizedPRs)
+	}
+	// The final in-memory state (rs) must reflect both successful PRs, and
+	// the failed 3rd PR must be absent -- it will be retried next scan.
+	if len(rs.SummarizedPRs) != 2 {
+		t.Errorf("rs.SummarizedPRs = %v, want exactly 101 and 102", rs.SummarizedPRs)
+	}
+	if _, ok := rs.SummarizedPRs["103"]; ok {
+		t.Errorf("PR 103 errored and must not be recorded as decided, got %+v", rs.SummarizedPRs)
+	}
+	if rs.SeenCommits["sha3"] {
+		t.Errorf("sha3 (PR 103's commit) must not be marked seen -- it needs to be re-resolved next scan")
+	}
+}
+
+func TestClassifyPR(t *testing.T) {
+	cases := []struct {
+		name     string
+		state    string
+		mergedAt string
+		want     prDisposition
+	}{
+		{"merged", "MERGED", "2026-01-01T00:00:00Z", prMerged},
+		{"merged but empty MergedAt is not trusted", "MERGED", "", prStillOpen},
+		{"open", "OPEN", "", prStillOpen},
+		{"closed without merging", "CLOSED", "", prRejected},
+		{"closed with a stray MergedAt is still rejected, not merged", "CLOSED", "2026-01-01T00:00:00Z", prRejected},
+	}
+	for _, c := range cases {
+		if got := classifyPR(c.state, c.mergedAt); got != c.want {
+			t.Errorf("%s: classifyPR(%q, %q) = %v, want %v", c.name, c.state, c.mergedAt, got, c.want)
+		}
 	}
 }
 

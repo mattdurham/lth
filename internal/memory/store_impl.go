@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -66,6 +67,35 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 	h := sha256.Sum256([]byte(content))
 	hash := fmt.Sprintf("%x", h)
 
+	// Work on a copy so mutations below (created_at pop) never affect the
+	// caller's map -- a caller reusing its attrs map after Store returns
+	// would otherwise see it silently missing keys.
+	if attrs != nil {
+		cloned := make(map[string]string, len(attrs))
+		maps.Copy(cloned, attrs)
+		attrs = cloned
+	}
+
+	// attrs["created_at"] lets callers backdate a memory to when the event it
+	// describes actually happened (e.g. a PR merged a year ago), so the
+	// exp-decay time score in search treats it as old rather than freshly
+	// created. Popped here -- before the dedup check below -- so it never
+	// persists as a literal attribute on EITHER path: the fresh-insert path
+	// uses it for CreatedAt; a dedup hit intentionally discards it (an
+	// existing row's CreatedAt is never retroactively changed by a later
+	// Store call with the same content).
+	var createdAtOverride time.Time
+	hasCreatedAtOverride := false
+	if v, ok := attrs["created_at"]; ok {
+		delete(attrs, "created_at")
+		parsed, parseErr := time.Parse(time.RFC3339, v)
+		if parseErr != nil {
+			return nil, fmt.Errorf("parse created_at attr %q: %w", v, parseErr)
+		}
+		createdAtOverride = parsed.UTC()
+		hasCreatedAtOverride = true
+	}
+
 	// Check for existing memory with same hash.
 	existing, err := s.db.GetByHash(ctx, hash)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -83,20 +113,9 @@ func (s *MemoryStore) Store(ctx context.Context, layer int, content string, attr
 	}
 
 	now := time.Now().UTC()
-
-	// attrs["created_at"] lets callers backdate a memory to when the event it
-	// describes actually happened (e.g. a PR merged a year ago), so the
-	// exp-decay time score in search treats it as old rather than freshly
-	// created. Popped before SetAttributes so it isn't also persisted as a
-	// literal attribute — the value already lives in the CreatedAt column.
 	createdAt := now
-	if v, ok := attrs["created_at"]; ok {
-		delete(attrs, "created_at")
-		parsed, parseErr := time.Parse(time.RFC3339, v)
-		if parseErr != nil {
-			return nil, fmt.Errorf("parse created_at attr %q: %w", v, parseErr)
-		}
-		createdAt = parsed.UTC()
+	if hasCreatedAtOverride {
+		createdAt = createdAtOverride
 	}
 
 	memID := uuid.New().String()

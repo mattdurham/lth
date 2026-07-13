@@ -163,6 +163,40 @@ func TestStoreCreatedAtOverride(t *testing.T) {
 	}
 }
 
+func TestStoreDedupHitStillStripsCreatedAt(t *testing.T) {
+	ctx := context.Background()
+	s := testMemoryStore(t)
+
+	backdate := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+	if _, err := s.Store(ctx, 5, "PR merged a year ago, stored twice", map[string]string{
+		"created_at": backdate.Format(time.RFC3339),
+	}); err != nil {
+		t.Fatalf("Store[1]: %v", err)
+	}
+
+	// Re-store identical content (a real scenario: a watcher retrying after an
+	// interrupted state save re-summarizes and re-stores the same entity).
+	// created_at is still set on this second call and must not leak into the
+	// existing row's persisted attrs, matching the fresh-insert path's behavior.
+	m2, err := s.Store(ctx, 5, "PR merged a year ago, stored twice", map[string]string{
+		"created_at": backdate.Format(time.RFC3339),
+		"source":     "github_pr",
+	})
+	if err != nil {
+		t.Fatalf("Store[2]: %v", err)
+	}
+
+	if _, ok := m2.Attrs["created_at"]; ok {
+		t.Errorf("created_at leaked into persisted attrs on a dedup hit, got %v", m2.Attrs)
+	}
+	if m2.Attrs["source"] != "github_pr" {
+		t.Errorf("other attrs should still be merged on a dedup hit, got %v", m2.Attrs)
+	}
+	if !m2.CreatedAt.Equal(backdate) {
+		t.Errorf("CreatedAt = %v, want unchanged from first insert (%v)", m2.CreatedAt, backdate)
+	}
+}
+
 func TestStoreCreatedAtOverrideInvalid(t *testing.T) {
 	ctx := context.Background()
 	s := testMemoryStore(t)

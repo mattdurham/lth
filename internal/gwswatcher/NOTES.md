@@ -16,9 +16,10 @@ keyring storage, refresh tokens, scope checks, and quota project routing -
 duplicating any of that in lth would be a security and maintenance hazard.
 
 **Consequence:** The daemon requires `gws` on the user's PATH (or at the
-configured `gws_binary` path) to enable this watcher. `New` returns an error
-when the binary is missing; the daemon logs a warning and starts without
-this component. No transitive Go dependencies were added.
+configured `gws_binary` path) to enable this watcher. Binary resolution is
+lazy (see decision #3) rather than at `New` time -- a missing binary logs a
+warning on the first scan attempt after the watcher is enabled, not at
+daemon startup. No transitive Go dependencies were added.
 
 ---
 
@@ -28,8 +29,17 @@ this component. No transitive Go dependencies were added.
 
 **Decision:** The watcher writes markdown files into `cfg.GWS.OutputDir`
 and relies on the existing `internal/mdwatcher` to ingest them as memories.
-The daemon auto-appends `OutputDir` to `cfg.Markdown.Dirs` at startup so the
-user does not have to wire the two together manually.
+`mdwatcher.ScanOnce` includes `GWS.OutputDir` in its per-scan dir list
+whenever `GWS.Enabled` is true (`internal/mdwatcher/mdwatcher.go`'s dynamic
+dir-list construction), so the user does not have to wire the two together
+manually. An earlier version of this decision had the daemon mutate
+`cfg.Markdown.Dirs` directly at startup to append `OutputDir` -- this was
+reverted (see `cmd/lth/watch.go`'s `runWatchDaemon`, comment above the
+`mdwatcher.New` call) because a config hot-reload re-reading the YAML would
+silently drop the mutated entry, triggering a wave of false "file removed"
+soft-deletes on the gws-derived memories. The dynamic per-scan approach
+never persists the directory into `Markdown.Dirs`, so hot-reload can't
+drop it.
 
 **Rationale:** The markdown watcher already has battle-tested fact
 extraction, hash-based deduplication, soft-deletion on file removal, and

@@ -32,6 +32,15 @@ const snapshotTimeFormat = "20060102-150405"
 const (
 	tmpDBPrefix   = ".tmp-memory-"
 	partialSuffix = ".part"
+
+	// snapshotFilePrefix and snapshotFileSuffix compose every finished
+	// snapshot's filename ("memory-<ts>.db.gz"); snapshotGlobPattern is the
+	// same shape as a filepath.Glob pattern. Centralized so the finalize,
+	// list, prune, and stale-cleanup call sites (here and in restore.go)
+	// can't drift out of sync with each other.
+	snapshotFilePrefix  = "memory-"
+	snapshotFileSuffix  = ".db.gz"
+	snapshotGlobPattern = snapshotFilePrefix + "*" + snapshotFileSuffix
 )
 
 // Watcher periodically snapshots the database into Backup.Dir.
@@ -64,7 +73,7 @@ func (w *Watcher) Run(ctx context.Context) {
 		}
 		interval := time.Duration(w.cfg.Backup.IntervalH) * time.Hour
 		if interval <= 0 {
-			interval = 24 * time.Hour
+			interval = time.Duration(config.DefaultBackupIntervalH) * time.Hour
 		}
 		if !sleepCtx(ctx, interval) {
 			return
@@ -97,7 +106,7 @@ func (w *Watcher) snapshotOnce(ctx context.Context) error {
 
 	ts := time.Now().UTC().Format(snapshotTimeFormat)
 	tmpDBPath := filepath.Join(dir, tmpDBPrefix+ts+".db")
-	finalPath := filepath.Join(dir, "memory-"+ts+".db.gz")
+	finalPath := filepath.Join(dir, snapshotFilePrefix+ts+snapshotFileSuffix)
 	partialPath := finalPath + partialSuffix
 
 	if err := w.d.VacuumInto(ctx, tmpDBPath); err != nil {
@@ -121,7 +130,7 @@ func (w *Watcher) snapshotOnce(ctx context.Context) error {
 
 	keep := w.cfg.Backup.Keep
 	if keep <= 0 {
-		keep = 7
+		keep = config.DefaultBackupKeep
 	}
 	if err := pruneOldSnapshots(dir, keep); err != nil {
 		slog.Warn("backupwatcher: prune failed", "dir", dir, "err", err)
@@ -133,7 +142,7 @@ func (w *Watcher) snapshotOnce(ctx context.Context) error {
 // that crashed mid-way (mid-VACUUM or mid-gzip). Best-effort; failures are
 // logged, not fatal.
 func cleanStale(dir string) {
-	for _, pattern := range []string{tmpDBPrefix + "*.db", "memory-*.db.gz" + partialSuffix} {
+	for _, pattern := range []string{tmpDBPrefix + "*.db", snapshotGlobPattern + partialSuffix} {
 		matches, _ := filepath.Glob(filepath.Join(dir, pattern))
 		for _, m := range matches {
 			if err := os.Remove(m); err != nil {
@@ -186,7 +195,7 @@ func fileSize(path string) int64 {
 // pruneOldSnapshots keeps the keep most recent memory-*.db.gz files in dir
 // (by filename sort, which is chronological) and removes the rest.
 func pruneOldSnapshots(dir string, keep int) error {
-	matches, err := filepath.Glob(filepath.Join(dir, "memory-*.db.gz"))
+	matches, err := filepath.Glob(filepath.Join(dir, snapshotGlobPattern))
 	if err != nil {
 		return fmt.Errorf("glob snapshots: %w", err)
 	}

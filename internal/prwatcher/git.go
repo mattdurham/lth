@@ -51,10 +51,12 @@ func pullFastForward(repoPath string) {
 
 // ensureFullClone clones repo into cacheDir/<org>/<name> if not already
 // present, or fetches and resets it to the remote default branch if it is --
-// deepening it first if it happens to be a shallow clone (e.g. left behind
-// by mdwatcher's markdown.github feature, which shallow-clones by default).
-// Always leaves the working copy as a full clone: PR history mining depends
-// on seeing the whole repo, regardless of who cloned it first or how.
+// deepening it first if it happens to be a shallow clone. Always leaves the
+// working copy as a full clone: PR history mining depends on seeing the
+// whole repo. cacheDir is dedicated to prwatcher (PR.CacheDir, never shared
+// with mdwatcher's markdown.github feature -- see NOTES.md decision #8), so
+// a shallow clone here would only happen if this same directory previously
+// held a shallow clone from an older config, not from a concurrent watcher.
 func ensureFullClone(cacheDir, repo string) (string, error) {
 	if !validRepoSpec(repo) {
 		return "", fmt.Errorf("invalid repo spec %q (want <org>/<name>)", repo)
@@ -73,16 +75,17 @@ func ensureFullClone(cacheDir, repo string) (string, error) {
 		return localPath, nil
 	}
 
-	// A fetch failure here is tolerated rather than fatal: Dir is shared with
-	// mdwatcher's markdown.github feature (see NOTES.md decision #5), which
-	// independently fetches/resets the same clone on its own schedule. A
-	// concurrent fetch from that watcher can win a ref-update lock race on
-	// e.g. refs/remotes/origin/master, making THIS fetch exit non-zero even
-	// though the ref ends up correctly updated (by the other fetch) or the
-	// object deepening already completed before the ref-update step lost the
-	// race. Proceeding with whatever local refs already exist is always
-	// safe -- reset below uses them as-is, and a stale ref just means this
-	// scan sees slightly less new history, self-correcting next scan.
+	// A fetch failure here is tolerated rather than fatal: it's general
+	// defense against transient failures (network blips, GitHub-side
+	// hiccups), not a mitigation for a shared-directory race -- PR.CacheDir
+	// is dedicated to prwatcher (NOTES.md decision #8), so no other watcher
+	// fetches/resets this same directory. This tolerance was originally
+	// added for exactly that now-eliminated race (decision #6); it remains
+	// correct as general-purpose defense, which is why it wasn't removed
+	// when the directory was made dedicated. Proceeding with whatever local
+	// refs already exist is always safe -- reset below uses them as-is, and
+	// a stale ref just means this scan sees slightly less new history,
+	// self-correcting next scan.
 	if isShallow(localPath) {
 		if err := runGit(localPath, "fetch", "--unshallow", "origin"); err != nil {
 			if isShallow(localPath) {
@@ -103,7 +106,7 @@ func ensureFullClone(cacheDir, repo string) (string, error) {
 			return "", fmt.Errorf("reset %s: %w", repo, resetErr)
 		}
 		if fallbackErr := runGit(localPath, "reset", "--hard", "origin/master"); fallbackErr != nil {
-			return "", fmt.Errorf("reset %s: %w", repo, resetErr)
+			return "", fmt.Errorf("reset %s (origin/%s failed: %v, and origin/master fallback also failed): %w", repo, branch, resetErr, fallbackErr)
 		}
 	}
 	return localPath, nil

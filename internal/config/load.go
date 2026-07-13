@@ -86,13 +86,14 @@ func Default() *Config {
 	cfg.GWS.LookbackDays = 14
 	cfg.GWS.OutputDir = filepath.Join(lthDir, "gws-imports")
 	cfg.GWS.NamePatterns = []string{"Notes by Gemini", "Transcript"}
-	cfg.PR.IntervalS = 21600
-	cfg.PR.Layer = 5
+	cfg.PR.CacheDir = filepath.Join(lthDir, "pr-repos-cache")
+	cfg.PR.IntervalS = DefaultPRIntervalS
+	cfg.PR.Layer = DefaultPRLayer
 	cfg.PR.LookbackDays = 0 // unbounded -- mine full history, gradually, across scans
-	cfg.PR.MaxPerScan = 10
+	cfg.PR.MaxPerScan = DefaultPRMaxPerScan
 	cfg.PR.SkipAuthors = []string{"renovate[bot]", "dependabot[bot]", "github-actions[bot]"}
-	cfg.Backup.IntervalH = 24
-	cfg.Backup.Keep = 7
+	cfg.Backup.IntervalH = DefaultBackupIntervalH
+	cfg.Backup.Keep = DefaultBackupKeep
 	cfg.Watcher.StateFile = filepath.Join(lthDir, "watcher-state.json")
 	cfg.Watcher.LogRetainDays = 3
 	cfg.API.ListenAddr = "localhost:10010"
@@ -207,7 +208,9 @@ search:
 #   enabled: false
 #   interval_h: 3                       # poll cadence (default: 3)
 #   lookback_days: 14                   # window of recent docs to consider
-#   output_dir: ~/.lth/gws-imports      # written to, then auto-added to markdown.dirs
+#   output_dir: ~/.lth/gws-imports      # written to; the markdown watcher includes
+#                                        # this dir in its scan automatically when
+#                                        # gws.enabled is true (no markdown.dirs edit needed)
 #   name_patterns:                      # OR'd; Drive 'name contains' clauses
 #     - "Notes by Gemini"
 #     - "Transcript"
@@ -217,6 +220,9 @@ search:
 #   # Mines merged PR history for configured repos and stores an LLM-written
 #   # summary of each new PR, backdated to its merge time so old PRs decay in
 #   # search like old memories instead of scoring as fresh.
+#   cache_dir: ~/.lth/pr-repos-cache  # own directory -- deliberately not
+#                                     # shared with markdown.github.cache_dir;
+#                                     # see PRConfig.CacheDir for why
 #   interval_s: 21600           # poll cadence; default 6h -- PR history changes slowly
 #   layer: 5
 #   lookback_days: 0            # 0 = unbounded (mine full history, gradually, across scans)
@@ -230,9 +236,8 @@ search:
 #       dir: ksonnet/environments/tempo
 #       # path: ~/source/deployment_tools  # optional: use an existing local
 #       #   checkout as-is instead of having lth clone/manage it. Omit path
-#       #   (as above) to have lth clone into markdown.github.cache_dir --
-#       #   the same ~/.lth/repos-cache/<org>/<name>/ the markdown watcher's
-#       #   GitHub-repos feature uses -- always as a full clone.
+#       #   (as above) to have lth clone into pr.cache_dir -- always as a
+#       #   full clone.
 
 # backup:
 #   # Daily VACUUM INTO snapshot of the database, gzipped, into dir. Disabled
@@ -269,6 +274,16 @@ func applyDefaults(cfg *Config) {
 	applyLLMDefaults(cfg, def)
 	applyCompactionDefaults(cfg, def)
 	applySearchDefaults(cfg, def)
+	applyWatcherDefaults(cfg, def)
+	applyGWSDefaults(cfg, def)
+	applyIssuesDefaults(cfg, def)
+	applyPRDefaults(cfg, def)
+	applyBackupDefaults(cfg, def)
+	applyMarkdownDefaults(cfg, def)
+	applyAPIDefaults(cfg, def)
+}
+
+func applyWatcherDefaults(cfg, def *Config) {
 	if len(cfg.Watcher.Paths) == 0 {
 		cfg.Watcher.Paths = def.Watcher.Paths
 	}
@@ -278,6 +293,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.Watcher.LogRetainDays == 0 {
 		cfg.Watcher.LogRetainDays = def.Watcher.LogRetainDays
 	}
+}
+
+func applyGWSDefaults(cfg, def *Config) {
 	if cfg.GWS.IntervalH == 0 {
 		cfg.GWS.IntervalH = def.GWS.IntervalH
 	}
@@ -290,8 +308,17 @@ func applyDefaults(cfg *Config) {
 	if len(cfg.GWS.NamePatterns) == 0 {
 		cfg.GWS.NamePatterns = def.GWS.NamePatterns
 	}
+}
+
+func applyIssuesDefaults(cfg, def *Config) {
 	if cfg.Issues.IntervalS == 0 {
 		cfg.Issues.IntervalS = def.Issues.IntervalS
+	}
+}
+
+func applyPRDefaults(cfg, def *Config) {
+	if cfg.PR.CacheDir == "" {
+		cfg.PR.CacheDir = def.PR.CacheDir
 	}
 	if cfg.PR.IntervalS == 0 {
 		cfg.PR.IntervalS = def.PR.IntervalS
@@ -308,12 +335,18 @@ func applyDefaults(cfg *Config) {
 	if len(cfg.PR.SkipAuthors) == 0 {
 		cfg.PR.SkipAuthors = def.PR.SkipAuthors
 	}
+}
+
+func applyBackupDefaults(cfg, def *Config) {
 	if cfg.Backup.IntervalH == 0 {
 		cfg.Backup.IntervalH = def.Backup.IntervalH
 	}
 	if cfg.Backup.Keep == 0 {
 		cfg.Backup.Keep = def.Backup.Keep
 	}
+}
+
+func applyMarkdownDefaults(cfg, def *Config) {
 	if cfg.Markdown.Layer == 0 {
 		cfg.Markdown.Layer = def.Markdown.Layer
 	}
@@ -329,6 +362,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.Markdown.GitHub.CloneDepth == 0 {
 		cfg.Markdown.GitHub.CloneDepth = def.Markdown.GitHub.CloneDepth
 	}
+}
+
+func applyAPIDefaults(cfg, def *Config) {
 	if cfg.API.ListenAddr == "" {
 		cfg.API.ListenAddr = def.API.ListenAddr
 	}

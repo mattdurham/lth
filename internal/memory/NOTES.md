@@ -4,7 +4,7 @@
 
 *Added: 2026-05-14*
 
-**Decision:** `score = α·exp(-λ·Δt) + β·importance/10 + γ·cosine(q,m)` with λ=0.995/hour.
+**Decision:** `score = α·exp(-λ·Δt) + β·importance/10 + γ·cosine(q,m)` with λ=0.9995/hour (half-life ~58 days; changed from the original 0.995/hour ~6-day half-life in `607e70d`).
 
 **Rationale:** Balances recency (exponential decay), curated importance (1-10 LLM score), and
 semantic relevance (cosine similarity). Equal weighting (1/3 each) is the default, allowing
@@ -40,8 +40,13 @@ after store.
 **Rationale:** Higher layers are more important and persistent. L1 (axioms) never decay. L5 (raw
 observations) decay quickly to avoid cluttering search results.
 
-**Consequence:** Ebbinghaus stability modifies these rates: actual decay = base / stability.
-Frequently accessed memories become more persistent over time.
+**Consequence:** `Get`'s Ebbinghaus stability update computes and persists `actual decay = base /
+stability` into `row.DecayRate` on every access, so the field itself does reflect frequently-
+accessed memories becoming more persistent. However, `scoreMemory` (search_impl.go) does not
+currently read `row.DecayRate` or `row.Stability` -- the search time score uses the single global
+`scoringLambda` constant for every memory regardless of layer or access history. So today,
+per-row decay/stability affects nothing a user can observe via search ranking; it's tracked state
+without a consumer. Found by adversarial review 2026-07-11 (`internal/memory/SPECS.md` invariant 19).
 
 ---
 

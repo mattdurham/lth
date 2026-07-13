@@ -114,11 +114,13 @@ func runWatchStop(_ *cobra.Command, _ []string) error {
 
 // configReloadLoop polls path every interval. When the file's mtime changes, it
 // attempts to re-load via config.ReloadInPlace. On a successful parse, hot fields
-// (Compaction tuning, Search weights, Sync credentials, Markdown/Issues lists) are
-// picked up by the running daemon on the next per-tick read. Fields that were
-// captured at startup (DB path, embedder/LLM construction, fsnotify watch paths,
-// ticker intervals) are logged but not applied — the daemon must be restarted to
-// pick them up.
+// (see internal/config/reload.go's package-private hotFields map for the full,
+// authoritative list -- it now includes most per-tick watcher settings: intervals,
+// enabled flags, GitHub repo lists, and fsnotify watch paths, not just
+// Compaction/Search/Sync/Markdown.Dirs/Issues.Repos) are picked up by the running
+// daemon on the next per-tick read. Fields captured
+// only at startup (DB path, embedder/LLM construction) are logged but not
+// applied — the daemon must be restarted to pick them up.
 //
 // A broken edit never kills the daemon: if the file fails to parse, the old
 // config remains in place and the failure is logged at warn level.

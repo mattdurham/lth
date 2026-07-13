@@ -23,7 +23,7 @@ type SnapshotInfo struct {
 
 // ListSnapshots returns the snapshots in dir, oldest first.
 func ListSnapshots(dir string) ([]SnapshotInfo, error) {
-	matches, err := filepath.Glob(filepath.Join(dir, "memory-*.db.gz"))
+	matches, err := filepath.Glob(filepath.Join(dir, snapshotGlobPattern))
 	if err != nil {
 		return nil, fmt.Errorf("glob snapshots: %w", err)
 	}
@@ -48,7 +48,7 @@ func ListSnapshots(dir string) ([]SnapshotInfo, error) {
 
 // parseSnapshotTime extracts the timestamp from a "memory-<ts>.db.gz" filename.
 func parseSnapshotTime(name string) (time.Time, error) {
-	trimmed := strings.TrimSuffix(strings.TrimPrefix(name, "memory-"), ".db.gz")
+	trimmed := strings.TrimSuffix(strings.TrimPrefix(name, snapshotFilePrefix), snapshotFileSuffix)
 	return time.Parse(snapshotTimeFormat, trimmed)
 }
 

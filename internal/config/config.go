@@ -11,6 +11,19 @@ const (
 	EmbeddingImage = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
 )
 
+// Default values for PRConfig and BackupConfig fields, exported so watchers'
+// own zero-value fallback logic (e.g. prwatcher.Run, backupwatcher.Run,
+// invoked when a field is left at its zero value rather than going through
+// Load/applyDefaults) references the same constants Default() uses, instead
+// of an independent copy of the same number that can silently drift.
+const (
+	DefaultPRIntervalS     = 21600 // 6h -- PR history changes slowly
+	DefaultPRLayer         = 5
+	DefaultPRMaxPerScan    = 10
+	DefaultBackupIntervalH = 24
+	DefaultBackupKeep      = 7
+)
+
 // LLMBackend describes one LLM endpoint -- either the primary or a fallback.
 // Fields mirror the primary LLM block so chains compose cleanly.
 type LLMBackend struct {
@@ -106,13 +119,12 @@ type GWSConfig struct {
 // "<org>/<name>" slug, used for `gh` lookups, as the clone URL, and as the
 // project attribute on stored memories. Path, if set, points at an existing
 // local git checkout to use as-is (only fast-forward-pulled, never cloned or
-// reset). If empty, lth clones/updates the repo itself into
-// Markdown.GitHub.CacheDir (the same `~/.lth/repos-cache/<org>/<name>/`
-// directory the markdown watcher's GitHub-repos feature uses), always as a
-// full (non-shallow) clone regardless of any depth the markdown watcher may
-// have used for it, so history mining always sees the whole repo. Dir, if
-// set, scopes the git log walk to a subdirectory (e.g.
-// "ksonnet/environments/tempo"); empty means the whole repo.
+// reset). If empty, lth clones/updates the repo itself into PR.CacheDir,
+// always as a full (non-shallow) clone, so history mining always sees the
+// whole repo. This is a dedicated directory, deliberately separate from
+// Markdown.GitHub.CacheDir -- see PRConfig.CacheDir. Dir, if set, scopes the
+// git log walk to a subdirectory (e.g. "ksonnet/environments/tempo"); empty
+// means the whole repo.
 type PRSource struct {
 	Repo string `yaml:"repo"`
 	Path string `yaml:"path"`
@@ -127,6 +139,16 @@ type PRSource struct {
 // freshly created.
 type PRConfig struct {
 	Sources []PRSource `yaml:"sources"`
+	// CacheDir is where auto-cloned PRSources (Path unset) are stored;
+	// default ~/.lth/pr-repos-cache. Deliberately its own directory, not
+	// shared with Markdown.GitHub.CacheDir: both mdwatcher and prwatcher run
+	// `git reset --hard`/checkout against their cache dirs, and one
+	// resetting mid-scan of the other can make files transiently
+	// disappear to a concurrent filepath.WalkDir, which mdwatcher
+	// misinterprets as permanent deletion and soft-deletes derived
+	// memories. A repo configured under both features is simply cloned
+	// twice, into two independent directories.
+	CacheDir string `yaml:"cache_dir"`
 	// IntervalS is the poll cadence; default 21600 (6h) -- PR history changes slowly.
 	IntervalS int `yaml:"interval_s"`
 	// Layer is the memory layer summaries are stored at; default 5.
