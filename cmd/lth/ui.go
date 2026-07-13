@@ -40,6 +40,9 @@ func startUIServer(ctx context.Context, s memSearcher, client *lth.Client, port 
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
 		handleUISearch(w, r, s)
 	})
+	mux.HandleFunc("/projects", func(w http.ResponseWriter, r *http.Request) {
+		handleUIProjects(w, r, client)
+	})
 	mux.HandleFunc("/chat", func(w http.ResponseWriter, r *http.Request) {
 		if client == nil {
 			http.Error(w, "chat unavailable in daemon mode", http.StatusServiceUnavailable)
@@ -71,6 +74,18 @@ func runUI(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("lth UI running at http://localhost:%d\n", uiPort)
 	startUIServer(cmd.Context(), client, client, uiPort)
 	return nil
+}
+
+// handleUIProjects returns the distinct "project" attribute values known to
+// the store, for populating the web UI's project dropdown.
+func handleUIProjects(w http.ResponseWriter, r *http.Request, client *lth.Client) {
+	projects, err := client.DistinctAttrValues(r.Context(), "project")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(projects)
 }
 
 func handleUISearch(w http.ResponseWriter, r *http.Request, client memSearcher) {
@@ -105,6 +120,14 @@ func handleUISearch(w http.ResponseWriter, r *http.Request, client memSearcher) 
 		Expand: expand,
 	}
 
+	// project boosts (doesn't hard-filter) matching memories via the same
+	// FilterAttrs mechanism as `lth prompt --attr project=X` -- everything
+	// else still shows, just ranked lower. See root SPECS.md's FilterAttrs
+	// semantics; a real hard filter would need server-side changes.
+	if project := r.URL.Query().Get("project"); project != "" {
+		req.FilterAttrs = map[string]string{"project": project}
+	}
+
 	results, err := client.Search(context.Background(), req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -121,6 +144,7 @@ func handleUISearch(w http.ResponseWriter, r *http.Request, client memSearcher) 
 		Importance float32 `json:"importance_score"`
 		Valence    float32 `json:"valence"`
 		Source     string  `json:"source"`
+		Project    string  `json:"project"`
 	}
 
 	items := make([]resultItem, 0, len(results))
@@ -135,6 +159,7 @@ func handleUISearch(w http.ResponseWriter, r *http.Request, client memSearcher) 
 			Importance: r.ImportanceScore,
 			Valence:    r.Valence,
 			Source:     r.Source,
+			Project:    r.Attrs["project"],
 		})
 	}
 
@@ -186,6 +211,13 @@ const uiHTML = `<!DOCTYPE html>
       <input id="topk" type="number" value="20" min="1" max="100"
         class="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-100 focus:outline-none focus:border-indigo-500">
     </div>
+    <div class="flex items-center gap-2">
+      <span class="text-gray-400">Project:</span>
+      <select id="project" title="Boosts matching results; other projects still appear."
+        class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-100 focus:outline-none focus:border-indigo-500">
+        <option value="">All</option>
+      </select>
+    </div>
     <label class="flex items-center gap-2">
       <input type="checkbox" id="expand"> <span class="text-gray-400">Graph expand</span>
     </label>
@@ -206,12 +238,14 @@ async function search() {
   const layers = [...document.querySelectorAll('.layer:checked')].map(e => e.value).join(',');
   const topk = document.getElementById('topk').value;
   const expand = document.getElementById('expand').checked ? '1' : '0';
+  const project = document.getElementById('project').value;
 
   document.getElementById('status').textContent = 'searching...';
   document.getElementById('results').innerHTML = '';
 
   const params = new URLSearchParams({q, top: topk, expand});
   if (layers) params.set('layers', layers);
+  if (project) params.set('project', project);
 
   try {
     const res = await fetch('/search?' + params);
@@ -227,12 +261,14 @@ async function search() {
       const vec = (r.vector_score * 100).toFixed(1);
       const content = r.content.length > 400 ? r.content.slice(0, 400) + '…' : r.content;
       const source = r.source ? '<span class="text-gray-500">' + esc(r.source) + '</span>' : '';
+      const project = r.project ? '<span class="text-gray-500">[' + esc(r.project) + ']</span>' : '';
       return ` + "`" + `
         <div class="bg-gray-900 border border-gray-800 rounded-lg p-4 hover:border-gray-600 transition-colors">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-3">
               <span class="${lc} text-xs font-semibold uppercase">${ln}</span>
               ${source}
+              ${project}
             </div>
             <div class="flex gap-3 text-xs text-gray-500">
               <span title="composite score">⭐ ${score}%</span>
@@ -253,6 +289,23 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+async function loadProjects() {
+  try {
+    const res = await fetch('/projects');
+    const projects = await res.json();
+    const select = document.getElementById('project');
+    for (const p of projects) {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      select.appendChild(opt);
+    }
+  } catch (e) {
+    // Non-fatal: dropdown just stays at "All".
+  }
+}
+
+loadProjects();
 document.getElementById('q').focus();
 </script>
 </body>

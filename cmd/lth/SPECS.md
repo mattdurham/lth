@@ -24,9 +24,16 @@
 The `lth ui` command starts a standalone HTTP server on port 8765. It exposes:
 
 - `GET /` — Memory search page (HTML)
-- `GET /search` — Memory search JSON API (query params: q, top, layers, expand)
+- `GET /search` — Memory search JSON API (query params: q, top, layers, expand, project)
+- `GET /projects` — JSON array of distinct `project` attribute values, for the search page's project dropdown
 - `GET /chat` — Multi-turn chat page (HTML)
 - `POST /chat` — Chat API (JSON request/response, see below)
+
+`project` on `/search` sets `SearchRequest.FilterAttrs = {"project": <value>}`, which BOOSTS
+(1.5x score) memories whose `project` attribute matches -- it does not hard-filter out other
+projects, matching `lth prompt --attr project=X`'s existing semantics. Each `/search` result
+includes a `project` field (from `Memory.Attrs["project"]`, empty string if unset) so the page
+can display it.
 
 ### POST /chat request
 
