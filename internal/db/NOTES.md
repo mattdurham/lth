@@ -140,3 +140,28 @@ previously generated a UUID for new edges (compactor, autolink, traces receiver)
 no longer does so. The JSONL `exportEdge` struct also dropped its `id` field; old
 exports still import cleanly because `json.Unmarshal` silently ignores unknown
 fields by default.
+
+---
+
+## Chunk GetAttributesBatch to Stay Under SQLite's Bound-Parameter Limit
+
+*Added: 2026-07-20*
+
+**Decision:** `GetAttributesBatch` internally splits `ids` into chunks of at most
+`attributesBatchMaxIDs` (900) and issues one `WHERE mem_id IN (...)` query per chunk,
+merging results -- instead of building one query with a placeholder per ID.
+
+**Rationale:** Both callers (`cmd/lth/sync.go`'s `exportDBFiltered`, used by `lth sync push`
+and the daemon's auto-sync loop, and `cmd/lth/export.go`'s `lth export`) pass every ID in an
+entire layer in one call. This worked fine while layers were small, but once L4 grew past
+SQLite's bound-parameter limit, every single `IN (...)` query failed with `"too many SQL
+variables"` -- silently breaking auto-sync for 4 days straight (289+ consecutive failures,
+zero successes) before being noticed. `lth export` has the identical latent bug; it just
+hadn't been exercised at this scale yet. Fixing it inside `GetAttributesBatch` itself (rather
+than making each of the two -- and any future -- call sites separately responsible for
+chunking their input) closes the bug at the one place it can recur.
+
+**Consequence:** A very large ID list now costs more (still cheap, indexed) queries instead of
+one query that fails outright. `attributesBatchMaxIDs` (900) is chosen to stay safely under
+both the modern default (32766) and the pre-3.32.0 SQLite default (999), without needing to
+detect which build `modernc.org/sqlite` vendors.

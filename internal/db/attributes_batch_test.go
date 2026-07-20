@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -140,6 +141,56 @@ func TestGetAttributesBatch_MissingID(t *testing.T) {
 	}
 	if len(missing) != 0 {
 		t.Errorf("does-not-exist attrs should be empty, got %v", missing)
+	}
+}
+
+// TestGetAttributesBatch_ExceedsMaxIDsChunksCorrectly regression-tests a real
+// production incident: exportDBFiltered (used by both `lth sync push` and
+// `lth export`) calls GetAttributesBatch with every ID in a layer in one
+// slice. Once a layer grew past SQLite's bound-parameter limit, the
+// unchunked "IN (...)" query failed every single call with "too many SQL
+// variables" -- silently breaking sync/export entirely for large layers.
+// This inserts more rows than attributesBatchMaxIDs to prove the chunking
+// loop still returns correct, complete results (not just "doesn't error").
+func TestGetAttributesBatch_ExceedsMaxIDsChunksCorrectly(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	n := attributesBatchMaxIDs + 250 // spans three chunks at the boundary
+	ids := make([]string, n)
+	for i := range n {
+		id := fmt.Sprintf("big-batch-%d", i)
+		ids[i] = id
+		row := &MemoryRow{
+			ID:          id,
+			Layer:       3,
+			Content:     "content " + id,
+			ContentHash: "hash-" + id,
+			Importance:  5.0,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		if err := d.InsertMemory(ctx, row); err != nil {
+			t.Fatalf("InsertMemory(%s): %v", id, err)
+		}
+		if err := d.SetAttributes(ctx, id, map[string]string{"idx": fmt.Sprintf("%d", i)}); err != nil {
+			t.Fatalf("SetAttributes(%s): %v", id, err)
+		}
+	}
+
+	result, err := d.GetAttributesBatch(ctx, ids)
+	if err != nil {
+		t.Fatalf("GetAttributesBatch with %d ids (> attributesBatchMaxIDs=%d): %v", n, attributesBatchMaxIDs, err)
+	}
+	if len(result) != n {
+		t.Fatalf("result has %d entries, want %d", len(result), n)
+	}
+	for i, id := range ids {
+		want := fmt.Sprintf("%d", i)
+		if got := result[id]["idx"]; got != want {
+			t.Errorf("result[%s][idx] = %q, want %q", id, got, want)
+		}
 	}
 }
 
