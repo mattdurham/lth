@@ -21,6 +21,7 @@ type webChatRequest struct {
 	Message string               `json:"message"`
 	History []webChatHistoryItem `json:"history"`
 	Store   bool                 `json:"store"`
+	Project string               `json:"project"` // optional; boosts memories via FilterAttrs, same as --attr project=X
 }
 
 // webChatResponse is the JSON body returned from POST /chat.
@@ -32,8 +33,8 @@ type webChatResponse struct {
 // doChatFn is the function used to perform a chat turn.
 // Replaced in tests to avoid live LLM calls. globalLLM() is called inside
 // the default so tests that replace doChatFn never trigger it.
-var doChatFn = func(ctx context.Context, client *lth.Client, question string, history []chatTurn) (string, error) {
-	return doChat(ctx, client, globalLLM(), question, history)
+var doChatFn = func(ctx context.Context, client *lth.Client, question string, history []chatTurn, filterAttrs map[string]string) (string, error) {
+	return doChat(ctx, client, globalLLM(), question, history, filterAttrs)
 }
 
 func handleWebChatPage(w http.ResponseWriter, _ *http.Request) {
@@ -58,8 +59,13 @@ func handleWebChatAPI(w http.ResponseWriter, r *http.Request, client *lth.Client
 		history[i] = chatTurn{user: h.User, assistant: h.Assistant}
 	}
 
+	var filterAttrs map[string]string
+	if req.Project != "" {
+		filterAttrs = map[string]string{"project": req.Project}
+	}
+
 	// chatLayers and chatTopK are read-only after startup — safe for concurrent use.
-	reply, err := doChatFn(r.Context(), client, req.Message, history)
+	reply, err := doChatFn(r.Context(), client, req.Message, history, filterAttrs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -104,9 +110,18 @@ const chatHTML = `<!DOCTYPE html>
   <div class="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
     <a href="/" class="text-gray-400 hover:text-gray-200 text-sm transition-colors">&larr; search</a>
     <span class="text-indigo-400 font-bold">lth chat</span>
-    <label class="flex items-center gap-2 text-sm text-gray-400">
-      <input type="checkbox" id="storeToggle" checked> store as L5
-    </label>
+    <div class="flex items-center gap-4 text-sm text-gray-400">
+      <label class="flex items-center gap-2">
+        Project:
+        <select id="project" title="Boosts matching results; other projects still appear."
+          class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-100 focus:outline-none focus:border-indigo-500">
+          <option value="">All</option>
+        </select>
+      </label>
+      <label class="flex items-center gap-2">
+        <input type="checkbox" id="storeToggle" checked> store as L5
+      </label>
+    </div>
   </div>
   <div id="messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4 max-w-4xl mx-auto w-full"></div>
   <div id="status" class="text-gray-500 text-xs text-center py-1"></div>
@@ -163,6 +178,7 @@ const chatHTML = `<!DOCTYPE html>
       const btn = document.getElementById('sendBtn');
       const status = document.getElementById('status');
       const store = document.getElementById('storeToggle').checked;
+      const project = document.getElementById('project').value;
 
       const msg = input.value.trim();
       if (!msg) return;
@@ -176,7 +192,7 @@ const chatHTML = `<!DOCTYPE html>
         const res = await fetch('/chat', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({message: msg, history: history, store: store}),
+          body: JSON.stringify({message: msg, history: history, store: store, project: project}),
         });
         if (!res.ok) {
           const text = await res.text();
@@ -199,6 +215,23 @@ const chatHTML = `<!DOCTYPE html>
       }
     }
 
+    async function loadProjects() {
+      try {
+        const res = await fetch('/projects');
+        const projects = await res.json();
+        const select = document.getElementById('project');
+        for (const p of projects) {
+          const opt = document.createElement('option');
+          opt.value = p;
+          opt.textContent = p;
+          select.appendChild(opt);
+        }
+      } catch (e) {
+        // Non-fatal: dropdown just stays at "All".
+      }
+    }
+
+    loadProjects();
     document.getElementById('input').focus();
   </script>
 </body>

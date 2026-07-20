@@ -33,7 +33,7 @@ func TestHandleWebChatPage_ServesHTML(t *testing.T) {
 
 func TestHandleWebChatAPI_HappyPath(t *testing.T) {
 	orig := doChatFn
-	doChatFn = func(_ context.Context, _ *lth.Client, question string, history []chatTurn) (string, error) {
+	doChatFn = func(_ context.Context, _ *lth.Client, question string, history []chatTurn, _ map[string]string) (string, error) {
 		return "hello back", nil
 	}
 	t.Cleanup(func() { doChatFn = orig })
@@ -67,7 +67,7 @@ func TestHandleWebChatAPI_HappyPath(t *testing.T) {
 func TestHandleWebChatAPI_WithExistingHistory(t *testing.T) {
 	var capturedHistory []chatTurn
 	orig := doChatFn
-	doChatFn = func(_ context.Context, _ *lth.Client, question string, history []chatTurn) (string, error) {
+	doChatFn = func(_ context.Context, _ *lth.Client, question string, history []chatTurn, _ map[string]string) (string, error) {
 		capturedHistory = history
 		return "answer2", nil
 	}
@@ -102,7 +102,7 @@ func TestHandleWebChatAPI_WithExistingHistory(t *testing.T) {
 func TestHandleWebChatAPI_EmptyMessage(t *testing.T) {
 	called := false
 	orig := doChatFn
-	doChatFn = func(_ context.Context, _ *lth.Client, _ string, _ []chatTurn) (string, error) {
+	doChatFn = func(_ context.Context, _ *lth.Client, _ string, _ []chatTurn, _ map[string]string) (string, error) {
 		called = true
 		return "", nil
 	}
@@ -125,7 +125,7 @@ func TestHandleWebChatAPI_EmptyMessage(t *testing.T) {
 
 func TestHandleWebChatAPI_DoChatError(t *testing.T) {
 	orig := doChatFn
-	doChatFn = func(_ context.Context, _ *lth.Client, _ string, _ []chatTurn) (string, error) {
+	doChatFn = func(_ context.Context, _ *lth.Client, _ string, _ []chatTurn, _ map[string]string) (string, error) {
 		return "", errors.New("llm down")
 	}
 	t.Cleanup(func() { doChatFn = orig })
@@ -142,9 +142,59 @@ func TestHandleWebChatAPI_DoChatError(t *testing.T) {
 	}
 }
 
+func TestHandleWebChatAPI_ProjectSetsFilterAttrs(t *testing.T) {
+	var capturedAttrs map[string]string
+	orig := doChatFn
+	doChatFn = func(_ context.Context, _ *lth.Client, _ string, _ []chatTurn, filterAttrs map[string]string) (string, error) {
+		capturedAttrs = filterAttrs
+		return "answer", nil
+	}
+	t.Cleanup(func() { doChatFn = orig })
+
+	body := `{"message":"hi","history":[],"store":false,"project":"grafana/tempo"}`
+	req := httptest.NewRequest(http.MethodPost, "/chat", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handleWebChatAPI(w, req, nil)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if capturedAttrs["project"] != "grafana/tempo" {
+		t.Errorf("filterAttrs[project] = %q, want %q", capturedAttrs["project"], "grafana/tempo")
+	}
+}
+
+func TestHandleWebChatAPI_NoProjectLeavesFilterAttrsNil(t *testing.T) {
+	var capturedAttrs map[string]string
+	called := false
+	orig := doChatFn
+	doChatFn = func(_ context.Context, _ *lth.Client, _ string, _ []chatTurn, filterAttrs map[string]string) (string, error) {
+		called = true
+		capturedAttrs = filterAttrs
+		return "answer", nil
+	}
+	t.Cleanup(func() { doChatFn = orig })
+
+	body := `{"message":"hi","history":[],"store":false}`
+	req := httptest.NewRequest(http.MethodPost, "/chat", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handleWebChatAPI(w, req, nil)
+
+	if !called {
+		t.Fatal("doChatFn was not called")
+	}
+	if capturedAttrs != nil {
+		t.Errorf("filterAttrs = %v, want nil when no project given", capturedAttrs)
+	}
+}
+
 func TestHandleWebChatAPI_BadJSON(t *testing.T) {
 	orig := doChatFn
-	doChatFn = func(_ context.Context, _ *lth.Client, _ string, _ []chatTurn) (string, error) {
+	doChatFn = func(_ context.Context, _ *lth.Client, _ string, _ []chatTurn, _ map[string]string) (string, error) {
 		return "", nil
 	}
 	t.Cleanup(func() { doChatFn = orig })

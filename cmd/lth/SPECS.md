@@ -41,7 +41,8 @@ can display it.
 {
   "message": "string — required, the user's current message",
   "history": [{"user": "string", "assistant": "string"}, ...],
-  "store":   true
+  "store":   true,
+  "project": "string — optional, same FilterAttrs boost semantics as /search's project param and `lth chat --attr project=X`"
 }
 ```
 

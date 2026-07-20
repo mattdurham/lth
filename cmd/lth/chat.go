@@ -72,7 +72,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 
 	// One-shot mode
 	if len(args) > 0 {
-		answer, err := doChat(ctx, client, l, strings.Join(args, " "), nil)
+		answer, err := doChat(ctx, client, l, strings.Join(args, " "), nil, parseAttrs(chatFilterAttrs))
 		if err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 			break
 		}
 
-		answer, err := doChat(ctx, client, l, q, history)
+		answer, err := doChat(ctx, client, l, q, history, parseAttrs(chatFilterAttrs))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			fmt.Fprint(os.Stderr, "> ")
@@ -166,14 +166,14 @@ var chatTools = []llm.Tool{
 	},
 }
 
-func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string, history []chatTurn) (string, error) {
+func doChat(ctx context.Context, client *lth.Client, l llm.LLM, question string, history []chatTurn, filterAttrs map[string]string) (string, error) {
 	// Seed with initial search results
 	results, err := client.Search(ctx, &lth.SearchRequest{
 		Query:       question,
 		Layers:      chatLayers,
 		TopK:        chatTopK,
 		Expand:      true,
-		FilterAttrs: parseAttrs(chatFilterAttrs),
+		FilterAttrs: filterAttrs,
 	})
 	if err != nil {
 		return "", fmt.Errorf("search: %w", err)
