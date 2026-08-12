@@ -352,6 +352,26 @@ func (d *DB) UpdateValence(ctx context.Context, id string, valence float32) erro
 	return nil
 }
 
+// IncrementValenceAttempts records a failed valence-scoring attempt for id. Once the
+// running count reaches maxAttempts, it also sets valence_scored=1 (giving up with the
+// default valence 0.0) so a memory the LLM can never rate is not retried every batch
+// forever. Returns the attempt count after this call.
+func (d *DB) IncrementValenceAttempts(ctx context.Context, id string, maxAttempts int) (int, error) {
+	_, err := d.db.ExecContext(ctx, `
+UPDATE memories
+SET valence_attempts = valence_attempts + 1,
+    valence_scored = CASE WHEN valence_attempts + 1 >= ? THEN 1 ELSE valence_scored END
+WHERE id = ?`, maxAttempts, id)
+	if err != nil {
+		return 0, fmt.Errorf("increment valence attempts: %w", err)
+	}
+	var attempts int
+	if err := d.db.QueryRowContext(ctx, `SELECT valence_attempts FROM memories WHERE id = ?`, id).Scan(&attempts); err != nil {
+		return 0, fmt.Errorf("read valence attempts: %w", err)
+	}
+	return attempts, nil
+}
+
 // ListUnscored returns up to limit memories where valence_scored=false and compacted_at IS NULL.
 // Used by the backfill goroutine in the daemon.
 func (d *DB) ListUnscored(ctx context.Context, limit int) ([]*MemoryRow, error) {

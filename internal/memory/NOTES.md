@@ -90,3 +90,15 @@ from already-tagged memories support tag filtering immediately.
 **Rationale:** Memories stored before this feature existed have `valence_scored=0`. Rather than a one-time migration (which could block startup), lazy backfilling via a low-priority goroutine processes them incrementally without impacting user-facing operations.
 
 **Consequence:** On large databases, full backfill may take minutes. During this window, search scores for old memories will lack valence contribution (0.0 contribution = neutral, no bias). `slog.Info` logs progress for observability.
+
+---
+
+## 7. Valence Backfill Give-Up After Repeated Parse Failures
+
+*Added: 2026-08-05*
+
+**Decision:** Add a `valence_attempts` counter column. On each valence LLM response that fails to parse, call `db.IncrementValenceAttempts`, which increments the counter and, once it reaches `maxValenceAttempts` (3), also sets `valence_scored=1` — giving up with the default neutral valence (0.0).
+
+**Rationale:** Some memories' content is a bare reference/identifier with no descriptive text (e.g. "SPEC-VI-18 through SPEC-VI-22"), so the LLM correctly and consistently refuses to rate an outcome. Before this change, `ListUnscored` (ordered oldest-first) kept resurfacing these same rows every poll interval forever, since a parse error never set `valence_scored`. This burned an LLM call per retry indefinitely for memories that could never succeed — the same failure mode `BackfillEmbeddings` already handles for oversized payloads (invariant 21) via soft-delete.
+
+**Consequence:** A memory that fails to parse 3 times ends up with `valence=0.0, valence_scored=1` — indistinguishable from a memory the LLM genuinely rated as neutral. This is an acceptable trade-off since these are already edge-case, low-signal memories. LLM *transport* errors (timeouts, rate limits) do not count toward `valence_attempts` — only parse failures, since those are the ones that reproduce deterministically against the same content.

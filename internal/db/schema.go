@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS memories (
 	agent            TEXT    NOT NULL DEFAULT '',
 	compacted_at     DATETIME,
 	valence          REAL    NOT NULL DEFAULT 0.0 CHECK(valence >= -1.0 AND valence <= 1.0),
-	valence_scored   BOOLEAN NOT NULL DEFAULT 0
+	valence_scored   BOOLEAN NOT NULL DEFAULT 0,
+	valence_attempts INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_memories_layer       ON memories(layer);
@@ -173,6 +174,10 @@ func (d *DB) migrateSchema() error {
 			// is lost. Reclaim disk space via `lth maint vacuum` after migration.
 			sql:  `UPDATE memories SET embedding = NULL WHERE embedding IS NOT NULL AND rowid IN (SELECT rowid FROM memories_vec)`,
 			name: "null out memories.embedding for vec0-present rows",
+		},
+		{
+			sql:  `ALTER TABLE memories ADD COLUMN valence_attempts INTEGER NOT NULL DEFAULT 0`,
+			name: "valence_attempts column",
 		},
 	}
 	for _, m := range migrations {

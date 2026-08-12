@@ -401,3 +401,58 @@ func TestListUnscored(t *testing.T) {
 		}
 	}
 }
+
+func TestIncrementValenceAttemptsGivesUpAtMax(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	row := &MemoryRow{
+		ID:          "unscorable-001",
+		Layer:       5,
+		Content:     "SPEC-VI-18",
+		ContentHash: "unscorablehash001",
+		Importance:  5.0,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := d.InsertMemory(ctx, row); err != nil {
+		t.Fatalf("InsertMemory: %v", err)
+	}
+
+	const maxAttempts = 3
+	for i := 1; i <= maxAttempts; i++ {
+		attempts, err := d.IncrementValenceAttempts(ctx, row.ID, maxAttempts)
+		if err != nil {
+			t.Fatalf("IncrementValenceAttempts[%d]: %v", i, err)
+		}
+		if attempts != i {
+			t.Errorf("IncrementValenceAttempts[%d] = %d, want %d", i, attempts, i)
+		}
+
+		unscored, err := d.ListUnscored(ctx, 10)
+		if err != nil {
+			t.Fatalf("ListUnscored: %v", err)
+		}
+		stillUnscored := false
+		for _, r := range unscored {
+			if r.ID == row.ID {
+				stillUnscored = true
+			}
+		}
+		if i < maxAttempts && !stillUnscored {
+			t.Errorf("after %d attempts, %q should still be unscored", i, row.ID)
+		}
+		if i >= maxAttempts && stillUnscored {
+			t.Errorf("after %d attempts (max=%d), %q should have been given up on", i, maxAttempts, row.ID)
+		}
+	}
+
+	got, err := d.GetMemory(ctx, row.ID)
+	if err != nil {
+		t.Fatalf("GetMemory: %v", err)
+	}
+	if got.Valence != 0.0 {
+		t.Errorf("gave-up memory Valence = %f, want 0.0 (neutral default)", got.Valence)
+	}
+}

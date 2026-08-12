@@ -13,6 +13,10 @@ import (
 	"github.com/mattdurham/lth/internal/vector"
 )
 
+// maxValenceAttempts caps how many times BackfillValence retries a memory whose LLM
+// response fails to parse before giving up on it permanently (see IncrementValenceAttempts).
+const maxValenceAttempts = 3
+
 // BackfillValence finds memories where valence_scored=false and scores them via LLM.
 // It runs as a background goroutine in the daemon, processing in batches to avoid rate limits.
 // Stops when ctx is canceled.
@@ -52,7 +56,14 @@ func BackfillValence(ctx context.Context, d *db.DB, llmClient llm.LLM, batchSize
 			}
 			v, err := parseValence(resp)
 			if err != nil {
-				slog.Warn("backfill valence: parse error", "id", row.ID, "resp", resp, "err", err)
+				attempts, aerr := d.IncrementValenceAttempts(context.Background(), row.ID, maxValenceAttempts)
+				if aerr != nil {
+					slog.Warn("backfill valence: attempt-tracking failed", "id", row.ID, "err", aerr)
+				} else if attempts >= maxValenceAttempts {
+					slog.Warn("backfill valence: giving up after repeated parse failures, defaulting to neutral", "id", row.ID, "attempts", attempts)
+				} else {
+					slog.Warn("backfill valence: parse error", "id", row.ID, "attempt", attempts, "resp", resp, "err", err)
+				}
 				continue
 			}
 			if err := d.UpdateValence(context.Background(), row.ID, v); err != nil {
