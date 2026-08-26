@@ -46,6 +46,8 @@ GOBIN ?= $(HOME)/bin
 SKILL_DIR ?= $(HOME)/.claude/skills/lth-amnesia
 SKILLS_DIR ?= $(HOME)/.claude/skills
 WLLR_SKILLS_DIR ?= $(HOME)/.wllr/skills
+CODEX_SKILLS_DIR ?= $(HOME)/.codex/skills
+CODEX_NORMALIZE = awk -f scripts/codex-normalize-skill.awk -v name=
 
 ## install: Install lth CLI to ~/bin, all lth skills, and the daemon service
 install: install-cli install-skills install-daemon
@@ -53,6 +55,8 @@ install: install-cli install-skills install-daemon
 	@echo "lth installed successfully."
 	@echo "  CLI:    $(GOBIN)/lth"
 	@echo "  Skills: $(SKILLS_DIR)/"
+	@if [ -d $(dir $(WLLR_SKILLS_DIR)) ]; then echo "          $(WLLR_SKILLS_DIR)/"; fi
+	@if [ -d $(dir $(CODEX_SKILLS_DIR)) ]; then echo "          $(CODEX_SKILLS_DIR)/ (Codex-normalized)"; fi
 	@echo ""
 	@echo "Next steps:"
 	@echo "  1. Set ANTHROPIC_API_KEY in your shell profile"
@@ -67,19 +71,31 @@ install-cli:
 	go build -o $(GOBIN)/lth ./cmd/lth
 	@echo "✓ lth installed to $(GOBIN)/lth"
 
-## install-skills: Install all lth skills to ~/.claude/skills/ (and ~/.wllr/skills/ if present)
+## install-skills: Install all lth skills to every runtime present (~/.claude, ~/.wllr, ~/.codex)
 install-skills:
-	@for skill in skills/*/; do \
+	@installed=""; \
+	for skill in skills/*/; do \
 		name=$$(basename $$skill); \
+		[ "$$name" = "_codex" ] && continue; \
 		mkdir -p $(SKILLS_DIR)/$$name; \
 		cp $$skill/SKILL.md $(SKILLS_DIR)/$$name/SKILL.md; \
-		echo "✓ $$name installed to $(SKILLS_DIR)/$$name/SKILL.md"; \
-		if [ -d $(WLLR_SKILLS_DIR) ]; then \
+		if [ -d $(dir $(WLLR_SKILLS_DIR)) ]; then \
 			mkdir -p $(WLLR_SKILLS_DIR)/$$name; \
 			cp $$skill/SKILL.md $(WLLR_SKILLS_DIR)/$$name/SKILL.md; \
-			echo "✓ $$name installed to $(WLLR_SKILLS_DIR)/$$name/SKILL.md"; \
-		fi \
-	done
+		fi; \
+		if [ -d $(dir $(CODEX_SKILLS_DIR)) ]; then \
+			mkdir -p $(CODEX_SKILLS_DIR)/$$name/references; \
+			cp skills/_codex/codex-runtime.md $(CODEX_SKILLS_DIR)/$$name/references/codex-runtime.md; \
+			$(CODEX_NORMALIZE)$$name $$skill/SKILL.md > $(CODEX_SKILLS_DIR)/$$name/SKILL.md; \
+		fi; \
+		installed="$$installed $$name"; \
+	done; \
+	count=$$(echo $$installed | wc -w); \
+	echo "✓ $$count skills installed to $(SKILLS_DIR)/"; \
+	if [ -d $(dir $(WLLR_SKILLS_DIR)) ]; then echo "✓ $$count skills installed to $(WLLR_SKILLS_DIR)/"; \
+	else echo "- skipped $(WLLR_SKILLS_DIR)/ (not present)"; fi; \
+	if [ -d $(dir $(CODEX_SKILLS_DIR)) ]; then echo "✓ $$count skills installed to $(CODEX_SKILLS_DIR)/ (Codex-normalized)"; \
+	else echo "- skipped $(CODEX_SKILLS_DIR)/ (not present)"; fi
 
 ## install-daemon: Install systemd user service for lth daemon and (re)start it
 install-daemon:
